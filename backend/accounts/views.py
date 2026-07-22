@@ -11,6 +11,7 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 from common.models import ActivityLog
 from common.services import record_activity
 
+from .models import User
 from .serializers import LoginSerializer, UserPreferencesSerializer, UserSerializer
 
 
@@ -23,8 +24,10 @@ class LoginView(TokenObtainPairView):
         response = super().post(request, *args, **kwargs)
         if response.status_code == status.HTTP_200_OK:
             user = response.data.get("user", {})
+            # Attribute the row to the user who just authenticated (request.user is anonymous here).
+            actor = User.objects.filter(pk=user.get("id")).first()
             record_activity(
-                actor=None,
+                actor=actor,
                 action=ActivityLog.Action.LOGIN,
                 entity_type="User",
                 entity_id=user.get("id", ""),

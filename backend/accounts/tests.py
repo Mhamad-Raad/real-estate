@@ -26,15 +26,16 @@ class AuthFlowTests(APITestCase):
         self.assertIn("refresh", resp.data)
         self.assertEqual(resp.data["user"]["role"], "lawyer")
 
-    def test_login_writes_audit_row(self):
+    def test_login_writes_audit_row_attributed_to_user(self):
         self.client.post(
             reverse("login"),
             {"username": "lawyer1", "password": "pw12345678"},
             format="json",
         )
-        self.assertTrue(
-            ActivityLog.objects.filter(action=ActivityLog.Action.LOGIN).exists()
-        )
+        row = ActivityLog.objects.filter(action=ActivityLog.Action.LOGIN).first()
+        self.assertIsNotNone(row)
+        self.assertEqual(row.actor_id, self.user.id)
+        self.assertEqual(row.entity_id, str(self.user.id))
 
     def test_bad_credentials_rejected(self):
         resp = self.client.post(
