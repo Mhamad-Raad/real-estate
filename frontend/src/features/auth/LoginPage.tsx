@@ -13,10 +13,9 @@ import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
 import { useLoginMutation } from "./authApi";
 import { setCredentials } from "./authSlice";
-import { setTheme } from "@/features/ui/uiSlice";
 
 export function LoginPage() {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
   const isAuthed = useAppSelector((s) => Boolean(s.auth.access));
@@ -34,9 +33,6 @@ export function LoginPage() {
     try {
       const data = await login({ username, password }).unwrap();
       dispatch(setCredentials(data));
-      // Adopt the user's saved UI preferences immediately on sign-in.
-      dispatch(setTheme(data.user.theme));
-      if (data.user.language !== i18n.language) i18n.changeLanguage(data.user.language);
       navigate("/", { replace: true });
     } catch (err) {
       const status = (err as { status?: number }).status;

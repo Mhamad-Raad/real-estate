@@ -1,7 +1,6 @@
 import { Languages } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
-import { useAppSelector } from "@/app/hooks";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -11,19 +10,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useUpdatePreferencesMutation } from "@/features/auth/authApi";
-import type { Language } from "@/features/auth/types";
-import { SUPPORTED_LANGUAGES } from "@/i18n";
+import { SUPPORTED_LANGUAGES, type Language } from "@/i18n";
 
 export function LanguageSwitcher() {
   const { t, i18n } = useTranslation();
-  const isAuthed = useAppSelector((s) => Boolean(s.auth.access));
-  const [updatePreferences] = useUpdatePreferencesMutation();
 
-  const onSelect = (lang: Language) => {
-    i18n.changeLanguage(lang); // also flips <html dir/lang> via the i18n listener
-    if (isAuthed) updatePreferences({ language: lang });
-  };
+  // Language lives only in the browser (the i18n listener persists it to localStorage).
+  const onSelect = (lang: Language) => i18n.changeLanguage(lang);
 
   return (
     <DropdownMenu>

@@ -12,19 +12,10 @@ export const authApi = baseApi.injectEndpoints({
       query: () => "auth/me/",
       providesTags: ["User"],
     }),
-    updatePreferences: builder.mutation<User, Partial<Pick<User, "language" | "theme">>>({
-      query: (body) => ({ url: "auth/me/", method: "PATCH", body }),
-      invalidatesTags: ["User"],
-    }),
     logout: builder.mutation<void, { refresh: string }>({
       query: (body) => ({ url: "auth/logout/", method: "POST", body }),
     }),
   }),
 });
 
-export const {
-  useLoginMutation,
-  useMeQuery,
-  useUpdatePreferencesMutation,
-  useLogoutMutation,
-} = authApi;
+export const { useLoginMutation, useMeQuery, useLogoutMutation } = authApi;

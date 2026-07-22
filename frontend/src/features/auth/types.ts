@@ -1,6 +1,4 @@
 export type Role = "admin" | "lawyer";
-export type Language = "ckb" | "ar" | "en";
-export type Theme = "light" | "dark";
 
 export interface User {
   id: number;
@@ -9,8 +7,6 @@ export interface User {
   last_name: string;
   email: string;
   role: Role;
-  language: Language;
-  theme: Theme;
   is_admin: boolean;
 }
 
