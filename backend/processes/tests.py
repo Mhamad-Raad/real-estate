@@ -1,0 +1,133 @@
+"""The "no land twice" guarantee + override/audit invariants (§3.7, §5.7, §11).
+
+The critical risk this iteration retires: two office computers cannot both create an active
+allocation for the same client, even racing. That's enforced by the DB partial-unique index
+`ix_process_active_alloc`, exercised below with a real two-connection concurrent insert.
+"""
+
+import threading
+
+from django.db import IntegrityError, connections, transaction
+from django.test import TestCase, TransactionTestCase
+
+from accounts.models import User
+from clients.models import Client
+from common.models import ActivityLog
+
+from .models import DuplicateOverride, Process, ProcessStep
+from .services import create_process, override_duplicate
+
+
+def _make_client(pid="111"):
+    return Client.objects.create(full_name="Beneficiary", pid=pid, mother_full_name="Mother")
+
+
+class NoLandTwiceTests(TestCase):
+    def setUp(self):
+        self.lawyer = User.objects.create_user(username="lw1", password="pw12345678")
+        self.client_row = _make_client()
+
+    def _new_process(self, **kwargs):
+        return create_process(
+            client=self.client_row, assigned_lawyer=self.lawyer, actor=self.lawyer, **kwargs
+        )
+
+    def test_second_active_allocation_blocked(self):
+        self._new_process()
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                Process.objects.create(client=self.client_row, assigned_lawyer=self.lawyer)
+
+    def test_rejected_allocation_does_not_block_a_new_one(self):
+        first = self._new_process()
+        first.overall_status = Process.OverallStatus.REJECTED
+        first.save(update_fields=["overall_status"])
+        # A rejected case frees the slot — a fresh allocation is allowed.
+        second = self._new_process()
+        self.assertNotEqual(first.id, second.id)
+
+    def test_soft_deleted_allocation_does_not_block(self):
+        first = self._new_process()
+        first.is_deleted = True
+        first.save(update_fields=["is_deleted"])
+        second = self._new_process()
+        self.assertNotEqual(first.id, second.id)
+
+    def test_different_clients_each_get_an_allocation(self):
+        self._new_process()
+        other = _make_client(pid="222")
+        p = create_process(client=other, assigned_lawyer=self.lawyer, actor=self.lawyer)
+        self.assertEqual(p.client_id, other.id)
+
+    def test_create_process_makes_five_steps_and_audits(self):
+        process = self._new_process()
+        self.assertEqual(
+            sorted(ProcessStep.objects.filter(process=process).values_list("step_number", flat=True)),
+            [1, 2, 3, 4, 5],
+        )
+        self.assertTrue(
+            ActivityLog.objects.filter(
+                action=ActivityLog.Action.CREATE, entity_type="Process", entity_id=str(process.id)
+            ).exists()
+        )
+
+
+class DuplicateOverrideTests(TestCase):
+    def test_admin_override_clears_flag_and_logs(self):
+        admin = User.objects.create_user(username="ad", password="pw12345678", role=User.Role.ADMIN)
+        client_row = _make_client(pid="333")
+        process = create_process(
+            client=client_row, assigned_lawyer=admin, actor=admin, duplicate_flagged=True
+        )
+        override = override_duplicate(
+            process=process,
+            admin=admin,
+            match_reason=DuplicateOverride.MatchReason.MOTHER_NAME,
+            reason="Sibling — different PID, legitimately eligible.",
+        )
+        process.refresh_from_db()
+        self.assertFalse(process.duplicate_flagged)
+        self.assertEqual(process.version, 2)  # optimistic-lock counter bumped
+        self.assertEqual(override.overridden_by_id, admin.id)
+        self.assertTrue(
+            ActivityLog.objects.filter(
+                action=ActivityLog.Action.OVERRIDE, entity_id=str(process.id)
+            ).exists()
+        )
+
+
+class NoLandTwiceConcurrencyTests(TransactionTestCase):
+    """Two connections race to allocate the same client — the DB index must let exactly one win."""
+
+    reset_sequences = True
+
+    def test_concurrent_second_allocation_is_blocked_by_the_db(self):
+        lawyer = User.objects.create_user(username="race", password="pw12345678")
+        client_row = _make_client(pid="race-1")
+        barrier = threading.Barrier(2)
+        results = []
+
+        def worker():
+            barrier.wait()  # release both threads at the same instant
+            try:
+                with transaction.atomic():
+                    p = Process.objects.create(client=client_row, assigned_lawyer=lawyer)
+                    ProcessStep.objects.bulk_create(
+                        [ProcessStep(process=p, step_number=n) for n in range(1, 6)]
+                    )
+                results.append("ok")
+            except IntegrityError:
+                results.append("blocked")
+            finally:
+                connections.close_all()
+
+        threads = [threading.Thread(target=worker) for _ in range(2)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        self.assertEqual(sorted(results), ["blocked", "ok"])
+        self.assertEqual(
+            Process.objects.filter(client=client_row, is_deleted=False).count(), 1
+        )

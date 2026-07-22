@@ -29,6 +29,8 @@ class SoftDeleteModel(TimeStampedModel):
         on_delete=models.PROTECT,
         related_name="+",
     )
+    # Optimistic-lock counter — the service layer bumps it on each write; a stale PATCH → HTTP 409.
+    version = models.PositiveIntegerField(default=1)
 
     objects = ActiveManager()  # hides is_deleted=True
     all_objects = models.Manager()  # includes soft-deleted (restore/admin/audit)
