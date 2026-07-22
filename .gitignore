@@ -1,0 +1,56 @@
+# --- Local AI guidance (kept out of the repo per project preference) ---
+CLAUDE.md
+
+# --- Secrets / env ---
+.env
+.env.*
+!.env.*.example
+*.pem
+*.key
+
+# --- Runtime data (lives in Desktop/LandAllocationData, never in repo) ---
+/data/
+*.dump
+*.sql
+
+# --- Python / Django / Celery ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+env/
+*.log
+db.sqlite3
+staticfiles/
+mediafiles/
+celerybeat-schedule*
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# --- Node / React / Vite ---
+node_modules/
+frontend/dist/
+.vite/
+*.local
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# --- Docker ---
+# (compose files ARE tracked; only local overrides are ignored)
+docker-compose.override.yml
+
+# --- OS / editor ---
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
