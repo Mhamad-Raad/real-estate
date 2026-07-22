@@ -12,7 +12,7 @@ from common.models import ActivityLog
 from common.services import record_activity
 
 from .models import User
-from .serializers import LoginSerializer, UserPreferencesSerializer, UserSerializer
+from .serializers import LoginSerializer, UserSerializer
 
 
 class LoginView(TokenObtainPairView):
@@ -67,17 +67,9 @@ class LogoutView(APIView):
 
 
 class MeView(APIView):
-    """Read or update the current user's own profile (UI preferences only)."""
+    """Read the current user's own profile."""
 
     permission_classes = (IsAuthenticated,)
 
     def get(self, request):
-        return Response(UserSerializer(request.user).data)
-
-    def patch(self, request):
-        serializer = UserPreferencesSerializer(
-            request.user, data=request.data, partial=True
-        )
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
         return Response(UserSerializer(request.user).data)

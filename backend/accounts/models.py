@@ -9,20 +9,8 @@ class User(AbstractUser):
         ADMIN = "admin", "Admin"
         LAWYER = "lawyer", "Lawyer"
 
-    class Language(models.TextChoices):
-        SORANI = "ckb", "Kurdish (Sorani)"
-        ARABIC = "ar", "Arabic"
-        ENGLISH = "en", "English"
-
-    class Theme(models.TextChoices):
-        LIGHT = "light", "Light"
-        DARK = "dark", "Dark"
-
+    # UI preferences (theme/language) are client-only concerns kept in the browser, not here.
     role = models.CharField(max_length=10, choices=Role.choices, default=Role.LAWYER)
-    language = models.CharField(
-        max_length=3, choices=Language.choices, default=Language.SORANI
-    )
-    theme = models.CharField(max_length=5, choices=Theme.choices, default=Theme.LIGHT)
 
     @property
     def is_admin(self) -> bool:

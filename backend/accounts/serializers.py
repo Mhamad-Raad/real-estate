@@ -18,8 +18,6 @@ class UserSerializer(serializers.ModelSerializer):
             "last_name",
             "email",
             "role",
-            "language",
-            "theme",
             "is_admin",
         )
         read_only_fields = ("id", "username", "role", "is_admin")
@@ -32,11 +30,3 @@ class LoginSerializer(TokenObtainPairSerializer):
         data = super().validate(attrs)
         data["user"] = UserSerializer(self.user).data
         return data
-
-
-class UserPreferencesSerializer(serializers.ModelSerializer):
-    """Self-service updates a user may make to their own UI preferences."""
-
-    class Meta:
-        model = User
-        fields = ("language", "theme")

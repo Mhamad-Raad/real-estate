@@ -53,16 +53,7 @@ class AuthFlowTests(APITestCase):
         self.client.force_authenticate(self.user)
         resp = self.client.get(reverse("me"))
         self.assertEqual(resp.data["username"], "lawyer1")
-
-    def test_me_patch_updates_preferences_only(self):
-        self.client.force_authenticate(self.user)
-        resp = self.client.patch(
-            reverse("me"), {"language": "en", "role": "admin"}, format="json"
-        )
-        self.user.refresh_from_db()
-        self.assertEqual(resp.status_code, status.HTTP_200_OK)
-        self.assertEqual(self.user.language, "en")
-        self.assertEqual(self.user.role, "lawyer")  # role is not self-editable
+        self.assertEqual(resp.data["role"], "lawyer")
 
     def test_logout_blacklists_refresh_and_audits(self):
         login = self.client.post(
