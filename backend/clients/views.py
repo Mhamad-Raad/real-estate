@@ -1,3 +1,47 @@
-from django.shortcuts import render
+"""Clients API — CRUD + the pre-save duplicate check (§4, §5.7)."""
 
-# Create your views here.
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from rest_framework.viewsets import ModelViewSet
+
+from common.viewsets import AuditedSoftDeleteViewSet
+
+from .permissions import IsClientEditorOrAdmin
+from .selectors import duplicate_matches, search_clients
+from .serializers import ClientSerializer, DuplicateCheckSerializer
+from .services import create_client
+
+
+class ClientViewSet(AuditedSoftDeleteViewSet, ModelViewSet):
+    serializer_class = ClientSerializer
+    permission_classes = (IsClientEditorOrAdmin,)
+    audit_entity = "Client"
+
+    def get_queryset(self):
+        return search_clients(
+            search=self.request.query_params.get("search", ""),
+            pid=self.request.query_params.get("pid", ""),
+        )
+
+    def perform_create(self, serializer):
+        # Route creation through the service so audit stays single-sourced.
+        serializer.instance = create_client(
+            data=serializer.validated_data, actor=self.request.user, request=self.request
+        )
+
+    @action(detail=False, methods=["post"], url_path="duplicate-check")
+    def duplicate_check(self, request):
+        """Return PID-exact and mother-name (fuzzy) matches before a client is saved."""
+        payload = DuplicateCheckSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+        pid_matches, mother_matches = duplicate_matches(
+            pid=payload.validated_data.get("pid", ""),
+            mother_full_name=payload.validated_data.get("mother_full_name", ""),
+            exclude_id=payload.validated_data.get("exclude_id"),
+        )
+        return Response(
+            {
+                "pid_matches": ClientSerializer(pid_matches, many=True).data,
+                "mother_name_matches": ClientSerializer(mother_matches, many=True).data,
+            }
+        )

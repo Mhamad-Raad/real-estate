@@ -4,7 +4,9 @@ Every mutation here is transactional and audited (§11, §14.2). The "no land tw
 ultimately enforced by the DB index (§3.7); these services add the app-level dedup + override.
 """
 
-from django.db import transaction
+from django.db import IntegrityError, transaction
+from rest_framework import status
+from rest_framework.exceptions import APIException
 
 from common.models import ActivityLog
 from common.services import record_activity
@@ -14,23 +16,38 @@ from .models import DuplicateOverride, Process, ProcessStep
 STEP_NUMBERS = range(1, 6)
 
 
+class DuplicateAllocation(APIException):
+    status_code = status.HTTP_409_CONFLICT
+    default_detail = "This client already has an active allocation."
+    default_code = "duplicate_allocation"
+
+
 @transaction.atomic
 def create_process(
     *, client, assigned_lawyer, actor, parcel=None, category=None,
     duplicate_flagged=False, request=None,
 ) -> Process:
-    """Create a case + its five step placeholder rows. The DB blocks a second active
-    allocation for the same client (ix_process_active_alloc)."""
-    process = Process.objects.create(
-        client=client,
-        assigned_lawyer=assigned_lawyer,
-        parcel=parcel,
-        category=category,
-        duplicate_flagged=duplicate_flagged,
-    )
-    ProcessStep.objects.bulk_create(
-        [ProcessStep(process=process, step_number=n) for n in STEP_NUMBERS]
-    )
+    """Create a case + its five step placeholder rows. Returns HTTP 409 (not 500) if the
+    client already has an active allocation — the DB index is the race-safe backstop (§5.7)."""
+    if (
+        Process.objects.filter(client=client)
+        .exclude(overall_status=Process.OverallStatus.REJECTED)
+        .exists()
+    ):
+        raise DuplicateAllocation()
+    try:
+        process = Process.objects.create(
+            client=client,
+            assigned_lawyer=assigned_lawyer,
+            parcel=parcel,
+            category=category,
+            duplicate_flagged=duplicate_flagged,
+        )
+        ProcessStep.objects.bulk_create(
+            [ProcessStep(process=process, step_number=n) for n in STEP_NUMBERS]
+        )
+    except IntegrityError:  # lost the race against the other computer — same clean 409
+        raise DuplicateAllocation()
     record_activity(
         actor=actor,
         action=ActivityLog.Action.CREATE,
