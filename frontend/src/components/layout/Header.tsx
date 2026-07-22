@@ -12,6 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { toast } from "@/components/ui/toaster";
 import { useLogoutMutation } from "@/features/auth/authApi";
 import { logOut } from "@/features/auth/authSlice";
 
@@ -32,7 +33,9 @@ export function Header() {
   const onLogout = async () => {
     if (refresh) {
       // Best-effort server-side blacklist; local sign-out proceeds regardless.
-      await logout({ refresh }).unwrap().catch(() => undefined);
+      await logout({ refresh })
+        .unwrap()
+        .catch(() => toast.warning(t("header.logoutServerWarning")));
     }
     dispatch(logOut());
     navigate("/login", { replace: true });

@@ -27,7 +27,8 @@
   "header": {
     "account": "Account",
     "profile": "Profile",
-    "logout": "Sign out"
+    "logout": "Sign out",
+    "logoutServerWarning": "Signed out locally; the server could not be reached."
   },
   "theme": {
     "toLight": "Switch to light mode",
