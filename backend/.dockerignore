@@ -1,0 +1,14 @@
+# Keep the build context lean — the host venv and caches must never enter the image.
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+staticfiles/
+*.log
+.env

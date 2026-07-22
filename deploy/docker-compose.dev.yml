@@ -1,0 +1,48 @@
+# Dev-only stack: Postgres + Django with hot reload. NOT the offline production
+# packaging (Nginx/image save-load/LAN/backups) — that stays at Iteration 7.
+# Run from anywhere:  docker compose -f deploy/docker-compose.dev.yml up
+name: land-allocation-dev
+
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: landalloc_dev
+      POSTGRES_USER: landalloc
+      POSTGRES_PASSWORD: landalloc_dev_pw
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    ports:
+      # Host 5433 avoids clashing with a native Homebrew Postgres on 5432.
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U landalloc -d landalloc_dev"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile.dev
+    # Migrate on boot, then serve; source hot-reloads via the bind mount below.
+    command: sh -c "python manage.py migrate && python manage.py runserver 0.0.0.0:8000"
+    env_file:
+      - ../backend/.env
+    environment:
+      # Override the native-dev values from .env for the compose network.
+      DB_HOST: db
+      DB_PORT: "5432"
+      DJANGO_ALLOWED_HOSTS: "localhost,127.0.0.1,0.0.0.0,backend"
+    volumes:
+      - ../backend:/app
+      # Mask the host .venv (macOS binaries) so the container uses its own interpreter.
+      - /app/.venv
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  db_data:
