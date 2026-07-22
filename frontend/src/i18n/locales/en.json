@@ -1,0 +1,62 @@
+{
+  "app": {
+    "name": "Land Allocation",
+    "shortName": "LAS"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "clients": "Clients",
+    "processes": "Processes",
+    "reports": "Reports",
+    "activities": "Activities",
+    "users": "Users",
+    "settings": "Settings"
+  },
+  "auth": {
+    "title": "Sign in",
+    "subtitle": "Land-allocation case management",
+    "username": "Username",
+    "usernamePlaceholder": "Enter your username",
+    "password": "Password",
+    "passwordPlaceholder": "Enter your password",
+    "signIn": "Sign in",
+    "signingIn": "Signing in…",
+    "invalid": "Incorrect username or password",
+    "genericError": "Could not sign in. Please try again."
+  },
+  "header": {
+    "account": "Account",
+    "profile": "Profile",
+    "logout": "Sign out"
+  },
+  "theme": {
+    "toLight": "Switch to light mode",
+    "toDark": "Switch to dark mode"
+  },
+  "language": {
+    "label": "Language",
+    "ckb": "کوردی",
+    "ar": "العربية",
+    "en": "English"
+  },
+  "role": {
+    "admin": "Administrator",
+    "lawyer": "Lawyer"
+  },
+  "common": {
+    "loading": "Loading…",
+    "save": "Save",
+    "cancel": "Cancel",
+    "search": "Search"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "welcome": "Welcome, {{name}}",
+    "subtitle": "This is the application shell. Domain features arrive in the next iterations.",
+    "comingSoon": "Coming soon"
+  },
+  "notFound": {
+    "title": "Page not found",
+    "back": "Back to dashboard"
+  }
+}
