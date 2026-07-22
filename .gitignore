@@ -1,5 +1,7 @@
-# --- Local AI guidance (kept out of the repo per project preference) ---
+# --- Local AI guidance / config (kept out of the repo per project preference) ---
 CLAUDE.md
+.claude/settings.json
+.claude/settings.local.json
 
 # --- Secrets / env ---
 .env
