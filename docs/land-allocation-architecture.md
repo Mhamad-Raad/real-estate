@@ -653,12 +653,13 @@ A **REST** API (explicitly not GraphQL) under `/api/`, versioned `/api/v1/`, JSO
 
 ```
 GET /api/v1/processes/?search=<name>&pid=<exact>&date_from=2026-01-01&date_to=2026-07-01
-                       &category=A&status=in_progress&assigned_lawyer=7&page=1&page_size=25
+                       &category=A&status=in_progress&assigned_lawyer=7&current_step=3&page=1&page_size=25
 ```
 
 - `pid` → exact match on the partial-unique PID index (fast).
 - `search` → trigram `ILIKE` on `client.full_name` (partial/fuzzy).
 - `date_from/date_to` → range on `process.created_at` index.
+- `current_step` → exact match on `process.current_step` (1–5) — narrows the list to processes at a given workflow step (added It.2.5). The list also shows each process's current step as a column.
 - `assigned_lawyer` → matches the **process-wide** assignee **or** any per-institute assignee (documented so the UI can label which). Response includes `step_status_summary` so the list can show per-step badges without extra calls.
 
 ### 4.4 How the tricky operations work over REST

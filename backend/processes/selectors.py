@@ -4,7 +4,8 @@ from .models import Process
 
 
 def search_processes(params) -> "list[Process]":
-    """Filter by structured fields only: date, client PID, client name, category, status, lawyer."""
+    """Filter by structured fields only: date, client PID, client name, category, status, lawyer,
+    current step."""
     qs = Process.objects.select_related("client", "category", "assigned_lawyer", "parcel")
 
     pid = params.get("pid")
@@ -15,7 +16,8 @@ def search_processes(params) -> "list[Process]":
     if search:
         qs = qs.filter(client__full_name__trigram_similar=search)
 
-    for field in ("category", "overall_status", "assigned_lawyer"):
+    # Exact-match list filters, incl. current_step so the list can be narrowed to a workflow step.
+    for field in ("category", "overall_status", "assigned_lawyer", "current_step"):
         value = params.get(field)
         if value:
             qs = qs.filter(**{field: value})

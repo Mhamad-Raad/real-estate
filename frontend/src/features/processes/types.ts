@@ -31,6 +31,7 @@ export interface ProcessFilters {
   category?: number | "";
   overall_status?: OverallStatus | "";
   assigned_lawyer?: number | "";
+  current_step?: number | "";
   page?: number;
 }
 

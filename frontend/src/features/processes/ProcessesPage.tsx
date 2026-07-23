@@ -50,6 +50,7 @@ export function ProcessesPage() {
   const [pid, setPid] = useState("");
   const [category, setCategory] = useState<number | "">("");
   const [status, setStatus] = useState<OverallStatus | "">("");
+  const [step, setStep] = useState<number | "">("");
   const [page, setPage] = useState(1);
 
   useEffect(() => {
@@ -61,11 +62,11 @@ export function ProcessesPage() {
   }, [searchTerm, pidTerm]);
 
   // Any filter change resets to the first page (the result set changes).
-  useEffect(() => setPage(1), [search, pid, category, status]);
+  useEffect(() => setPage(1), [search, pid, category, status, step]);
 
   const filters = useMemo(
-    () => ({ search, pid, category, overall_status: status, page }),
-    [search, pid, category, status, page],
+    () => ({ search, pid, category, overall_status: status, current_step: step, page }),
+    [search, pid, category, status, step, page],
   );
   const { data, isLoading, isError, refetch } = useListProcessesQuery(filters);
   const [remove, { isLoading: removing }] = useDeleteProcessMutation();
@@ -101,7 +102,7 @@ export function ProcessesPage() {
         }
       />
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <Input
           placeholder={t("processes.filters.name")}
           value={searchTerm}
@@ -134,6 +135,17 @@ export function ProcessesPage() {
             </option>
           ))}
         </Select>
+        <Select
+          value={step}
+          onChange={(e) => setStep(e.target.value ? Number(e.target.value) : "")}
+        >
+          <option value="">{t("processes.filters.allSteps")}</option>
+          {[1, 2, 3, 4, 5].map((n) => (
+            <option key={n} value={n}>
+              {t("processes.stepShort", { n })}
+            </option>
+          ))}
+        </Select>
       </div>
 
       <Card className="p-0">
@@ -142,6 +154,7 @@ export function ProcessesPage() {
             <TableRow>
               <TableHead>{t("processes.client")}</TableHead>
               <TableHead>{t("clients.pid")}</TableHead>
+              <TableHead>{t("processes.step")}</TableHead>
               <TableHead>{t("processes.statusLabel")}</TableHead>
               <TableHead>{t("processes.assignedLawyer")}</TableHead>
               <TableHead>{t("processes.createdAt")}</TableHead>
@@ -150,7 +163,7 @@ export function ProcessesPage() {
           </TableHeader>
           <TableBody>
             <TableStateRows
-              colSpan={6}
+              colSpan={7}
               isLoading={loading}
               isError={isError}
               isEmpty={rows.length === 0}
@@ -176,6 +189,11 @@ export function ProcessesPage() {
                     </span>
                   </TableCell>
                   <TableCell>{process.client_pid}</TableCell>
+                  <TableCell>
+                    <Badge variant="neutral">
+                      {t("processes.stepShort", { n: process.current_step })}
+                    </Badge>
+                  </TableCell>
                   <TableCell>
                     <Badge variant={STATUS_VARIANT[process.overall_status]}>
                       {t(`processes.status.${process.overall_status}`)}

@@ -150,6 +150,8 @@
     "created": "Allocation created",
     "createdAt": "Created",
     "statusLabel": "Status",
+    "step": "Step",
+    "stepShort": "Step {{n}}",
     "empty": "No processes found.",
     "flagged": "Possible duplicate — needs review",
     "duplicateAllocation": "This client already has an active allocation.",
@@ -165,7 +167,8 @@
       "name": "Search by name…",
       "pid": "National ID…",
       "allCategories": "All categories",
-      "allStatuses": "All statuses"
+      "allStatuses": "All statuses",
+      "allSteps": "All steps"
     },
     "override": {
       "title": "Override duplicate warning",
