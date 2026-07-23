@@ -82,6 +82,22 @@ class MeView(APIView):
         return Response(UserSerializer(request.user).data)
 
 
+class AssignableLawyersView(APIView):
+    """Minimal id+username list of active users for per-institute assignment dropdowns (§5.1).
+
+    Read-only and available to any authenticated user (the full Users admin API stays admin-only)."""
+
+    permission_classes = (IsAuthenticated,)
+
+    def get(self, request):
+        users = (
+            User.objects.filter(is_deleted=False, is_active=True)
+            .order_by("username")
+            .values("id", "username")
+        )
+        return Response(list(users))
+
+
 class UserViewSet(AuditedSoftDeleteViewSet, ModelViewSet):
     """Admin-only user management: CRUD + soft-delete/restore, all audited (§4, §7, §11)."""
 
