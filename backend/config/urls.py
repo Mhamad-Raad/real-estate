@@ -5,6 +5,7 @@ from django.http import JsonResponse
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
+from accounts.views import UserViewSet
 from catalog.views import CategoryViewSet, InstitutesView
 from clients.views import ClientViewSet
 from parcels.views import LandParcelViewSet
@@ -16,6 +17,7 @@ def health(_request):
 
 
 router = DefaultRouter()
+router.register("users", UserViewSet, basename="user")
 router.register("categories", CategoryViewSet, basename="category")
 router.register("clients", ClientViewSet, basename="client")
 router.register("parcels", LandParcelViewSet, basename="parcel")

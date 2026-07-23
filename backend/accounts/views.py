@@ -1,18 +1,25 @@
 """Auth endpoints: login / refresh / logout / me. Login and logout are audited (§7, §11)."""
 
+from django.db import transaction
+from django.utils import timezone
 from rest_framework import status
+from rest_framework.decorators import action
+from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework.viewsets import ModelViewSet
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
 
 from common.models import ActivityLog
+from common.permissions import IsAdmin
 from common.services import record_activity
+from common.viewsets import AuditedSoftDeleteViewSet
 
 from .models import User
-from .serializers import LoginSerializer, UserSerializer
+from .serializers import AdminUserSerializer, LoginSerializer, UserSerializer
 
 
 class LoginView(TokenObtainPairView):
@@ -73,3 +80,58 @@ class MeView(APIView):
 
     def get(self, request):
         return Response(UserSerializer(request.user).data)
+
+
+class UserViewSet(AuditedSoftDeleteViewSet, ModelViewSet):
+    """Admin-only user management: CRUD + soft-delete/restore, all audited (§4, §7, §11)."""
+
+    serializer_class = AdminUserSerializer
+    permission_classes = (IsAdmin,)
+    audit_entity = "User"
+
+    def get_queryset(self):
+        return User.objects.filter(is_deleted=False).order_by("username")
+
+    @transaction.atomic
+    def perform_destroy(self, instance):
+        # Guard: an admin can't lock themselves out by deleting their own account.
+        if instance.id == self.request.user.id:
+            raise ValidationError({"detail": "You cannot delete your own account."})
+        # Soft-delete AND deactivate so the account can no longer authenticate.
+        instance.is_active = False
+        instance.is_deleted = True
+        instance.deleted_at = timezone.now()
+        instance.deleted_by = self.request.user
+        instance.version += 1
+        instance.save(
+            update_fields=["is_active", "is_deleted", "deleted_at", "deleted_by", "version"]
+        )
+        record_activity(
+            actor=self.request.user,
+            action=ActivityLog.Action.DELETE,
+            entity_type="User",
+            entity_id=instance.pk,
+            request=self.request,
+        )
+
+    @action(detail=True, methods=["post"], permission_classes=[IsAdmin])
+    @transaction.atomic
+    def restore(self, request, pk=None):
+        # Re-enable login on restore (mirrors the deactivation done on delete).
+        instance = User.all_objects.get(pk=pk)
+        instance.is_active = True
+        instance.is_deleted = False
+        instance.deleted_at = None
+        instance.deleted_by = None
+        instance.version += 1
+        instance.save(
+            update_fields=["is_active", "is_deleted", "deleted_at", "deleted_by", "version"]
+        )
+        record_activity(
+            actor=request.user,
+            action=ActivityLog.Action.RESTORE,
+            entity_type="User",
+            entity_id=instance.pk,
+            request=request,
+        )
+        return Response(self.get_serializer(instance).data, status=status.HTTP_200_OK)
