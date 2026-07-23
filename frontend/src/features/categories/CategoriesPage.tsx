@@ -15,6 +15,7 @@ import {
 import { toast } from "@/components/ui/toaster";
 import { ConfirmDialog } from "@/features/common/ConfirmDialog";
 import { PageHeader } from "@/features/common/PageHeader";
+import { Pagination } from "@/features/common/Pagination";
 import { TableStateRows } from "@/features/common/TableStateRows";
 import { apiErrorMessage } from "@/lib/apiError";
 
@@ -24,7 +25,8 @@ import type { Category } from "./types";
 
 export function CategoriesPage() {
   const { t } = useTranslation();
-  const { data, isLoading, isError, refetch } = useListCategoriesQuery();
+  const [page, setPage] = useState(1);
+  const { data, isLoading, isError, refetch } = useListCategoriesQuery({ page });
   const [remove, { isLoading: removing }] = useDeleteCategoryMutation();
   const [editing, setEditing] = useState<Category | null>(null);
   const [formOpen, setFormOpen] = useState(false);
@@ -115,6 +117,8 @@ export function CategoriesPage() {
           </TableBody>
         </Table>
       </Card>
+
+      <Pagination page={page} count={data?.count ?? 0} onPage={setPage} />
 
       <CategoryFormDialog open={formOpen} category={editing} onClose={() => setFormOpen(false)} />
       <ConfirmDialog

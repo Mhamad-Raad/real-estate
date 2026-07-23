@@ -65,6 +65,39 @@ class UsersApiTests(APITestCase):
         self.assertFalse(target.is_deleted)
         self.assertTrue(target.is_active)
 
+    def test_cannot_demote_the_last_admin(self):
+        # self.admin is the only admin — demoting to lawyer would lock everyone out.
+        self.client.force_authenticate(self.admin)
+        resp = self.client.patch(
+            reverse("user-detail", args=[self.admin.id]),
+            {"role": "lawyer", "version": self.admin.version},
+            format="json",
+        )
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+        self.admin.refresh_from_db()
+        self.assertEqual(self.admin.role, User.Role.ADMIN)
+
+    def test_cannot_deactivate_the_last_admin(self):
+        self.client.force_authenticate(self.admin)
+        resp = self.client.patch(
+            reverse("user-detail", args=[self.admin.id]),
+            {"is_active": False, "version": self.admin.version},
+            format="json",
+        )
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_can_demote_an_admin_when_another_remains(self):
+        other_admin = User.objects.create_user("admin_b", password="pw12345678", role=User.Role.ADMIN)
+        self.client.force_authenticate(self.admin)
+        resp = self.client.patch(
+            reverse("user-detail", args=[other_admin.id]),
+            {"role": "lawyer", "version": other_admin.version},
+            format="json",
+        )
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        other_admin.refresh_from_db()
+        self.assertEqual(other_admin.role, User.Role.LAWYER)
+
     def test_update_requires_version_and_rejects_stale(self):
         target = User.objects.create_user("editme", password="pw12345678")
         self.client.force_authenticate(self.admin)

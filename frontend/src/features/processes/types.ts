@@ -31,6 +31,7 @@ export interface ProcessFilters {
   category?: number | "";
   overall_status?: OverallStatus | "";
   assigned_lawyer?: number | "";
+  page?: number;
 }
 
 export type MatchReason = "pid" | "mother_name";

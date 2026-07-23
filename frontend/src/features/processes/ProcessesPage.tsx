@@ -20,6 +20,7 @@ import { toast } from "@/components/ui/toaster";
 import { useListCategoriesQuery } from "@/features/categories/categoriesApi";
 import { ConfirmDialog } from "@/features/common/ConfirmDialog";
 import { PageHeader } from "@/features/common/PageHeader";
+import { Pagination } from "@/features/common/Pagination";
 import { TableStateRows } from "@/features/common/TableStateRows";
 import { apiErrorMessage } from "@/lib/apiError";
 import { formatDate } from "@/lib/format";
@@ -39,7 +40,7 @@ const STATUS_VARIANT: Record<OverallStatus, BadgeProps["variant"]> = {
 export function ProcessesPage() {
   const { t, i18n } = useTranslation();
   const isAdmin = useAppSelector((s) => s.auth.user?.is_admin ?? false);
-  const { data: categories } = useListCategoriesQuery();
+  const { data: categories } = useListCategoriesQuery({});
 
   // Raw text inputs vs the debounced values actually sent to the API (search/pid hit the DB).
   const [searchTerm, setSearchTerm] = useState("");
@@ -48,6 +49,7 @@ export function ProcessesPage() {
   const [pid, setPid] = useState("");
   const [category, setCategory] = useState<number | "">("");
   const [status, setStatus] = useState<OverallStatus | "">("");
+  const [page, setPage] = useState(1);
 
   useEffect(() => {
     const id = setTimeout(() => {
@@ -57,11 +59,14 @@ export function ProcessesPage() {
     return () => clearTimeout(id);
   }, [searchTerm, pidTerm]);
 
+  // Any filter change resets to the first page (the result set changes).
+  useEffect(() => setPage(1), [search, pid, category, status]);
+
   const filters = useMemo(
-    () => ({ search, pid, category, overall_status: status }),
-    [search, pid, category, status],
+    () => ({ search, pid, category, overall_status: status, page }),
+    [search, pid, category, status, page],
   );
-  const { data, isLoading, isFetching, isError, refetch } = useListProcessesQuery(filters);
+  const { data, isLoading, isError, refetch } = useListProcessesQuery(filters);
   const [remove, { isLoading: removing }] = useDeleteProcessMutation();
 
   const [createOpen, setCreateOpen] = useState(false);
@@ -80,7 +85,7 @@ export function ProcessesPage() {
   };
 
   const rows = data?.results ?? [];
-  const loading = isLoading || isFetching;
+  const loading = isLoading;
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -206,6 +211,8 @@ export function ProcessesPage() {
           </TableBody>
         </Table>
       </Card>
+
+      <Pagination page={page} count={data?.count ?? 0} onPage={setPage} />
 
       <ProcessCreateDialog open={createOpen} onClose={() => setCreateOpen(false)} />
       <OverrideDialog process={overriding} onClose={() => setOverriding(null)} />
