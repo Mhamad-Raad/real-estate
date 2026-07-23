@@ -77,13 +77,25 @@ class ProcessApiTests(APITestCase):
         resp = self.client.patch(url, {"lawyer_notes": "stale", "version": 1}, format="json")
         self.assertEqual(resp.status_code, status.HTTP_409_CONFLICT)
 
+    def test_update_without_version_is_rejected(self):
+        # Omitting the optimistic-lock token must 400, not silently skip the lock.
+        process = create_process(
+            client=self.client_row, assigned_lawyer=self.lawyer_a, actor=self.lawyer_a
+        )
+        self.client.force_authenticate(self.lawyer_a)
+        resp = self.client.patch(
+            reverse("process-detail", args=[process.id]),
+            {"lawyer_notes": "no version"},
+            format="json",
+        )
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+
     def test_override_duplicate_is_admin_only(self):
         process = create_process(
-            client=self.client_row,
-            assigned_lawyer=self.lawyer_a,
-            actor=self.lawyer_a,
-            duplicate_flagged=True,
+            client=self.client_row, assigned_lawyer=self.lawyer_a, actor=self.lawyer_a
         )
+        process.duplicate_flagged = True  # simulate a fired warning; override is what's under test
+        process.save(update_fields=["duplicate_flagged"])
         url = reverse("process-override-duplicate", args=[process.id])
         body = {"match_reason": "mother_name", "reason": "sibling"}
 

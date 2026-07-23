@@ -55,7 +55,8 @@ class ProcessDetailSerializer(ProcessListSerializer):
 class ProcessCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Process
-        fields = ("id", "client", "parcel", "category", "assigned_lawyer", "duplicate_flagged")
+        # `duplicate_flagged` is server-computed from the identity dedup — never client input (§5.7).
+        fields = ("id", "client", "parcel", "category", "assigned_lawyer")
         read_only_fields = ("id",)
         # The view resolves the assignee (self for lawyers); admins may pass one explicitly.
         extra_kwargs = {"assigned_lawyer": {"required": False}}
@@ -67,8 +68,11 @@ class ProcessUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Process
         fields = ("lawyer_notes", "parcel", "category", "version")
+        # Version is the optimistic-lock token the client echoes back; the service bumps it.
+        read_only_fields = ("version",)
 
 
 class OverrideSerializer(serializers.Serializer):
     match_reason = serializers.ChoiceField(choices=DuplicateOverride.MatchReason.choices)
     reason = serializers.CharField()
+    version = serializers.IntegerField(required=False)

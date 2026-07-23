@@ -49,7 +49,6 @@ class ProcessViewSet(AuditedSoftDeleteViewSet, ModelViewSet):
             actor=user,
             parcel=data.get("parcel"),
             category=data.get("category"),
-            duplicate_flagged=data.get("duplicate_flagged", False),
             request=self.request,
         )
 
@@ -69,6 +68,7 @@ class ProcessViewSet(AuditedSoftDeleteViewSet, ModelViewSet):
             admin=request.user,
             match_reason=payload.validated_data["match_reason"],
             reason=payload.validated_data["reason"],
+            expected_version=payload.validated_data.get("version"),
             request=request,
         )
         process.refresh_from_db()

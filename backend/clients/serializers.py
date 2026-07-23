@@ -21,10 +21,11 @@ class ClientSerializer(serializers.ModelSerializer):
             "address",
             "phone",
             "category",
+            "created_by",
             "version",
             "created_at",
         )
-        read_only_fields = ("id", "version", "created_at")
+        read_only_fields = ("id", "created_by", "version", "created_at")
 
     def validate(self, attrs):
         # A married client must name a spouse (drives the spouse eligibility PDF in Step 1, §3.5).

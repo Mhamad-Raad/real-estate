@@ -4,6 +4,7 @@ Complex domain operations (create_process, override_duplicate…) still go throu
 services.py; this base only centralizes the mechanical CRUD audit + soft-delete + version bump.
 """
 
+from django.db import transaction
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.decorators import action
@@ -20,6 +21,7 @@ class AuditedSoftDeleteViewSet:
 
     audit_entity = "Entity"
 
+    @transaction.atomic  # mutation + its audit row commit together or not at all (§11)
     def perform_create(self, serializer):
         obj = serializer.save()
         record_activity(
@@ -31,10 +33,11 @@ class AuditedSoftDeleteViewSet:
             request=self.request,
         )
 
+    @transaction.atomic
     def perform_update(self, serializer):
         instance = serializer.instance
-        # Optimistic lock: reject a stale write (client's base version no longer current).
-        check_version(instance, self.request.data.get("version"))
+        # Optimistic lock: version is mandatory on updates and must still match (else 409).
+        check_version(instance, self.request.data.get("version"), required=True)
         before = self.get_serializer(instance).data
         obj = serializer.save(version=instance.version + 1)
         record_activity(
@@ -47,6 +50,7 @@ class AuditedSoftDeleteViewSet:
             request=self.request,
         )
 
+    @transaction.atomic
     def perform_destroy(self, instance):
         # Soft-delete only — never a hard DELETE.
         instance.is_deleted = True
@@ -63,6 +67,7 @@ class AuditedSoftDeleteViewSet:
         )
 
     @action(detail=True, methods=["post"], permission_classes=[IsAdmin])
+    @transaction.atomic
     def restore(self, request, pk=None):
         """Admin-only: reverse a soft-delete."""
         instance = self.get_queryset().model.all_objects.get(pk=pk)

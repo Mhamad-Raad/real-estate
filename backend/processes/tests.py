@@ -59,6 +59,19 @@ class NoLandTwiceTests(TestCase):
         p = create_process(client=other, assigned_lawyer=self.lawyer, actor=self.lawyer)
         self.assertEqual(p.client_id, other.id)
 
+    def test_duplicate_flag_is_server_computed_from_mother_name(self):
+        # A sibling (same mother, different PID) exists → the server must raise the flag itself.
+        Client.objects.create(full_name="Sibling", pid="999", mother_full_name="Mother")
+        flagged = self._new_process()
+        self.assertTrue(flagged.duplicate_flagged)
+
+    def test_no_duplicate_flag_for_a_clean_client(self):
+        clean = _make_client(pid="555")
+        clean.mother_full_name = "Farida Ahmed"  # no trigram overlap with the setUp client's "Mother"
+        clean.save(update_fields=["mother_full_name"])
+        process = create_process(client=clean, assigned_lawyer=self.lawyer, actor=self.lawyer)
+        self.assertFalse(process.duplicate_flagged)
+
     def test_create_process_makes_five_steps_and_audits(self):
         process = self._new_process()
         self.assertEqual(
@@ -76,9 +89,9 @@ class DuplicateOverrideTests(TestCase):
     def test_admin_override_clears_flag_and_logs(self):
         admin = User.objects.create_user(username="ad", password="pw12345678", role=User.Role.ADMIN)
         client_row = _make_client(pid="333")
-        process = create_process(
-            client=client_row, assigned_lawyer=admin, actor=admin, duplicate_flagged=True
-        )
+        process = create_process(client=client_row, assigned_lawyer=admin, actor=admin)
+        process.duplicate_flagged = True  # simulate a fired warning; override is what's under test
+        process.save(update_fields=["duplicate_flagged"])
         override = override_duplicate(
             process=process,
             admin=admin,

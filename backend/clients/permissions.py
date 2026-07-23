@@ -12,6 +12,9 @@ class IsClientEditorOrAdmin(BasePermission):
             return True
         if request.user.is_admin:
             return True
+        # The lawyer who created the client may edit it, even before a process links them.
+        if obj.created_by_id == request.user.id:
+            return True
         from processes.models import Process
 
         return Process.objects.filter(client=obj, assigned_lawyer=request.user).exists()

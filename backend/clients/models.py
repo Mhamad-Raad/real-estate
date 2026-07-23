@@ -1,5 +1,6 @@
 """Client — the land beneficiary; carries all gov-ID fields and the dedup keys (§3.3, §3.7)."""
 
+from django.conf import settings
 from django.contrib.postgres.indexes import GinIndex
 from django.db import models
 
@@ -32,6 +33,14 @@ class Client(SoftDeleteModel):
         null=True,
         blank=True,
         related_name="clients",
+    )
+    # The lawyer who entered this client — grants them edit rights before any process links them (§4.2).
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="+",
     )
 
     class Meta:

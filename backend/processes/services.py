@@ -8,6 +8,8 @@ from django.db import IntegrityError, transaction
 from rest_framework import status
 from rest_framework.exceptions import APIException
 
+from clients.selectors import duplicate_matches
+from common.locking import check_version
 from common.models import ActivityLog
 from common.services import record_activity
 
@@ -24,8 +26,7 @@ class DuplicateAllocation(APIException):
 
 @transaction.atomic
 def create_process(
-    *, client, assigned_lawyer, actor, parcel=None, category=None,
-    duplicate_flagged=False, request=None,
+    *, client, assigned_lawyer, actor, parcel=None, category=None, request=None,
 ) -> Process:
     """Create a case + its five step placeholder rows. Returns HTTP 409 (not 500) if the
     client already has an active allocation — the DB index is the race-safe backstop (§5.7)."""
@@ -35,17 +36,24 @@ def create_process(
         .exists()
     ):
         raise DuplicateAllocation()
+    # Server-owned warning flag — never trust the client; recompute from the identity dedup (§5.7).
+    pid_matches, mother_matches = duplicate_matches(
+        pid=client.pid, mother_full_name=client.mother_full_name, exclude_id=client.id
+    )
+    duplicate_flagged = bool(pid_matches or mother_matches)
     try:
-        process = Process.objects.create(
-            client=client,
-            assigned_lawyer=assigned_lawyer,
-            parcel=parcel,
-            category=category,
-            duplicate_flagged=duplicate_flagged,
-        )
-        ProcessStep.objects.bulk_create(
-            [ProcessStep(process=process, step_number=n) for n in STEP_NUMBERS]
-        )
+        # Savepoint so an IntegrityError here can't poison the surrounding transaction.
+        with transaction.atomic():
+            process = Process.objects.create(
+                client=client,
+                assigned_lawyer=assigned_lawyer,
+                parcel=parcel,
+                category=category,
+                duplicate_flagged=duplicate_flagged,
+            )
+            ProcessStep.objects.bulk_create(
+                [ProcessStep(process=process, step_number=n) for n in STEP_NUMBERS]
+            )
     except IntegrityError:  # lost the race against the other computer — same clean 409
         raise DuplicateAllocation()
     record_activity(
@@ -60,8 +68,12 @@ def create_process(
 
 
 @transaction.atomic
-def override_duplicate(*, process, admin, match_reason, reason, request=None) -> DuplicateOverride:
+def override_duplicate(
+    *, process, admin, match_reason, reason, expected_version=None, request=None
+) -> DuplicateOverride:
     """Admin-only: clear a fired duplicate warning, logged in both DuplicateOverride and audit."""
+    # Same optimistic-lock guarantee as every other write (409 if the process moved on).
+    check_version(process, expected_version)
     process.duplicate_flagged = False
     process.version += 1
     process.save(update_fields=["duplicate_flagged", "version", "updated_at"])
