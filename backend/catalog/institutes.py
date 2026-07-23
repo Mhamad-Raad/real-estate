@@ -20,6 +20,13 @@ INSTITUTES: list[tuple[str, str, int]] = [
 # Valid codes for fast membership checks in validation.
 INSTITUTE_CODES = frozenset(code for code, _key, _step in INSTITUTES)
 
+# Which step each code belongs to, and the fixed set of codes required to complete each step (§3.6).
+STEP_FOR_CODE = {code: step for code, _key, step in INSTITUTES}
+
+
+def codes_for_step(step: int) -> list[str]:
+    return [code for code, _key, s in INSTITUTES if s == step]
+
 
 def institutes_as_dicts() -> list[dict]:
     return [{"code": code, "display_key": key, "step": step} for code, key, step in INSTITUTES]
