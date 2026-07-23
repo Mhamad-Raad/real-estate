@@ -5,7 +5,7 @@ import type { Client, ClientInput, DuplicateCheckResult } from "./types";
 
 export const clientsApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
-    listClients: builder.query<Paginated<Client>, { search?: string; pid?: string }>({
+    listClients: builder.query<Paginated<Client>, { search?: string; pid?: string; page?: number }>({
       query: (params) => ({ url: "clients/", params }),
       providesTags: ["Client"],
     }),

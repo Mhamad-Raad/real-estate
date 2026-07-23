@@ -17,6 +17,7 @@ import {
 import { toast } from "@/components/ui/toaster";
 import { ConfirmDialog } from "@/features/common/ConfirmDialog";
 import { PageHeader } from "@/features/common/PageHeader";
+import { Pagination } from "@/features/common/Pagination";
 import { TableStateRows } from "@/features/common/TableStateRows";
 import { apiErrorMessage } from "@/lib/apiError";
 
@@ -27,7 +28,8 @@ import type { AdminUser } from "./types";
 export function UsersPage() {
   const { t } = useTranslation();
   const currentUserId = useAppSelector((s) => s.auth.user?.id);
-  const { data, isLoading, isError, refetch } = useListUsersQuery();
+  const [page, setPage] = useState(1);
+  const { data, isLoading, isError, refetch } = useListUsersQuery({ page });
   const [remove, { isLoading: removing }] = useDeleteUserMutation();
   const [editing, setEditing] = useState<AdminUser | null>(null);
   const [formOpen, setFormOpen] = useState(false);
@@ -128,6 +130,8 @@ export function UsersPage() {
           </TableBody>
         </Table>
       </Card>
+
+      <Pagination page={page} count={data?.count ?? 0} onPage={setPage} />
 
       <UserFormDialog open={formOpen} user={editing} onClose={() => setFormOpen(false)} />
       <ConfirmDialog

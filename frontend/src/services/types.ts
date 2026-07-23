@@ -5,3 +5,6 @@ export interface Paginated<T> {
   previous: string | null;
   results: T[];
 }
+
+// Matches the backend REST_FRAMEWORK PAGE_SIZE — used to compute page counts client-side.
+export const PAGE_SIZE = 25;

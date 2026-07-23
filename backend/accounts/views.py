@@ -92,6 +92,28 @@ class UserViewSet(AuditedSoftDeleteViewSet, ModelViewSet):
     def get_queryset(self):
         return User.objects.filter(is_deleted=False).order_by("username")
 
+    def perform_update(self, serializer):
+        # Never let an edit strip the system of its last usable admin (role change or deactivation).
+        self._guard_last_admin(serializer.instance, serializer.validated_data)
+        super().perform_update(serializer)
+
+    def _guard_last_admin(self, instance, data):
+        was_admin = instance.role == User.Role.ADMIN and instance.is_active and not instance.is_deleted
+        stays_admin = (
+            data.get("role", instance.role) == User.Role.ADMIN
+            and data.get("is_active", instance.is_active)
+        )
+        if was_admin and not stays_admin:
+            other_admin_exists = (
+                User.objects.filter(is_deleted=False, is_active=True, role=User.Role.ADMIN)
+                .exclude(pk=instance.pk)
+                .exists()
+            )
+            if not other_admin_exists:
+                raise ValidationError(
+                    {"detail": "At least one active administrator must remain."}
+                )
+
     @transaction.atomic
     def perform_destroy(self, instance):
         # Guard: an admin can't lock themselves out by deleting their own account.

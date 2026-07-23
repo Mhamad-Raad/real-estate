@@ -60,7 +60,10 @@
     "deleted": "Deleted",
     "saveError": "Could not save. Please try again.",
     "deleteError": "Could not delete. Please try again.",
-    "loadError": "Could not load data."
+    "loadError": "Could not load data.",
+    "prev": "Previous",
+    "next": "Next",
+    "pageOf": "Page {{page}} of {{pages}}"
   },
   "dashboard": {
     "title": "Dashboard",
@@ -139,6 +142,7 @@
     "addSubtitle": "Create a case and its five workflow steps.",
     "client": "Client",
     "selectClient": "Select a client…",
+    "searchClient": "Search clients by name…",
     "category": "Category",
     "parcel": "Parcel",
     "assignedLawyer": "Assigned lawyer",

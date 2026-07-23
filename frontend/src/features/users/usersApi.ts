@@ -5,8 +5,8 @@ import type { AdminUser, UserCreateInput, UserUpdateInput } from "./types";
 
 export const usersApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
-    listUsers: builder.query<Paginated<AdminUser>, void>({
-      query: () => "users/",
+    listUsers: builder.query<Paginated<AdminUser>, { page?: number }>({
+      query: (params) => ({ url: "users/", params }),
       providesTags: ["User"],
     }),
     createUser: builder.mutation<AdminUser, UserCreateInput>({
