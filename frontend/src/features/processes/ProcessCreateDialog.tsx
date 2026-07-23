@@ -11,25 +11,22 @@ import { Spinner } from "@/components/ui/spinner";
 import { toast } from "@/components/ui/toaster";
 import { useListCategoriesQuery } from "@/features/categories/categoriesApi";
 import { useListClientsQuery } from "@/features/clients/clientsApi";
-import { useListParcelsQuery } from "@/features/parcels/parcelsApi";
 import { useListUsersQuery } from "@/features/users/usersApi";
 import { apiErrorMessage, apiErrorStatus } from "@/lib/apiError";
 
 import { useCreateProcessMutation } from "./processesApi";
 
-// Create an allocation (Step-1 header): pick the client, optional category/parcel, and — for
-// admins — the process-wide assigned lawyer. A duplicate active allocation returns 409 (§5.7).
+// Create an allocation: pick the client, optional category, and — for admins — the process-wide
+// assigned lawyer. Land details are entered later in Step 1. A duplicate allocation returns 409 (§5.7).
 export function ProcessCreateDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { t } = useTranslation();
   const isAdmin = useAppSelector((s) => s.auth.user?.is_admin ?? false);
   const { data: categories } = useListCategoriesQuery({}, { skip: !open });
-  const { data: parcels } = useListParcelsQuery(undefined, { skip: !open });
   const { data: users } = useListUsersQuery({}, { skip: !open || !isAdmin });
   const [create, { isLoading }] = useCreateProcessMutation();
 
   const [client, setClient] = useState("");
   const [category, setCategory] = useState("");
-  const [parcel, setParcel] = useState("");
   const [lawyer, setLawyer] = useState("");
 
   // Searchable client picker: the list is server-searched (debounced) so it isn't capped at page 1.
@@ -41,7 +38,6 @@ export function ProcessCreateDialog({ open, onClose }: { open: boolean; onClose:
     if (open) {
       setClient("");
       setCategory("");
-      setParcel("");
       setLawyer("");
       setClientTerm("");
       setClientSearch("");
@@ -59,7 +55,6 @@ export function ProcessCreateDialog({ open, onClose }: { open: boolean; onClose:
       await create({
         client: Number(client),
         category: category ? Number(category) : null,
-        parcel: parcel ? Number(parcel) : null,
         ...(isAdmin && lawyer ? { assigned_lawyer: Number(lawyer) } : {}),
       }).unwrap();
       toast.success(t("processes.created"));
@@ -94,29 +89,16 @@ export function ProcessCreateDialog({ open, onClose }: { open: boolean; onClose:
             ))}
           </Select>
         </div>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2">
-            <Label htmlFor="p-category">{t("processes.category")}</Label>
-            <Select id="p-category" value={category} onChange={(e) => setCategory(e.target.value)}>
-              <option value="">{t("common.none")}</option>
-              {(categories?.results ?? []).map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.code} — {c.name}
-                </option>
-              ))}
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="p-parcel">{t("processes.parcel")}</Label>
-            <Select id="p-parcel" value={parcel} onChange={(e) => setParcel(e.target.value)}>
-              <option value="">{t("common.none")}</option>
-              {(parcels?.results ?? []).map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.parcel_number}
-                </option>
-              ))}
-            </Select>
-          </div>
+        <div className="space-y-2">
+          <Label htmlFor="p-category">{t("processes.category")}</Label>
+          <Select id="p-category" value={category} onChange={(e) => setCategory(e.target.value)}>
+            <option value="">{t("common.none")}</option>
+            {(categories?.results ?? []).map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.code} — {c.name}
+              </option>
+            ))}
+          </Select>
         </div>
         {isAdmin && (
           <div className="space-y-2">

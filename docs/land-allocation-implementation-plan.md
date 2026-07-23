@@ -92,9 +92,9 @@ This plan front-loads the demo and defers **OCR** (Iteration 5) and the **offlin
 
 **Tasks**
 
-- [ ] Models: `Category`, `Client` (all gov-ID fields + `marital_status`/`spouse_name`), `LandParcel`, `Process`, `ProcessStep` — *§3*.
+- [ ] Models: `Category`, `Client` (all gov-ID fields + `marital_status`/`spouse_name`), `Process`, `ProcessStep` — *§3*. *(LandParcel was built here then removed in It.2.5 — land is now `Process.land_id`/`land_address`; see architecture §0.)*
 - [ ] Migrations + indexes: `pid` partial-unique, `full_name`/`mother_full_name` trigram, `created_at`, composite filter index, **`process(client_id)` active-allocation partial-unique** — *§3.7*.
-- [ ] CRUD APIs: users (admin), categories (admin), clients, parcels — *§4*.
+- [ ] CRUD APIs: users (admin), categories (admin), clients — *§4*. *(parcels endpoint removed It.2.5)*
 - [ ] Process create (sets process-wide lawyer) + **Step 1** data entry (no OCR/generation yet).
 - [ ] RBAC: `IsAdmin`, `IsProcessAssigneeOrAdmin`, field-level restrictions — *§7*.
 - [ ] Duplicate check (PID exact / mother-name trigram) + **admin override** + `DuplicateOverride` log — *§5.7*.

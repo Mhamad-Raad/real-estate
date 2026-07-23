@@ -31,6 +31,17 @@ class ProcessApiTests(APITestCase):
         self.assertEqual(process.assigned_lawyer_id, self.lawyer_a.id)
         self.assertEqual(process.steps.count(), 5)
 
+    def test_list_can_filter_by_current_step(self):
+        p1 = create_process(client=self.client_row, assigned_lawyer=self.lawyer_a, actor=self.lawyer_a)
+        other = Client.objects.create(full_name="Two", pid="901", mother_full_name="M2")
+        p3 = create_process(client=other, assigned_lawyer=self.lawyer_a, actor=self.lawyer_a)
+        Process.objects.filter(pk=p3.pk).update(current_step=3)
+        self.client.force_authenticate(self.lawyer_a)
+        resp = self.client.get(reverse("process-list"), {"current_step": 3})
+        ids = [row["id"] for row in resp.data["results"]]
+        self.assertIn(p3.id, ids)
+        self.assertNotIn(p1.id, ids)
+
     def test_second_active_allocation_returns_409_not_500(self):
         create_process(
             client=self.client_row, assigned_lawyer=self.lawyer_a, actor=self.lawyer_a

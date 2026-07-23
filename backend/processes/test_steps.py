@@ -12,7 +12,6 @@ from rest_framework.test import APITestCase
 from accounts.models import User
 from catalog.models import Category
 from clients.models import Client
-from parcels.models import LandParcel
 
 from .models import ProcessInstituteEntry, ProcessStep
 from .services import create_process
@@ -24,13 +23,12 @@ class WorkflowApiTests(APITestCase):
         self.admin = User.objects.create_user("adm", password="pw12345678", role=User.Role.ADMIN)
         self.lawyer = User.objects.create_user("lw", password="pw12345678")
         self.category = Category.objects.create(code="A", name="A")
-        self.parcel = LandParcel.objects.create(parcel_number="P-1")
         self.client_row = Client.objects.create(
             full_name="Person", pid="111", mother_full_name="Mother", category=self.category
         )
         self.process = create_process(
             client=self.client_row, assigned_lawyer=self.lawyer, actor=self.lawyer,
-            category=self.category, parcel=self.parcel,
+            category=self.category,
         )
         self.client.force_authenticate(self.lawyer)
 

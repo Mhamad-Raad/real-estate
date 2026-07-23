@@ -54,7 +54,6 @@ class ProcessViewSet(AuditedSoftDeleteViewSet, ModelViewSet):
             client=data["client"],
             assigned_lawyer=assigned,
             actor=user,
-            parcel=data.get("parcel"),
             category=data.get("category"),
             request=self.request,
         )

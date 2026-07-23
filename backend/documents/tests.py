@@ -90,15 +90,10 @@ class DocumentApiTests(APITestCase):
         self.assertIn(".pdf", resp["Content-Disposition"])
 
     def test_upload_recomputes_step_status(self):
-        # Step 1 needs header fields + three doc types; after all three it should be complete.
-        self.process.parcel = None
+        # Step 1 needs land_id + category + three doc types; after all three it should be complete.
         self.client.force_authenticate(self.lawyer)
-        # add a parcel so header_ok can hold
-        from parcels.models import LandParcel
-
-        parcel = LandParcel.objects.create(parcel_number="P-1")
-        self.process.parcel = parcel
-        self.process.save(update_fields=["parcel"])
+        self.process.land_id = "L-1"
+        self.process.save(update_fields=["land_id"])
         for doc_type in ("ClientID", "RealEstate", "SignedAgreement"):
             self._upload(document_type=doc_type)
         step1 = ProcessStep.objects.get(process=self.process, step_number=1)

@@ -1,17 +1,59 @@
 import { AlertTriangle } from "lucide-react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
+import { Spinner } from "@/components/ui/spinner";
+import { toast } from "@/components/ui/toaster";
+import { useListCategoriesQuery } from "@/features/categories/categoriesApi";
 import { DocumentRow } from "@/features/documents/DocumentRow";
 import { DocumentUpload } from "@/features/documents/DocumentUpload";
+import { apiErrorMessage } from "@/lib/apiError";
+
+import { useUpdateProcessMutation } from "../processesApi";
 import type { ProcessDetail } from "../types";
 
-// Step 1: the three client papers drive completion; header fields were set at creation (§5.1).
+// Step 1: editable header (category + land id/address) plus the three client papers (§5.1).
 const STEP1_DOC_TYPES = ["ClientID", "RealEstate", "SignedAgreement"];
 
 export function Step1Panel({ process, canEdit }: { process: ProcessDetail; canEdit: boolean }) {
   const { t } = useTranslation();
+  const { data: categories } = useListCategoriesQuery({});
+  const [update, { isLoading }] = useUpdateProcessMutation();
   const docs = process.documents.filter((d) => d.step_number === 1);
+
+  const [category, setCategory] = useState<string>(process.category ? String(process.category) : "");
+  const [landId, setLandId] = useState(process.land_id);
+  const [landAddress, setLandAddress] = useState(process.land_address);
+
+  useEffect(() => {
+    setCategory(process.category ? String(process.category) : "");
+    setLandId(process.land_id);
+    setLandAddress(process.land_address);
+  }, [process.category, process.land_id, process.land_address, process.id]);
+
+  const dirty =
+    category !== (process.category ? String(process.category) : "") ||
+    landId !== process.land_id ||
+    landAddress !== process.land_address;
+
+  const save = async () => {
+    try {
+      await update({
+        id: process.id,
+        version: process.version,
+        category: category ? Number(category) : null,
+        land_id: landId,
+        land_address: landAddress,
+      }).unwrap();
+      toast.success(t("common.saved"));
+    } catch (err) {
+      toast.error(apiErrorMessage(err, t("common.saveError")));
+    }
+  };
 
   return (
     <div className="space-y-5">
@@ -22,16 +64,50 @@ export function Step1Panel({ process, canEdit }: { process: ProcessDetail; canEd
         </div>
       )}
 
-      <div className="grid gap-3 text-sm sm:grid-cols-2">
-        <div className="flex justify-between rounded-md bg-muted/50 px-3 py-2">
-          <span className="text-muted-foreground">{t("processes.category")}</span>
-          <span>{process.category ? t("workflow.set") : t("workflow.notSet")}</span>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="space-y-1.5">
+          <Label htmlFor="s1-category">{t("processes.category")}</Label>
+          <Select
+            id="s1-category"
+            value={category}
+            disabled={!canEdit}
+            onChange={(e) => setCategory(e.target.value)}
+          >
+            <option value="">{t("common.none")}</option>
+            {(categories?.results ?? []).map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.code} — {c.name}
+              </option>
+            ))}
+          </Select>
         </div>
-        <div className="flex justify-between rounded-md bg-muted/50 px-3 py-2">
-          <span className="text-muted-foreground">{t("processes.parcel")}</span>
-          <span>{process.parcel ? t("workflow.set") : t("workflow.notSet")}</span>
+        <div className="space-y-1.5">
+          <Label htmlFor="s1-landid">{t("workflow.landId")}</Label>
+          <Input
+            id="s1-landid"
+            value={landId}
+            disabled={!canEdit}
+            onChange={(e) => setLandId(e.target.value)}
+            placeholder={t("workflow.landIdPlaceholder")}
+          />
+        </div>
+        <div className="space-y-1.5 sm:col-span-2">
+          <Label htmlFor="s1-address">{t("workflow.landAddress")}</Label>
+          <Input
+            id="s1-address"
+            value={landAddress}
+            disabled={!canEdit}
+            onChange={(e) => setLandAddress(e.target.value)}
+            placeholder={t("workflow.landAddressPlaceholder")}
+          />
         </div>
       </div>
+      {canEdit && (
+        <Button size="sm" onClick={save} disabled={isLoading || !dirty}>
+          {isLoading && <Spinner />}
+          {t("workflow.saveLand")}
+        </Button>
+      )}
 
       {STEP1_DOC_TYPES.map((type) => {
         const forType = docs.filter((d) => d.document_type === type);

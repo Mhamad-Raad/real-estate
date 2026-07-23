@@ -20,13 +20,9 @@ class Process(SoftDeleteModel):
     client = models.ForeignKey(
         "clients.Client", on_delete=models.PROTECT, related_name="processes"
     )
-    parcel = models.ForeignKey(
-        "parcels.LandParcel",
-        on_delete=models.PROTECT,
-        null=True,
-        blank=True,
-        related_name="processes",
-    )
+    # The allocated land — just an identifier + address, entered in Step 1 (§5.1). No parcel entity.
+    land_id = models.CharField(max_length=100, blank=True)
+    land_address = models.CharField(max_length=300, blank=True)
     category = models.ForeignKey(
         "catalog.Category",
         on_delete=models.PROTECT,

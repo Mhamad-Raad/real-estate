@@ -16,6 +16,7 @@ This section records where the **built system intentionally differs** from the d
 |------|-----------|---------------|--------|
 | **User theme/language** | `theme`/`language` fields on `User`; `PATCH /users/me/` edits them (§7, §4.2) | Both fields **removed**; preferences live in the browser (localStorage) only; `GET /users/me/` is read-only | Product decision — client-only UI prefs |
 | **`Client.created_by`** | not present | Added FK `created_by` on `Client` | Lets the lawyer who created a client edit it before a process links them |
+| **Land / `LandParcel`** | a `LandParcel` entity + `Process.parcel` FK + `/parcels/` CRUD | **Removed entirely.** The land is just two strings on the process — `land_id` + `land_address` — entered/edited in Step 1 (It.2.5) | Product decision — the office only records a land identifier and address, no parcel registry |
 | **`GET /api/v1/lawyers/`** | not present (only admin `GET /users/`) | Added: read-only `id`+`username` of active users, any authenticated caller | Non-admin assignees need it for the per-institute lawyer dropdowns; the full Users API stays admin-only |
 | **User soft-delete** | "every domain model extends `SoftDeleteModel`" | `User` **mirrors** the soft-delete fields (`is_deleted/deleted_at/deleted_by/version`) rather than extending it | `AbstractUser` cannot cleanly multi-inherit `SoftDeleteModel`; behavior is identical (a deleted user is also `is_active=False`) |
 | **`version` field** | not shown in the `SoftDeleteModel` snippet (§3.1) | Present on every soft-deletable model incl. `User` | Required by the optimistic-locking invariant (§4.1, §12) |
@@ -327,7 +328,7 @@ Because the consistent DB dump is produced by an in-container **Celery Beat** jo
 
 > **In plain terms:** this is the list of database tables and how they link together. Everything centers on the **Process** (one land-allocation case); the other tables hang off it. If you read only one diagram in this document, make it the ER diagram just below.
 
-The model is normalized around one central entity — **Process** — with **Client**, **LandParcel**, and **Category** as its inputs, and **Documents**, **ProcessSteps**, and **ProcessInstituteEntries** hanging off it. Two cross-cutting concerns — **soft-delete** and **audit** — are implemented once in abstract base models and inherited everywhere.
+The model is normalized around one central entity — **Process** — with **Client** and **Category** as its inputs (the land is captured as `land_id`/`land_address` fields on the process, not a separate entity — see §0), and **Documents**, **ProcessSteps**, and **ProcessInstituteEntries** hanging off it. Two cross-cutting concerns — **soft-delete** and **audit** — are implemented once in abstract base models and inherited everywhere.
 
 ### 3.1 Base models (inherited by all domain tables)
 
@@ -363,7 +364,6 @@ erDiagram
 
     CLIENT ||--o{ PROCESS : "subject of (1 active max)"
     CLIENT ||--o{ DOCUMENT : "has"
-    LAND_PARCEL ||--o{ PROCESS : "allocated in"
 
     PROCESS ||--o{ PROCESS_STEP : "has 5"
     PROCESS ||--o{ PROCESS_INSTITUTE_ENTRY : "has many (steps 2-4)"
@@ -406,23 +406,14 @@ erDiagram
         string spouse_name "nullable"
         bool   is_deleted
     }
-    LAND_PARCEL {
-        bigint id PK
-        string location
-        string parcel_number
-        decimal area
-        string zone_basin
-        string land_type
-        string registry_reference
-        bool   is_deleted
-    }
     PROCESS {
         bigint id PK
         bigint client_id FK
-        bigint parcel_id FK
         bigint category_id FK
         bigint assigned_lawyer_id FK "process-wide"
-        string overall_status "draft|in_progress|submitted|completed|rejected"
+        string land_id "It.2.5 — replaced LandParcel"
+        string land_address
+        string overall_status "draft|in_progress|complete|rejected (§0)"
         smallint current_step "1..5"
         text   lawyer_notes
         datetime created_at "indexed"
@@ -511,8 +502,7 @@ erDiagram
 | **User** | Login account, assignment, audit attribution | `role` (admin/lawyer) — *`language`/`theme` removed, see §0* | 1→N Process (process-wide), 1→N ProcessInstituteEntry (per-institute), 1→N ActivityLog |
 | **Category** | A/B/C/G institute grouping, admin-managed | `code`, `name` | 1→N Client, 1→N Process |
 | **Client** | Land beneficiary; all gov-ID fields | `full_name`, `pid`, `mother_full_name`, `marital_status`, `spouse_name`, `created_by` *(§0)* | N→1 Category; 1→N Document; 1→N Process |
-| **LandParcel** | The land allocated | `parcel_number`, `location`, `area`, `zone_basin`, `registry_reference` | 1→N Process |
-| **Process** | Central allocation case | `overall_status`, `current_step`, `assigned_lawyer`, `lawyer_notes` | N→1 Client/Parcel/Category/Lawyer; 1→N Step/InstituteEntry/Document |
+| **Process** | Central allocation case | `overall_status`, `current_step`, `assigned_lawyer`, `lawyer_notes`, `land_id`, `land_address` *(§0 — replaced LandParcel)* | N→1 Client/Category/Lawyer; 1→N Step/InstituteEntry/Document |
 | **ProcessStep** | Per-step status + step-level dates/approval | `step_number`, `status`, `start_date`, `end_date`, `approval_status`, `out_of_city_flag` | N→1 Process |
 | **ProcessInstituteEntry** | One institute's upload + assigned lawyer in steps 2–4 | `institute_code` OR `custom_name`, `is_custom`, `assigned_lawyer` | N→1 Process; 1→1 Document (single owning FK: `Document.institute_entry_id`) |
 | **Document** | A PDF (scanned/imported/generated) + OCR draft | `file_path`, `input_source`, `ocr_status`, `verification_status`, `sha256` | N→1 Client/Process/InstituteEntry |
@@ -553,7 +543,7 @@ The frontend never hard-codes this list — it reads `GET /api/institutes/`. Ins
 
 | Step | Required for "complete" |
 |------|-------------------------|
-| 1 | Client + parcel + category + marital status set; client-ID doc, real-estate doc, signed-agreement doc present; base eligibility PDF generated (+ spouse PDF if married); duplicate check cleared/overridden |
+| 1 | Client + land (`land_id`) + category + marital status set; client-ID doc, real-estate doc, signed-agreement doc present; base eligibility PDF generated (+ spouse PDF if married; *deferred to It.3, see §0*); duplicate check cleared/overridden |
 | 2 | Every Step-2 institute entry has a document + assigned lawyer; start_date set; approval recorded (sets end_date) |
 | 3 | All three Step-3 institute entries complete; each out-of-city row (if flag on) has name + doc + lawyer; approved/rejected + date recorded |
 | 4 | Both Step-4 institute entries have a document + assigned lawyer |
@@ -615,8 +605,6 @@ A **REST** API (explicitly not GraphQL) under `/api/`, versioned `/api/v1/`, JSO
 | **Institutes** | `GET /api/v1/institutes/` | **Read-only shared enum** (code, i18n key, step) | All |
 | **Clients** | `GET/POST /api/v1/clients/` | List / create; `?search=&pid=` | All (create) |
 | | `GET/PATCH/DELETE /api/v1/clients/{id}/` | Retrieve / update / soft-delete | Admin or process assignee |
-| **Parcels** | `GET/POST /api/v1/parcels/` | List / create land parcels | All (create) |
-| | `GET/PATCH/DELETE /api/v1/parcels/{id}/` | CRUD | Admin or process assignee |
 | **Processes** | `GET /api/v1/processes/` | **Search/filter list** (see 4.3) | All (read all) |
 | | `POST /api/v1/processes/` | Create case (sets process-wide lawyer) | All |
 | | `GET /api/v1/processes/{id}/` | Full case with steps, entries, documents | All |
@@ -653,12 +641,13 @@ A **REST** API (explicitly not GraphQL) under `/api/`, versioned `/api/v1/`, JSO
 
 ```
 GET /api/v1/processes/?search=<name>&pid=<exact>&date_from=2026-01-01&date_to=2026-07-01
-                       &category=A&status=in_progress&assigned_lawyer=7&page=1&page_size=25
+                       &category=A&status=in_progress&assigned_lawyer=7&current_step=3&page=1&page_size=25
 ```
 
 - `pid` → exact match on the partial-unique PID index (fast).
 - `search` → trigram `ILIKE` on `client.full_name` (partial/fuzzy).
 - `date_from/date_to` → range on `process.created_at` index.
+- `current_step` → exact match on `process.current_step` (1–5) — narrows the list to processes at a given workflow step (added It.2.5). The list also shows each process's current step as a column.
 - `assigned_lawyer` → matches the **process-wide** assignee **or** any per-institute assignee (documented so the UI can label which). Response includes `step_status_summary` so the list can show per-step badges without extra calls.
 
 ### 4.4 How the tricky operations work over REST
@@ -679,7 +668,7 @@ Creating a Process starts a **5-step data-entry flow rendered as collapsible acc
 
 ```mermaid
 flowchart TD
-    START(["Create Process<br/>set Client, Parcel, process-wide Lawyer"]) --> DUP{Duplicate check<br/>PID or mother name}
+    START(["Create Process<br/>set Client, Category, process-wide Lawyer"]) --> DUP{Duplicate check<br/>PID or mother name}
     DUP -- "match found" --> WARN["Strong warning<br/>block save"]
     WARN --> OV{Admin override?}
     OV -- "no" --> WARN
@@ -1057,7 +1046,7 @@ Three languages — **Kurdish Sorani (`ckb`, primary), Arabic (`ar`), English (`
 
 Step 5 compiles the whole case for higher operations/leadership. Implemented **server-side** for correct RTL layout:
 
-1. Render a **case summary** (all step data, client, parcel, approvals, institutes, assigned lawyers) by filling a `.docx` summary template with `docxtpl` → PDF via **headless LibreOffice** (reliable RTL).
+1. Render a **case summary** (all step data, client, land, approvals, institutes, assigned lawyers) by filling a `.docx` summary template with `docxtpl` → PDF via **headless LibreOffice** (reliable RTL).
 2. **Merge** that summary PDF with all of the process's document PDFs (in step order) using `pypdf`/`pikepdf` into **one compiled PDF**.
 3. Offer **print** and **download**; store the compiled file as a `Document(input_source="system_generated")` so it is reproducible and audited.
 
@@ -1210,7 +1199,7 @@ backend/
 │   ├── models.py serializers.py views.py urls.py
 ├── clients/                    # Client + duplicate-check service
 │   ├── models.py services.py selectors.py serializers.py views.py urls.py
-├── parcels/                    # LandParcel
+├── parcels/                    # empty shell (LandParcel removed It.2.5; kept for migration history)
 ├── processes/                  # Process, ProcessStep, ProcessInstituteEntry,
 │                               #   DuplicateOverride
 │   ├── models.py
