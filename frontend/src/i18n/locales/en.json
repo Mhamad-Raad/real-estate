@@ -9,6 +9,7 @@
     "processes": "Processes",
     "reports": "Reports",
     "activities": "Activities",
+    "categories": "Categories",
     "users": "Users",
     "settings": "Settings"
   },
@@ -48,13 +49,133 @@
     "loading": "Loading…",
     "save": "Save",
     "cancel": "Cancel",
-    "search": "Search"
+    "search": "Search",
+    "create": "Create",
+    "edit": "Edit",
+    "delete": "Delete",
+    "actions": "Actions",
+    "none": "None",
+    "retry": "Retry",
+    "saved": "Saved",
+    "deleted": "Deleted",
+    "saveError": "Could not save. Please try again.",
+    "deleteError": "Could not delete. Please try again.",
+    "loadError": "Could not load data."
   },
   "dashboard": {
     "title": "Dashboard",
     "welcome": "Welcome, {{name}}",
     "subtitle": "This is the application shell. Domain features arrive in the next iterations.",
     "comingSoon": "Coming soon"
+  },
+  "categories": {
+    "title": "Categories",
+    "subtitle": "Institute groupings used across allocations.",
+    "add": "Add category",
+    "edit": "Edit category",
+    "code": "Code",
+    "name": "Name",
+    "empty": "No categories yet.",
+    "deleteTitle": "Delete category",
+    "deleteConfirm": "Delete category “{{name}}”? It can be restored later."
+  },
+  "users": {
+    "title": "Users",
+    "subtitle": "Manage login accounts and roles.",
+    "add": "Add user",
+    "edit": "Edit user",
+    "username": "Username",
+    "name": "Name",
+    "firstName": "First name",
+    "lastName": "Last name",
+    "email": "Email",
+    "role": "Role",
+    "password": "Password",
+    "newPassword": "New password",
+    "passwordKeep": "Leave blank to keep current",
+    "empty": "No users yet.",
+    "deleteTitle": "Delete user",
+    "deleteConfirm": "Delete user “{{name}}”? They will no longer be able to sign in."
+  },
+  "clients": {
+    "title": "Clients",
+    "subtitle": "Land beneficiaries and their identity records.",
+    "add": "Add client",
+    "edit": "Edit client",
+    "fullName": "Full name",
+    "pid": "National ID",
+    "motherName": "Mother's full name",
+    "maritalStatus": "Marital status",
+    "spouseName": "Spouse name",
+    "dateOfBirth": "Date of birth",
+    "placeOfBirth": "Place of birth",
+    "phone": "Phone",
+    "address": "Address",
+    "category": "Category",
+    "searchPlaceholder": "Search by name…",
+    "empty": "No clients found.",
+    "deleteTitle": "Delete client",
+    "deleteConfirm": "Delete client “{{name}}”? It can be restored later.",
+    "marital": {
+      "single": "Single",
+      "married": "Married",
+      "divorced": "Divorced",
+      "widowed": "Widowed"
+    },
+    "duplicate": {
+      "title": "Possible duplicate",
+      "subtitle": "We found existing clients that may match this person.",
+      "pidHeading": "Same National ID",
+      "motherHeading": "Similar mother's name",
+      "hard": "Blocked",
+      "soft": "Review",
+      "proceed": "Save anyway"
+    }
+  },
+  "processes": {
+    "title": "Processes",
+    "subtitle": "Land-allocation cases.",
+    "add": "New allocation",
+    "addSubtitle": "Create a case and its five workflow steps.",
+    "client": "Client",
+    "selectClient": "Select a client…",
+    "category": "Category",
+    "parcel": "Parcel",
+    "assignedLawyer": "Assigned lawyer",
+    "assignSelf": "Assign to me",
+    "created": "Allocation created",
+    "createdAt": "Created",
+    "statusLabel": "Status",
+    "empty": "No processes found.",
+    "flagged": "Possible duplicate — needs review",
+    "duplicateAllocation": "This client already has an active allocation.",
+    "deleteTitle": "Delete process",
+    "deleteConfirm": "Delete the allocation for “{{name}}”? It can be restored later.",
+    "status": {
+      "draft": "Draft",
+      "in_progress": "In progress",
+      "complete": "Complete",
+      "rejected": "Rejected"
+    },
+    "filters": {
+      "name": "Search by name…",
+      "pid": "National ID…",
+      "allCategories": "All categories",
+      "allStatuses": "All statuses"
+    },
+    "override": {
+      "title": "Override duplicate warning",
+      "subtitle": "Clearing the warning is recorded with your reason.",
+      "matchReason": "Match type",
+      "reasonLabel": "Reason",
+      "reasonPlaceholder": "Explain why this allocation is legitimate…",
+      "confirm": "Override",
+      "done": "Duplicate warning cleared.",
+      "reason": {
+        "pid": "Same National ID",
+        "mother_name": "Similar mother's name (sibling)"
+      }
+    }
   },
   "notFound": {
     "title": "Page not found",
