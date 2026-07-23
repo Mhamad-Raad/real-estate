@@ -35,3 +35,47 @@ export interface ProcessFilters {
 }
 
 export type MatchReason = "pid" | "mother_name";
+
+// ---- Process detail / 5-step workflow (§5) ----
+
+export type StepStatus = "not_started" | "in_progress" | "missing" | "complete";
+export type ApprovalStatus = "pending" | "approved" | "rejected";
+
+export interface ProcessStep {
+  id: number;
+  step_number: number;
+  status: StepStatus;
+  start_date: string | null;
+  end_date: string | null;
+  approval_status: string;
+  out_of_city_flag: boolean;
+  version: number;
+}
+
+export interface InstituteEntry {
+  id: number;
+  process: number;
+  step_number: number;
+  institute_code: string;
+  is_custom: boolean;
+  custom_name: string;
+  assigned_lawyer: number | null;
+  approval_status: ApprovalStatus;
+  approval_date: string | null;
+  version: number;
+}
+
+export interface StepStatusSummary {
+  steps: Record<string, StepStatus>;
+  completed: number;
+  total: number;
+}
+
+export interface ProcessDetail extends ProcessListItem {
+  lawyer_notes: string;
+  steps: ProcessStep[];
+  institute_entries: InstituteEntry[];
+  step_status_summary: StepStatusSummary;
+  documents: import("@/features/documents/types").DocumentMeta[];
+}
+

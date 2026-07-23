@@ -1,0 +1,160 @@
+import { Plus } from "lucide-react";
+import { useTranslation } from "react-i18next";
+
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { toast } from "@/components/ui/toaster";
+import { useListInstitutesQuery } from "@/features/institutes/institutesApi";
+import { useListLawyersQuery } from "@/features/users/lawyersApi";
+import { apiErrorMessage } from "@/lib/apiError";
+
+import { useCreateEntryMutation, useSaveStepMutation } from "../processesApi";
+import type { ProcessDetail } from "../types";
+import { InstituteEntryCard } from "./InstituteEntryCard";
+
+// Steps 2–4: fixed institutes from the shared enum, plus Step-3 out-of-city custom rows (§5.1, §5.6).
+export function InstituteStepPanel({
+  process,
+  step,
+  canEdit,
+}: {
+  process: ProcessDetail;
+  step: number;
+  canEdit: boolean;
+}) {
+  const { t } = useTranslation();
+  const { data: institutes } = useListInstitutesQuery();
+  const { data: lawyers } = useListLawyersQuery();
+  const [createEntry] = useCreateEntryMutation();
+  const [saveStep] = useSaveStepMutation();
+
+  const stepRow = process.steps.find((s) => s.step_number === step)!;
+  const entries = process.institute_entries.filter((e) => e.step_number === step);
+  const fixed = (institutes ?? []).filter((i) => i.step === step);
+  const customs = entries.filter((e) => e.is_custom);
+  const lawyerList = lawyers ?? [];
+
+  const addFixed = async (code: string) => {
+    try {
+      await createEntry({ process: process.id, step_number: step, institute_code: code }).unwrap();
+    } catch (err) {
+      toast.error(apiErrorMessage(err, t("common.saveError")));
+    }
+  };
+
+  const addCustom = async () => {
+    try {
+      await createEntry({
+        process: process.id,
+        step_number: 3,
+        is_custom: true,
+        custom_name: t("workflow.newCustom"),
+      }).unwrap();
+    } catch (err) {
+      toast.error(apiErrorMessage(err, t("common.saveError")));
+    }
+  };
+
+  const saveStepField = async (fields: Record<string, unknown>) => {
+    try {
+      await saveStep({ process: process.id, step, version: stepRow.version, ...fields }).unwrap();
+    } catch (err) {
+      toast.error(apiErrorMessage(err, t("common.saveError")));
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      {step === 2 && (
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-1">
+            <Label className="text-xs">{t("workflow.startDate")}</Label>
+            <Input
+              type="date"
+              value={stepRow.start_date ?? ""}
+              disabled={!canEdit}
+              className="h-9"
+              onChange={(e) => saveStepField({ start_date: e.target.value || null })}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">{t("workflow.endDate")}</Label>
+            <Input
+              type="date"
+              value={stepRow.end_date ?? ""}
+              disabled={!canEdit}
+              className="h-9"
+              onChange={(e) => saveStepField({ end_date: e.target.value || null })}
+            />
+          </div>
+        </div>
+      )}
+
+      {fixed.map((inst) => {
+        const entry = entries.find((e) => !e.is_custom && e.institute_code === inst.code);
+        if (entry) {
+          return (
+            <InstituteEntryCard
+              key={inst.code}
+              process={process}
+              entry={entry}
+              label={t(inst.display_key)}
+              lawyers={lawyerList}
+              canEdit={canEdit}
+            />
+          );
+        }
+        return (
+          <div
+            key={inst.code}
+            className="flex items-center justify-between rounded-lg border border-dashed border-border px-3 py-2.5 text-sm"
+          >
+            <span className="text-muted-foreground">{t(inst.display_key)}</span>
+            {canEdit && (
+              <Button type="button" variant="outline" size="sm" onClick={() => addFixed(inst.code)}>
+                <Plus className="size-4" />
+                {t("workflow.addEntry")}
+              </Button>
+            )}
+          </div>
+        );
+      })}
+
+      {step === 3 && (
+        <div className="space-y-3 rounded-lg bg-muted/40 p-3">
+          <label className="flex items-center gap-2 text-sm font-medium">
+            <input
+              type="checkbox"
+              checked={stepRow.out_of_city_flag}
+              disabled={!canEdit}
+              onChange={(e) => saveStepField({ out_of_city_flag: e.target.checked })}
+              className="size-4 accent-[var(--color-primary)]"
+            />
+            {t("workflow.outOfCity")}
+          </label>
+          {stepRow.out_of_city_flag && (
+            <div className="space-y-3">
+              {customs.map((entry) => (
+                <InstituteEntryCard
+                  key={entry.id}
+                  process={process}
+                  entry={entry}
+                  label={entry.custom_name}
+                  lawyers={lawyerList}
+                  canEdit={canEdit}
+                />
+              ))}
+              {canEdit && (
+                <Button type="button" variant="outline" size="sm" onClick={addCustom}>
+                  <Plus className="size-4" />
+                  {t("workflow.addCustom")}
+                </Button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}

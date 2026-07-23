@@ -8,6 +8,7 @@ import { ProtectedRoute } from "@/features/auth/ProtectedRoute";
 import { CategoriesPage } from "@/features/categories/CategoriesPage";
 import { ClientsPage } from "@/features/clients/ClientsPage";
 import { ProcessesPage } from "@/features/processes/ProcessesPage";
+import { ProcessDetailPage } from "@/features/processes/detail/ProcessDetailPage";
 import { UsersPage } from "@/features/users/UsersPage";
 import { DashboardPage } from "@/pages/DashboardPage";
 import { NotFoundPage } from "@/pages/NotFoundPage";
@@ -24,6 +25,7 @@ export default function App() {
             <Route index element={<DashboardPage />} />
             <Route path="clients" element={<ClientsPage />} />
             <Route path="processes" element={<ProcessesPage />} />
+            <Route path="processes/:id" element={<ProcessDetailPage />} />
             <Route path="reports" element={<PlaceholderPage titleKey="nav.reports" />} />
             <Route path="activities" element={<PlaceholderPage titleKey="nav.activities" />} />
             {/* Admin-only management screens (server enforces RBAC too). */}

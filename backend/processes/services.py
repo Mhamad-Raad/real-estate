@@ -5,17 +5,29 @@ ultimately enforced by the DB index (§3.7); these services add the app-level de
 """
 
 from django.db import IntegrityError, transaction
+from django.utils import timezone
 from rest_framework import status
-from rest_framework.exceptions import APIException
+from rest_framework.exceptions import APIException, ValidationError
 
 from clients.selectors import duplicate_matches
 from common.locking import check_version
 from common.models import ActivityLog
 from common.services import record_activity
 
-from .models import DuplicateOverride, Process, ProcessStep
+from . import status as step_status
+from .models import DuplicateOverride, Process, ProcessInstituteEntry, ProcessStep
 
 STEP_NUMBERS = range(1, 6)
+
+
+class MissingFiles(APIException):
+    status_code = status.HTTP_400_BAD_REQUEST
+    default_detail = "Some steps still have missing files; an admin can force completion."
+    default_code = "missing_files"
+
+
+# Step fields a user may edit directly; `status` is always recomputed, never client-set (§3.6).
+EDITABLE_STEP_FIELDS = ("start_date", "end_date", "out_of_city_flag")
 
 
 class DuplicateAllocation(APIException):
@@ -94,3 +106,85 @@ def override_duplicate(
         request=request,
     )
     return override
+
+
+def _advance_overall_status(process) -> None:
+    """Keep overall_status honest after a step changes (§5.2, §5.3). Never touches rejected."""
+    if process.overall_status == Process.OverallStatus.DRAFT:
+        # draft → in_progress the moment any step holds real data.
+        if process.steps.exclude(status=ProcessStep.Status.NOT_STARTED).exists():
+            process.overall_status = Process.OverallStatus.IN_PROGRESS
+            process.save(update_fields=["overall_status", "updated_at"])
+    elif process.overall_status == Process.OverallStatus.COMPLETE:
+        # A reopened/edited step can break completion — don't keep claiming "complete".
+        if process.steps.exclude(status=ProcessStep.Status.COMPLETE).exists():
+            process.overall_status = Process.OverallStatus.IN_PROGRESS
+            process.save(update_fields=["overall_status", "updated_at"])
+
+
+def recompute_step(process, step_number: int) -> ProcessStep:
+    """Re-derive and persist one step's status after its data changed (docs/entries/fields).
+
+    Server-derived, so it does NOT bump the optimistic-lock `version` (only user edits do)."""
+    step = process.steps.get(step_number=step_number)
+    new_status = step_status.compute_step_status(process, step_number, step)
+    if new_status != step.status:
+        step.status = new_status
+        step.save(update_fields=["status", "updated_at"])
+    _advance_overall_status(process)
+    return step
+
+
+@transaction.atomic
+def save_step(*, process, step_number, data, actor, expected_version=None, request=None) -> ProcessStep:
+    """Partial per-step save (§5.2). Validates only present fields, recomputes status, audits."""
+    step = process.steps.get(step_number=step_number)
+    check_version(step, expected_version, required=True)  # optimistic lock on the step row
+    before = {"status": step.status, "start_date": str(step.start_date), "end_date": str(step.end_date)}
+    for field in EDITABLE_STEP_FIELDS:
+        if field in data:
+            setattr(step, field, data[field])
+    step.status = step_status.compute_step_status(process, step_number, step)
+    step.version += 1
+    step.save()
+    _advance_overall_status(process)
+    record_activity(
+        actor=actor,
+        action=ActivityLog.Action.UPDATE,
+        entity_type="ProcessStep",
+        entity_id=step.id,
+        before=before,
+        after={"status": step.status, "start_date": str(step.start_date), "end_date": str(step.end_date)},
+        request=request,
+    )
+    return step
+
+
+@transaction.atomic
+def complete_process(*, process, actor, force=False, expected_version=None, request=None) -> Process:
+    """Step-5 mark-complete (§5, §10.3). Blocks on missing files unless an admin forces it."""
+    check_version(process, expected_version)
+    for n in range(1, 5):
+        recompute_step(process, n)
+    prior_complete = all(
+        s.status == ProcessStep.Status.COMPLETE for s in process.steps.filter(step_number__lt=5)
+    )
+    if not prior_complete and not force:
+        raise MissingFiles()
+    step5 = process.steps.get(step_number=5)
+    step5.status = ProcessStep.Status.COMPLETE
+    step5.version += 1
+    step5.save(update_fields=["status", "version", "updated_at"])
+    process.overall_status = Process.OverallStatus.COMPLETE
+    process.current_step = 5
+    process.version += 1
+    process.save(update_fields=["overall_status", "current_step", "version", "updated_at"])
+    record_activity(
+        actor=actor,
+        action=ActivityLog.Action.UPDATE,
+        entity_type="Process",
+        entity_id=process.id,
+        after={"overall_status": process.overall_status, "forced": force},
+        request=request,
+    )
+    return process

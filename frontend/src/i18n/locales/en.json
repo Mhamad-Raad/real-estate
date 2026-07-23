@@ -181,6 +181,69 @@
       }
     }
   },
+  "workflow": {
+    "backToList": "Back to processes",
+    "rollup": "{{done}} of {{total}} steps complete",
+    "lawyerNotes": "Lawyer notes",
+    "notesPlaceholder": "Notes visible to the assigned lawyer and admins…",
+    "set": "Set",
+    "notSet": "Not set",
+    "flaggedNote": "Possible duplicate — an admin must override before this case can be completed.",
+    "step1": "Step 1 — Client & documents",
+    "step2": "Step 2 — Institute submissions",
+    "step3": "Step 3 — Institutes & out-of-city",
+    "step4": "Step 4 — Final institutes",
+    "step5": "Step 5 — Complete",
+    "stepStatus": {
+      "not_started": "Not started",
+      "in_progress": "In progress",
+      "missing": "Missing files",
+      "complete": "Complete"
+    },
+    "docType": {
+      "ClientID": "Client ID",
+      "RealEstate": "Real-estate papers",
+      "SignedAgreement": "Signed agreement"
+    },
+    "import": "Import PDF",
+    "upload": "Upload",
+    "uploaded": "Document uploaded",
+    "uploadError": "Could not upload the file.",
+    "download": "Download",
+    "downloadError": "Could not download the file.",
+    "noFile": "No file yet",
+    "assignedLawyer": "Assigned lawyer",
+    "approval": "Approval",
+    "approvalDate": "Approval date",
+    "approvalStatus": {
+      "pending": "Pending",
+      "approved": "Approved",
+      "rejected": "Rejected"
+    },
+    "document": "Document",
+    "customName": "Institute name",
+    "newCustom": "New institute",
+    "addEntry": "Add",
+    "addCustom": "Add out-of-city row",
+    "outOfCity": "Out-of-city submissions",
+    "startDate": "Start date",
+    "endDate": "End date",
+    "markComplete": "Mark complete",
+    "forceComplete": "Force complete (admin)",
+    "completeHint": "Completing requires all prior steps to have their files. An admin can force completion.",
+    "completed": "Case marked complete",
+    "missingFiles": "Some steps still have missing files.",
+    "caseComplete": "This case is complete."
+  },
+  "institute": {
+    "s2_a": "Institute S2-A",
+    "s2_b": "Institute S2-B",
+    "s3_a": "Institute S3-A",
+    "s3_b": "Institute S3-B",
+    "s3_c": "Institute S3-C",
+    "s4_a": "Institute S4-A",
+    "s4_b": "Institute S4-B"
+  },
   "notFound": {
     "title": "Page not found",
     "back": "Back to dashboard"

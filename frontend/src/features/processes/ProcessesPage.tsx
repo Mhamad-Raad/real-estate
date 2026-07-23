@@ -1,6 +1,7 @@
 import { AlertTriangle, Plus, ShieldCheck, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Link } from "react-router-dom";
 
 import { useAppSelector } from "@/app/hooks";
 import { Badge, type BadgeProps } from "@/components/ui/badge";
@@ -163,7 +164,9 @@ export function ProcessesPage() {
                 <TableRow key={process.id}>
                   <TableCell className="font-medium">
                     <span className="flex items-center gap-2">
-                      {process.client_full_name}
+                      <Link to={`/processes/${process.id}`} className="text-primary hover:underline">
+                        {process.client_full_name}
+                      </Link>
                       {process.duplicate_flagged && (
                         <AlertTriangle
                           className="size-4 text-amber-500"

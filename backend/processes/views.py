@@ -1,21 +1,28 @@
-"""Processes API — create (sets process-wide lawyer), search list, header edit, override (§4, §7)."""
+"""Processes API — create, search, header edit, override, per-step save, complete (§4, §5, §7)."""
 
+from django.db import IntegrityError
+from django.utils import timezone
 from rest_framework.decorators import action
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
 from common.permissions import IsAdmin, IsProcessAssigneeOrAdmin
 from common.viewsets import AuditedSoftDeleteViewSet
 
+from .models import ProcessInstituteEntry
+from .permissions import IsEntryEditorOrAdmin
 from .selectors import search_processes
 from .serializers import (
+    InstituteEntrySerializer,
     OverrideSerializer,
     ProcessCreateSerializer,
     ProcessDetailSerializer,
     ProcessListSerializer,
+    ProcessStepSerializer,
     ProcessUpdateSerializer,
 )
-from .services import create_process, override_duplicate
+from .services import complete_process, create_process, override_duplicate, recompute_step, save_step
 
 SERIALIZERS = {
     "list": ProcessListSerializer,
@@ -73,3 +80,79 @@ class ProcessViewSet(AuditedSoftDeleteViewSet, ModelViewSet):
         )
         process.refresh_from_db()
         return Response(ProcessDetailSerializer(process).data)
+
+    @action(detail=True, methods=["get", "patch"], url_path="steps/(?P<n>[1-5])")
+    def steps(self, request, pk=None, n=None):
+        """GET a step's data + computed status, or PATCH it (save incomplete) — §5.2."""
+        process = self.get_object()  # object permission: read=all, write=assignee/admin
+        step_number = int(n)
+        if request.method == "GET":
+            return Response(ProcessStepSerializer(process.steps.get(step_number=step_number)).data)
+        step = save_step(
+            process=process,
+            step_number=step_number,
+            data=request.data,
+            actor=request.user,
+            expected_version=request.data.get("version"),
+            request=request,
+        )
+        return Response(ProcessStepSerializer(step).data)
+
+    @action(detail=True, methods=["post"], url_path="steps/5/complete")
+    def complete(self, request, pk=None):
+        """Mark the case complete; blocks on missing files unless an admin forces it (§5, §10.3)."""
+        process = self.get_object()
+        force = bool(request.data.get("force"))
+        if force and not request.user.is_admin:
+            raise PermissionDenied("Only an admin can force completion past missing files.")
+        process = complete_process(
+            process=process,
+            actor=request.user,
+            force=force,
+            expected_version=request.data.get("version"),
+            request=request,
+        )
+        return Response(ProcessDetailSerializer(process).data)
+
+
+class InstituteEntryViewSet(AuditedSoftDeleteViewSet, ModelViewSet):
+    """Step 2–4 institute entries (§5.1). Any change re-derives the parent step's status."""
+
+    serializer_class = InstituteEntrySerializer
+    permission_classes = (IsEntryEditorOrAdmin,)
+    audit_entity = "InstituteEntry"
+
+    def get_queryset(self):
+        qs = ProcessInstituteEntry.objects.select_related("process").order_by("step_number", "id")
+        process_id = self.request.query_params.get("process")
+        return qs.filter(process_id=process_id) if process_id else qs
+
+    def perform_create(self, serializer):
+        process = serializer.validated_data["process"]
+        if not (self.request.user.is_admin or process.assigned_lawyer_id == self.request.user.id):
+            raise PermissionDenied("Only the assigned lawyer or an admin can add institute entries.")
+        try:
+            super().perform_create(serializer)
+        except IntegrityError:  # duplicate fixed institute for this process/step
+            raise ValidationError(
+                {"institute_code": "This institute is already recorded for this step."}
+            )
+        self._after_write(serializer.instance)
+
+    def perform_update(self, serializer):
+        super().perform_update(serializer)
+        self._after_write(serializer.instance)
+
+    def perform_destroy(self, instance):
+        process, step_number = instance.process, instance.step_number
+        super().perform_destroy(instance)
+        recompute_step(process, step_number)
+
+    def _after_write(self, entry):
+        # Step-2 approval auto-sets the step's end_date (editable later, §5.8).
+        if entry.step_number == 2 and entry.approval_status != entry.ApprovalStatus.PENDING:
+            step2 = entry.process.steps.get(step_number=2)
+            if step2.end_date is None:
+                step2.end_date = timezone.now().date()
+                step2.save(update_fields=["end_date", "updated_at"])
+        recompute_step(entry.process, entry.step_number)

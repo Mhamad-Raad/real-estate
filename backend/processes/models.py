@@ -109,6 +109,49 @@ class ProcessStep(SoftDeleteModel):
         return f"Process #{self.process_id} step {self.step_number}"
 
 
+class ProcessInstituteEntry(SoftDeleteModel):
+    """One institute submission within Steps 2–4 (§3.4, §5.1). Fixed institutes carry an
+    `institute_code` from the shared enum; Step-3 out-of-city rows set `is_custom` + `custom_name`."""
+
+    class ApprovalStatus(models.TextChoices):
+        PENDING = "pending", "Pending"
+        APPROVED = "approved", "Approved"
+        REJECTED = "rejected", "Rejected"
+
+    process = models.ForeignKey(
+        Process, on_delete=models.PROTECT, related_name="institute_entries"
+    )
+    step_number = models.PositiveSmallIntegerField()  # 2, 3 or 4
+    institute_code = models.CharField(max_length=40, blank=True)  # enum code; blank for custom rows
+    is_custom = models.BooleanField(default=False)  # Step-3 out-of-city row
+    custom_name = models.CharField(max_length=200, blank=True)
+    # Per-institute assignee — distinct from the process-wide lawyer and granting no edit rights (§7.2).
+    assigned_lawyer = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.PROTECT, related_name="+"
+    )
+    approval_status = models.CharField(
+        max_length=10, choices=ApprovalStatus.choices, default=ApprovalStatus.PENDING
+    )
+    approval_date = models.DateField(null=True, blank=True)
+
+    class Meta:
+        db_table = "process_institute_entry"
+        indexes = [
+            models.Index(fields=["process", "step_number"], name="ix_entry_process"),
+        ]
+        constraints = [
+            # One active entry per fixed institute on a process/step (custom rows are unconstrained).
+            models.UniqueConstraint(
+                fields=["process", "step_number", "institute_code"],
+                condition=models.Q(is_deleted=False, is_custom=False) & ~models.Q(institute_code=""),
+                name="ix_entry_fixed_unique",
+            )
+        ]
+
+    def __str__(self):
+        return f"p#{self.process_id} step {self.step_number} {self.institute_code or self.custom_name}"
+
+
 class DuplicateOverride(SoftDeleteModel):
     """Auditable record of an admin clearing a fired duplicate warning (§5.7)."""
 

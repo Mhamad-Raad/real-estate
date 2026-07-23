@@ -55,7 +55,16 @@ INSTALLED_APPS = [
     "clients",
     "parcels",
     "processes",
+    "documents",
 ]
+
+# Offline document file store (§2.5, §6.7) — lives OUTSIDE the repo, bind-mounted in prod.
+# Overridable per environment; tests point it at a temp dir.
+DOCUMENTS_ROOT = Path(
+    os.getenv("DOCUMENTS_ROOT", str(BASE_DIR.parent / "LandAllocationData" / "documents"))
+)
+# Hard cap on uploaded PDF size (bytes) — reject anything larger before writing to disk.
+MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_BYTES", str(25 * 1024 * 1024)))
 
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
