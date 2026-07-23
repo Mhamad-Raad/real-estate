@@ -38,7 +38,7 @@ class DuplicateAllocation(APIException):
 
 @transaction.atomic
 def create_process(
-    *, client, assigned_lawyer, actor, parcel=None, category=None, request=None,
+    *, client, assigned_lawyer, actor, category=None, request=None,
 ) -> Process:
     """Create a case + its five step placeholder rows. Returns HTTP 409 (not 500) if the
     client already has an active allocation — the DB index is the race-safe backstop (§5.7)."""
@@ -59,7 +59,6 @@ def create_process(
             process = Process.objects.create(
                 client=client,
                 assigned_lawyer=assigned_lawyer,
-                parcel=parcel,
                 category=category,
                 duplicate_flagged=duplicate_flagged,
             )

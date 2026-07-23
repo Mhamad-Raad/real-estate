@@ -8,7 +8,8 @@ export interface ProcessListItem {
   client_full_name: string;
   client_pid: string;
   category: number | null;
-  parcel: number | null;
+  land_id: string;
+  land_address: string;
   overall_status: OverallStatus;
   current_step: number;
   duplicate_flagged: boolean;
@@ -20,7 +21,6 @@ export interface ProcessListItem {
 
 export interface ProcessCreateInput {
   client: number;
-  parcel?: number | null;
   category?: number | null;
   assigned_lawyer?: number;
 }

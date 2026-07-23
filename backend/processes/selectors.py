@@ -6,7 +6,7 @@ from .models import Process
 def search_processes(params) -> "list[Process]":
     """Filter by structured fields only: date, client PID, client name, category, status, lawyer,
     current step."""
-    qs = Process.objects.select_related("client", "category", "assigned_lawyer", "parcel")
+    qs = Process.objects.select_related("client", "category", "assigned_lawyer")
 
     pid = params.get("pid")
     if pid:

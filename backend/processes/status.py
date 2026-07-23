@@ -48,7 +48,7 @@ def _fixed_entries_complete(process, step_number) -> bool:
 
 def _step_complete(process, step_number, step_row) -> bool:
     if step_number == 1:
-        header_ok = bool(process.parcel_id and process.category_id) and not process.duplicate_flagged
+        header_ok = bool(process.land_id and process.category_id) and not process.duplicate_flagged
         return header_ok and STEP1_REQUIRED_DOCS <= _present_doc_types(process, 1)
     if step_number == 2:
         return bool(step_row.start_date) and _fixed_entries_complete(process, 2)
@@ -72,7 +72,7 @@ def _step_complete(process, step_number, step_row) -> bool:
 def _step_has_data(process, step_number, step_row) -> bool:
     if step_number == 1:
         return bool(
-            process.parcel_id or process.category_id or process.documents.filter(step_number=1).exists()
+            process.land_id or process.category_id or process.documents.filter(step_number=1).exists()
         )
     if step_number == 5:
         return False  # Step 5 is derived from the others; it holds no data of its own

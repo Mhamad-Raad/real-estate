@@ -81,7 +81,8 @@ class ProcessListSerializer(serializers.ModelSerializer):
             "client_full_name",
             "client_pid",
             "category",
-            "parcel",
+            "land_id",
+            "land_address",
             "overall_status",
             "current_step",
             "duplicate_flagged",
@@ -122,7 +123,8 @@ class ProcessCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Process
         # `duplicate_flagged` is server-computed from the identity dedup — never client input (§5.7).
-        fields = ("id", "client", "parcel", "category", "assigned_lawyer")
+        # Land details (land_id/land_address) are entered in Step 1, not at creation.
+        fields = ("id", "client", "category", "assigned_lawyer")
         read_only_fields = ("id",)
         # The view resolves the assignee (self for lawyers); admins may pass one explicitly.
         extra_kwargs = {"assigned_lawyer": {"required": False}}
@@ -133,7 +135,8 @@ class ProcessUpdateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Process
-        fields = ("lawyer_notes", "parcel", "category", "version")
+        # Step-1 header edits: land details + category + notes (never assigned_lawyer/overall_status).
+        fields = ("lawyer_notes", "land_id", "land_address", "category", "version")
         # Version is the optimistic-lock token the client echoes back; the service bumps it.
         read_only_fields = ("version",)
 

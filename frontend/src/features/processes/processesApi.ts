@@ -44,7 +44,14 @@ export const processesApi = baseApi.injectEndpoints({
     }),
     updateProcess: builder.mutation<
       ProcessDetail,
-      { id: number; version: number; lawyer_notes?: string; parcel?: number | null; category?: number | null }
+      {
+        id: number;
+        version: number;
+        lawyer_notes?: string;
+        land_id?: string;
+        land_address?: string;
+        category?: number | null;
+      }
     >({
       query: ({ id, ...body }) => ({ url: `processes/${id}/`, method: "PATCH", body }),
       invalidatesTags: (_r, _e, arg) => touch(arg.id),
@@ -94,7 +101,7 @@ export const processesApi = baseApi.injectEndpoints({
       InstituteEntry,
       { id: number; process: number; version: number } & Partial<InstituteEntry>
     >({
-      query: ({ id, process, ...body }) => ({
+      query: ({ id, process: _process, ...body }) => ({
         url: `institute-entries/${id}/`,
         method: "PATCH",
         body,

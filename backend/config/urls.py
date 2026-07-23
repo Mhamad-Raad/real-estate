@@ -9,7 +9,6 @@ from accounts.views import AssignableLawyersView, UserViewSet
 from catalog.views import CategoryViewSet, InstitutesView
 from clients.views import ClientViewSet
 from documents.views import DocumentViewSet
-from parcels.views import LandParcelViewSet
 from processes.views import InstituteEntryViewSet, ProcessViewSet
 
 
@@ -21,7 +20,6 @@ router = DefaultRouter()
 router.register("users", UserViewSet, basename="user")
 router.register("categories", CategoryViewSet, basename="category")
 router.register("clients", ClientViewSet, basename="client")
-router.register("parcels", LandParcelViewSet, basename="parcel")
 router.register("processes", ProcessViewSet, basename="process")
 router.register("institute-entries", InstituteEntryViewSet, basename="institute-entry")
 router.register("documents", DocumentViewSet, basename="document")
