@@ -109,12 +109,17 @@ def override_duplicate(
 
 
 def _advance_overall_status(process) -> None:
-    # draft → in_progress the moment any step holds real data (§5.2).
-    if process.overall_status == Process.OverallStatus.DRAFT and process.steps.exclude(
-        status=ProcessStep.Status.NOT_STARTED
-    ).exists():
-        process.overall_status = Process.OverallStatus.IN_PROGRESS
-        process.save(update_fields=["overall_status", "updated_at"])
+    """Keep overall_status honest after a step changes (§5.2, §5.3). Never touches rejected."""
+    if process.overall_status == Process.OverallStatus.DRAFT:
+        # draft → in_progress the moment any step holds real data.
+        if process.steps.exclude(status=ProcessStep.Status.NOT_STARTED).exists():
+            process.overall_status = Process.OverallStatus.IN_PROGRESS
+            process.save(update_fields=["overall_status", "updated_at"])
+    elif process.overall_status == Process.OverallStatus.COMPLETE:
+        # A reopened/edited step can break completion — don't keep claiming "complete".
+        if process.steps.exclude(status=ProcessStep.Status.COMPLETE).exists():
+            process.overall_status = Process.OverallStatus.IN_PROGRESS
+            process.save(update_fields=["overall_status", "updated_at"])
 
 
 def recompute_step(process, step_number: int) -> ProcessStep:

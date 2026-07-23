@@ -42,14 +42,19 @@ class InstituteEntrySerializer(serializers.ModelSerializer):
         read_only_fields = ("id", "version")
 
     def validate(self, attrs):
-        merged = {**getattr(self.instance, "__dict__", {}), **attrs}
-        step = merged.get("step_number")
-        is_custom = merged.get("is_custom", False)
-        code = merged.get("institute_code", "")
+        # Resolve each field from the payload, falling back to the existing row on partial update.
+        def field(name, default=None):
+            if name in attrs:
+                return attrs[name]
+            return getattr(self.instance, name, default) if self.instance else default
+
+        step = field("step_number")
+        is_custom = field("is_custom", False)
+        code = field("institute_code", "") or ""
         if is_custom:
             if step != 3:
                 raise serializers.ValidationError({"is_custom": "Custom rows exist only in Step 3."})
-            if not merged.get("custom_name"):
+            if not field("custom_name"):
                 raise serializers.ValidationError({"custom_name": "A custom institute needs a name."})
         else:
             if code not in INSTITUTE_CODES:

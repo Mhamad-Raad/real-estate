@@ -59,6 +59,32 @@ class WorkflowApiTests(APITestCase):
         )
         self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
 
+    def test_duplicate_fixed_institute_rejected(self):
+        body = {"process": self.process.id, "step_number": 2, "institute_code": "INST_S2_A"}
+        first = self.client.post(reverse("institute-entry-list"), body, format="json")
+        self.assertEqual(first.status_code, status.HTTP_201_CREATED)
+        dup = self.client.post(reverse("institute-entry-list"), body, format="json")
+        self.assertEqual(dup.status_code, status.HTTP_400_BAD_REQUEST)  # not a 500
+
+    def test_completed_process_reverts_when_a_step_is_reopened(self):
+        # Complete the whole case (admin force), then break Step 2 and confirm it drops to in_progress.
+        self.client.force_authenticate(self.admin)
+        self.process.refresh_from_db()
+        self.client.post(
+            reverse("process-complete", args=[self.process.id]),
+            {"force": True, "version": self.process.version}, format="json",
+        )
+        self.process.refresh_from_db()
+        self.assertEqual(self.process.overall_status, "complete")
+        # Reopen Step 2 by clearing its start_date via a save → recompute makes it incomplete.
+        step2 = ProcessStep.objects.get(process=self.process, step_number=2)
+        self.client.patch(
+            reverse("process-steps", args=[self.process.id, 2]),
+            {"start_date": None, "version": step2.version}, format="json",
+        )
+        self.process.refresh_from_db()
+        self.assertEqual(self.process.overall_status, "in_progress")
+
     def test_step2_approval_autosets_end_date(self):
         entry = self.client.post(
             reverse("institute-entry-list"),

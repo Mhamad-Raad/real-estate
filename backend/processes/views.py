@@ -1,8 +1,9 @@
 """Processes API — create, search, header edit, override, per-step save, complete (§4, §5, §7)."""
 
+from django.db import IntegrityError
 from django.utils import timezone
 from rest_framework.decorators import action
-from rest_framework.exceptions import PermissionDenied
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
@@ -130,7 +131,12 @@ class InstituteEntryViewSet(AuditedSoftDeleteViewSet, ModelViewSet):
         process = serializer.validated_data["process"]
         if not (self.request.user.is_admin or process.assigned_lawyer_id == self.request.user.id):
             raise PermissionDenied("Only the assigned lawyer or an admin can add institute entries.")
-        super().perform_create(serializer)
+        try:
+            super().perform_create(serializer)
+        except IntegrityError:  # duplicate fixed institute for this process/step
+            raise ValidationError(
+                {"institute_code": "This institute is already recorded for this step."}
+            )
         self._after_write(serializer.instance)
 
     def perform_update(self, serializer):

@@ -139,6 +139,14 @@ class ProcessInstituteEntry(SoftDeleteModel):
         indexes = [
             models.Index(fields=["process", "step_number"], name="ix_entry_process"),
         ]
+        constraints = [
+            # One active entry per fixed institute on a process/step (custom rows are unconstrained).
+            models.UniqueConstraint(
+                fields=["process", "step_number", "institute_code"],
+                condition=models.Q(is_deleted=False, is_custom=False) & ~models.Q(institute_code=""),
+                name="ix_entry_fixed_unique",
+            )
+        ]
 
     def __str__(self):
         return f"p#{self.process_id} step {self.step_number} {self.institute_code or self.custom_name}"
