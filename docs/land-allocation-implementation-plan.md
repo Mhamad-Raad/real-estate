@@ -64,6 +64,8 @@ This plan front-loads the demo and defers **OCR** (Iteration 5) and the **offlin
 
 ## Iteration 0 — Dev foundations & polished app shell
 
+**✅ COMPLETE (2026-07-23).** Deviations recorded in architecture **§0** (notably: theme/language are client-only, not on `User`).
+
 **Goal:** a running local dev environment and a clean, modern, fully-localized authenticated shell that is already worth showing.
 
 **Tasks**
@@ -83,6 +85,8 @@ This plan front-loads the demo and defers **OCR** (Iteration 5) and the **offlin
 ---
 
 ## Iteration 1 — Core domain + duplicate prevention (polished UI)
+
+**✅ COMPLETE (2026-07-23), incl. a hardening pass.** Added beyond spec: `Client.created_by`, `GET /lawyers/`; see architecture **§0**. Frontend has pagination on every list.
 
 **Goal:** the data backbone and the most important business rule — a citizen cannot be granted land twice — behind clean, localized screens.
 
@@ -104,6 +108,8 @@ This plan front-loads the demo and defers **OCR** (Iteration 5) and the **offlin
 ---
 
 ## Iteration 2 — Documents (import) + the full 5-step workflow
+
+**✅ COMPLETE (2026-07-23).** Import path only (scan capture = It.6). Temporary simplifications vs spec — Step-1 completion doesn't yet require the eligibility PDF (It.3); document names are composed at upload not verification (It.5); `overall_status` has no `submitted` yet (It.4). All in architecture **§0**.
 
 **Goal:** the heart of the app — the complete multi-step case with document attachment via the *import* path. **This is the flagship early demo.**
 

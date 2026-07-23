@@ -6,6 +6,34 @@
 
 ---
 
+## 0. Implementation deviations from this spec (living — updated through Iteration 2)
+
+This section records where the **built system intentionally differs** from the design below. It is the authoritative changelog; where a section further down conflicts, this table wins. All core invariants (soft-delete, append-only audit, DB-level dedup, server-side RBAC, optimistic locking, full i18n/RTL) are upheld.
+
+### Permanent deviations & additions
+
+| Area | Spec says | Built instead | Reason |
+|------|-----------|---------------|--------|
+| **User theme/language** | `theme`/`language` fields on `User`; `PATCH /users/me/` edits them (§7, §4.2) | Both fields **removed**; preferences live in the browser (localStorage) only; `GET /users/me/` is read-only | Product decision — client-only UI prefs |
+| **`Client.created_by`** | not present | Added FK `created_by` on `Client` | Lets the lawyer who created a client edit it before a process links them |
+| **`GET /api/v1/lawyers/`** | not present (only admin `GET /users/`) | Added: read-only `id`+`username` of active users, any authenticated caller | Non-admin assignees need it for the per-institute lawyer dropdowns; the full Users API stays admin-only |
+| **User soft-delete** | "every domain model extends `SoftDeleteModel`" | `User` **mirrors** the soft-delete fields (`is_deleted/deleted_at/deleted_by/version`) rather than extending it | `AbstractUser` cannot cleanly multi-inherit `SoftDeleteModel`; behavior is identical (a deleted user is also `is_active=False`) |
+| **`version` field** | not shown in the `SoftDeleteModel` snippet (§3.1) | Present on every soft-deletable model incl. `User` | Required by the optimistic-locking invariant (§4.1, §12) |
+| **UI component library** | shadcn/ui (§8) | Hand-built shadcn-*style* primitives (Dialog/Select/Accordion have **zero** Radix deps) | Offline footprint + avoid dependency churn; same look and behavior |
+
+### Temporary simplifications (revisit when the named iteration lands)
+
+| Area | Spec target | Current build | Revisit at |
+|------|-------------|---------------|-----------|
+| **`overall_status` values** | `draft \| in_progress \| submitted \| completed \| rejected` (§5.2) | `draft \| in_progress \| complete \| rejected` (no `submitted`; `complete`, not `completed`) | It.4 (compiled export adds the `submitted` stage) |
+| **Step-1 completion** | also requires the generated eligibility PDF (§3.6) | completes on the three client documents + header fields | It.3 (eligibility generation) |
+| **Document naming** | friendly name composed **at verification**; temp `__<id>.pdf` during OCR draft (§6.7) | full name composed **at upload** | It.5 (OCR draft phase introduces the temp-name window) |
+| **Per-step `missing` status** | four states incl. auto-derived `missing` (§5.4) | `not_started / in_progress / complete` computed; `missing` not auto-set | It.4/It.5 (when file-expectation rules firm up) |
+| **`document_type` vocabulary** | e.g. `ClientID, SignedAgreement, ApprovalLetter, EligibilityBase` (§6.7) | `ClientID, RealEstate, SignedAgreement` + generic `InstituteDoc` for Steps 2–4 | as document types are finalized |
+| **`ProcessStep.approval_status`** | step carries approval | dead field — approval moved to `ProcessInstituteEntry` | cleanup (drop the field in a later migration) |
+
+---
+
 ## Table of Contents
 
 > **New to the project?** Start with **[Orientation for Engineers](#orientation-for-engineers-start-here)** (plain-language summary + end-to-end walkthrough), and keep the **[Glossary](#glossary)** handy for any unfamiliar term.
@@ -480,9 +508,9 @@ erDiagram
 
 | Entity | Purpose | Key fields | Notable relationships |
 |--------|---------|-----------|----------------------|
-| **User** | Login account, assignment, audit attribution | `role` (admin/lawyer), `language`, `theme` | 1→N Process (process-wide), 1→N ProcessInstituteEntry (per-institute), 1→N ActivityLog |
+| **User** | Login account, assignment, audit attribution | `role` (admin/lawyer) — *`language`/`theme` removed, see §0* | 1→N Process (process-wide), 1→N ProcessInstituteEntry (per-institute), 1→N ActivityLog |
 | **Category** | A/B/C/G institute grouping, admin-managed | `code`, `name` | 1→N Client, 1→N Process |
-| **Client** | Land beneficiary; all gov-ID fields | `full_name`, `pid`, `mother_full_name`, `marital_status`, `spouse_name` | N→1 Category; 1→N Document; 1→N Process |
+| **Client** | Land beneficiary; all gov-ID fields | `full_name`, `pid`, `mother_full_name`, `marital_status`, `spouse_name`, `created_by` *(§0)* | N→1 Category; 1→N Document; 1→N Process |
 | **LandParcel** | The land allocated | `parcel_number`, `location`, `area`, `zone_basin`, `registry_reference` | 1→N Process |
 | **Process** | Central allocation case | `overall_status`, `current_step`, `assigned_lawyer`, `lawyer_notes` | N→1 Client/Parcel/Category/Lawyer; 1→N Step/InstituteEntry/Document |
 | **ProcessStep** | Per-step status + step-level dates/approval | `step_number`, `status`, `start_date`, `end_date`, `approval_status`, `out_of_city_flag` | N→1 Process |
@@ -577,11 +605,11 @@ A **REST** API (explicitly not GraphQL) under `/api/`, versioned `/api/v1/`, JSO
 | **Auth** | `POST /api/v1/auth/login/` | Obtain access + refresh JWT | All |
 | | `POST /api/v1/auth/refresh/` | Refresh access token | All |
 | | `POST /api/v1/auth/logout/` | Blacklist refresh token | All |
-| | `GET /api/v1/auth/me/` | Current user (role, language, theme) | All |
+| | `GET /api/v1/auth/me/` | Current user (role) — *read-only; `PATCH /users/me/` removed, see §0* | All |
 | **Users** | `GET/POST /api/v1/users/` | List / create users | Admin |
 | | `GET/PATCH/DELETE /api/v1/users/{id}/` | Retrieve / update / soft-delete | Admin |
 | | `POST /api/v1/users/{id}/restore/` | Restore soft-deleted user | Admin |
-| | `PATCH /api/v1/users/me/` | Edit own profile (language/theme/info) | All (self) |
+| **Lawyers** | `GET /api/v1/lawyers/` | **Read-only** `id`+`username` of active users, for per-institute assignment dropdowns *(§0)* | All |
 | **Categories** | `GET /api/v1/categories/` | List A/B/C/G | All (read) |
 | | `POST/PATCH/DELETE /api/v1/categories/{id}/` | CRUD | Admin |
 | **Institutes** | `GET /api/v1/institutes/` | **Read-only shared enum** (code, i18n key, step) | All |
@@ -693,6 +721,8 @@ flowchart TD
 Each accordion section maps to `PATCH /processes/{id}/steps/{n}/`. Saving validates only present fields, updates that step's `status`, and leaves the process `draft`/`in_progress`. There is **no forced sequence** — a lawyer can fill Step 4 before Step 2 finishes (common while waiting on institutes). The only ordering gate is Step 5 completion, which checks all steps' missing-file status.
 
 **`overall_status` lifecycle:** a process is `draft` on creation, flips to `in_progress` once real step data is saved, becomes `submitted` when Step 5 compiles and sends the case to leadership, and finally settles as `completed` or `rejected` per the Step-5 outcome. `current_step` is informational (the furthest step reached) — because editing is non-linear, it is not a gate.
+
+> **Implementation note (through It.2, see §0):** the built enum is `draft \| in_progress \| complete \| rejected` — Step-5 completion sets `complete` directly. The `submitted` stage (and renaming `complete`→`completed`) arrives with the Iteration-4 compiled export. Editing a completed process that breaks a step reverts it to `in_progress`.
 
 ### 5.3 Accordion, editable anytime
 
