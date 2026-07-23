@@ -30,6 +30,11 @@ switch between them freely without them clashing.
 Ports used: **5173** (frontend), **8000** (backend), **5432** (native Postgres),
 **5433** (Docker Postgres, published to the host).
 
+> Inside Docker the backend reaches the database as **`db:5432`** (the compose service name on
+> the internal network) — the host-published **5433** is only for connecting from your machine
+> (e.g. a GUI client or `psql`). `backend/.env` sets `DB_HOST=127.0.0.1` for native dev; the
+> compose file **overrides** it to `DB_HOST=db` so the container talks over the internal network.
+
 ---
 
 ## Configuration (required for both methods)
@@ -87,6 +92,17 @@ docker compose -f deploy/docker-compose.dev.yml up -d --build
 
 This builds the Django image (Python 3.12), starts Postgres 16, waits until the DB is healthy,
 runs migrations automatically, and serves the API on **http://localhost:8000**.
+
+> **Editing code vs. changing models.** Your `backend/` folder is bind-mounted, so ordinary code
+> edits hot-reload with no rebuild — `--build` is only needed when `requirements.txt` changes.
+> But adding/altering a **model field** still requires you to *generate* the migration yourself
+> (only *applying* is automatic):
+>
+> ```bash
+> docker compose -f deploy/docker-compose.dev.yml exec backend python manage.py makemigrations
+> ```
+>
+> Commit the generated migration file; it re-applies automatically on the next backend boot.
 
 Create the dev login accounts (first run only):
 
