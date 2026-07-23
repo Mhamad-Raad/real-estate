@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { useAppSelector } from "@/app/hooks";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogFooter } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
@@ -21,10 +22,9 @@ import { useCreateProcessMutation } from "./processesApi";
 export function ProcessCreateDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { t } = useTranslation();
   const isAdmin = useAppSelector((s) => s.auth.user?.is_admin ?? false);
-  const { data: clients } = useListClientsQuery({ search: "" }, { skip: !open });
-  const { data: categories } = useListCategoriesQuery(undefined, { skip: !open });
+  const { data: categories } = useListCategoriesQuery({}, { skip: !open });
   const { data: parcels } = useListParcelsQuery(undefined, { skip: !open });
-  const { data: users } = useListUsersQuery(undefined, { skip: !open || !isAdmin });
+  const { data: users } = useListUsersQuery({}, { skip: !open || !isAdmin });
   const [create, { isLoading }] = useCreateProcessMutation();
 
   const [client, setClient] = useState("");
@@ -32,14 +32,26 @@ export function ProcessCreateDialog({ open, onClose }: { open: boolean; onClose:
   const [parcel, setParcel] = useState("");
   const [lawyer, setLawyer] = useState("");
 
+  // Searchable client picker: the list is server-searched (debounced) so it isn't capped at page 1.
+  const [clientTerm, setClientTerm] = useState("");
+  const [clientSearch, setClientSearch] = useState("");
+  const { data: clients } = useListClientsQuery({ search: clientSearch }, { skip: !open });
+
   useEffect(() => {
     if (open) {
       setClient("");
       setCategory("");
       setParcel("");
       setLawyer("");
+      setClientTerm("");
+      setClientSearch("");
     }
   }, [open]);
+
+  useEffect(() => {
+    const id = setTimeout(() => setClientSearch(clientTerm.trim()), 300);
+    return () => clearTimeout(id);
+  }, [clientTerm]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,6 +78,11 @@ export function ProcessCreateDialog({ open, onClose }: { open: boolean; onClose:
       <form onSubmit={submit} className="space-y-4">
         <div className="space-y-2">
           <Label htmlFor="p-client">{t("processes.client")}</Label>
+          <Input
+            value={clientTerm}
+            onChange={(e) => setClientTerm(e.target.value)}
+            placeholder={t("processes.searchClient")}
+          />
           <Select id="p-client" value={client} onChange={(e) => setClient(e.target.value)} required>
             <option value="" disabled>
               {t("processes.selectClient")}

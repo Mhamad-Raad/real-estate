@@ -62,7 +62,7 @@ export function ClientFormDialog({
   onClose: () => void;
 }) {
   const { t } = useTranslation();
-  const { data: categories } = useListCategoriesQuery();
+  const { data: categories } = useListCategoriesQuery({});
   const [checkDuplicate, { isLoading: checking }] = useCheckDuplicateMutation();
   const [create, { isLoading: creating }] = useCreateClientMutation();
   const [update, { isLoading: updating }] = useUpdateClientMutation();

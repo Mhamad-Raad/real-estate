@@ -17,6 +17,7 @@ import {
 import { toast } from "@/components/ui/toaster";
 import { ConfirmDialog } from "@/features/common/ConfirmDialog";
 import { PageHeader } from "@/features/common/PageHeader";
+import { Pagination } from "@/features/common/Pagination";
 import { TableStateRows } from "@/features/common/TableStateRows";
 import { apiErrorMessage } from "@/lib/apiError";
 
@@ -28,7 +29,8 @@ export function ClientsPage() {
   const { t } = useTranslation();
   const [term, setTerm] = useState("");
   const [search, setSearch] = useState("");
-  const { data, isLoading, isFetching, isError, refetch } = useListClientsQuery({ search });
+  const [page, setPage] = useState(1);
+  const { data, isLoading, isError, refetch } = useListClientsQuery({ search, page });
   const [remove, { isLoading: removing }] = useDeleteClientMutation();
   const [editing, setEditing] = useState<Client | null>(null);
   const [formOpen, setFormOpen] = useState(false);
@@ -39,6 +41,9 @@ export function ClientsPage() {
     const id = setTimeout(() => setSearch(term.trim()), 300);
     return () => clearTimeout(id);
   }, [term]);
+
+  // A new search resets to the first page (its result set is different).
+  useEffect(() => setPage(1), [search]);
 
   const openCreate = () => {
     setEditing(null);
@@ -98,7 +103,7 @@ export function ClientsPage() {
           <TableBody>
             <TableStateRows
               colSpan={5}
-              isLoading={isLoading || isFetching}
+              isLoading={isLoading}
               isError={isError}
               isEmpty={rows.length === 0}
               emptyLabel={t("clients.empty")}
@@ -106,7 +111,6 @@ export function ClientsPage() {
               skeletonRows={4}
             />
             {!isLoading &&
-              !isFetching &&
               !isError &&
               rows.map((client) => (
                 <TableRow key={client.id}>
@@ -143,6 +147,8 @@ export function ClientsPage() {
           </TableBody>
         </Table>
       </Card>
+
+      <Pagination page={page} count={data?.count ?? 0} onPage={setPage} />
 
       <ClientFormDialog open={formOpen} client={editing} onClose={() => setFormOpen(false)} />
       <ConfirmDialog

@@ -5,8 +5,8 @@ import type { Category, CategoryInput } from "./types";
 
 export const categoriesApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
-    listCategories: builder.query<Paginated<Category>, void>({
-      query: () => "categories/",
+    listCategories: builder.query<Paginated<Category>, { page?: number }>({
+      query: (params) => ({ url: "categories/", params }),
       providesTags: ["Category"],
     }),
     createCategory: builder.mutation<Category, CategoryInput>({
