@@ -8,13 +8,10 @@ requirement lands in Iteration 3; until then Step 1 completes on client papers +
 missing, so the badge and the "proceed anyway?" warning can never drift apart.
 """
 
+from catalog.document_types import required_codes_for_step
 from catalog.institutes import codes_for_step
 
 from .models import ProcessStep
-
-# Controlled document types each step needs present to be "complete" (§3.6). Ordered for
-# stable output — this list is rendered to the user in the proceed-anyway warning.
-STEP1_REQUIRED_DOCS = ("ClientID", "RealEstate", "SignedAgreement")
 
 
 # These helpers walk `.all()` and filter in Python on purpose: the detail endpoint prefetches
@@ -69,7 +66,7 @@ def missing_requirements(process, step_number, step_row) -> list[str]:
         if process.duplicate_flagged:
             missing.append("duplicate_flag")
         present = _present_doc_types(process, 1)
-        missing += [f"doc:{doc}" for doc in STEP1_REQUIRED_DOCS if doc not in present]
+        missing += [f"doc:{doc}" for doc in required_codes_for_step(1) if doc not in present]
         return missing
     if step_number == 2:
         missing = [] if step_row.start_date else ["start_date"]

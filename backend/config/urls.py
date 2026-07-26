@@ -6,7 +6,7 @@ from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
 from accounts.views import AssignableLawyersView, UserViewSet
-from catalog.views import CategoryViewSet, InstitutesView
+from catalog.views import CategoryViewSet, DocumentTypesView, InstitutesView
 from clients.views import ClientViewSet
 from documents.views import DocumentViewSet
 from processes.views import InstituteEntryViewSet, ProcessViewSet
@@ -29,6 +29,7 @@ urlpatterns = [
     path("api/v1/health/", health, name="health"),
     path("api/v1/auth/", include("accounts.urls")),
     path("api/v1/institutes/", InstitutesView.as_view(), name="institutes"),
+    path("api/v1/document-types/", DocumentTypesView.as_view(), name="document-types"),
     path("api/v1/lawyers/", AssignableLawyersView.as_view(), name="lawyers"),
     path("api/v1/", include(router.urls)),
 ]

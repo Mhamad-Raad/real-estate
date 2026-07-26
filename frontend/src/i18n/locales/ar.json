@@ -210,7 +210,8 @@
     "docType": {
       "ClientID": "هوية المراجع",
       "RealEstate": "أوراق العقار",
-      "SignedAgreement": "الاتفاقية الموقّعة"
+      "SignedAgreement": "الاتفاقية الموقّعة",
+      "InstituteDoc": "مستند الجهة"
     },
     "import": "استيراد PDF",
     "upload": "رفع",
