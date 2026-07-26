@@ -106,6 +106,16 @@ class WorkflowApiTests(APITestCase):
         step4 = ProcessStep.objects.get(process=self.process, step_number=4)
         self.assertEqual(step4.status, ProcessStep.Status.COMPLETE)
 
+    def test_complete_without_a_version_is_rejected(self):
+        # Mark-complete is a write like any other — no version token, no lock, so 400 (§4.1).
+        self.client.force_authenticate(self.admin)
+        resp = self.client.post(
+            reverse("process-complete", args=[self.process.id]), {"force": True}, format="json"
+        )
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+        self.process.refresh_from_db()
+        self.assertNotEqual(self.process.overall_status, "complete")
+
     def test_complete_blocks_on_missing_then_admin_can_force(self):
         url = reverse("process-complete", args=[self.process.id])
         # Nothing is complete → lawyer completion blocked (400).

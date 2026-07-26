@@ -97,6 +97,7 @@ class DuplicateOverrideTests(TestCase):
             admin=admin,
             match_reason=DuplicateOverride.MatchReason.MOTHER_NAME,
             reason="Sibling — different PID, legitimately eligible.",
+            expected_version=process.version,
         )
         process.refresh_from_db()
         self.assertFalse(process.duplicate_flagged)

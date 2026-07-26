@@ -84,8 +84,9 @@ def override_duplicate(
     *, process, admin, match_reason, reason, expected_version=None, request=None
 ) -> DuplicateOverride:
     """Admin-only: clear a fired duplicate warning, logged in both DuplicateOverride and audit."""
-    # Same optimistic-lock guarantee as every other write (409 if the process moved on).
-    check_version(process, expected_version)
+    # Same optimistic-lock guarantee as every other write: 409 if the process moved on, 400 if the
+    # caller omitted `version` — a missing version must never silently skip the lock (§4.1).
+    check_version(process, expected_version, required=True)
     process.duplicate_flagged = False
     process.version += 1
     process.save(update_fields=["duplicate_flagged", "version", "updated_at"])
@@ -187,7 +188,7 @@ def advance_step(*, process, actor, expected_version=None, request=None) -> Proc
 @transaction.atomic
 def complete_process(*, process, actor, force=False, expected_version=None, request=None) -> Process:
     """Step-5 mark-complete (§5, §10.3). Blocks on missing files unless an admin forces it."""
-    check_version(process, expected_version)
+    check_version(process, expected_version, required=True)
     for n in range(1, 5):
         recompute_step(process, n)
     prior_complete = all(

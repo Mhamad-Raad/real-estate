@@ -108,7 +108,7 @@ class ProcessApiTests(APITestCase):
         process.duplicate_flagged = True  # simulate a fired warning; override is what's under test
         process.save(update_fields=["duplicate_flagged"])
         url = reverse("process-override-duplicate", args=[process.id])
-        body = {"match_reason": "mother_name", "reason": "sibling"}
+        body = {"match_reason": "mother_name", "reason": "sibling", "version": process.version}
 
         self.client.force_authenticate(self.lawyer_a)
         self.assertEqual(self.client.post(url, body, format="json").status_code, 403)
@@ -118,3 +118,28 @@ class ProcessApiTests(APITestCase):
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
         process.refresh_from_db()
         self.assertFalse(process.duplicate_flagged)
+
+    def test_override_duplicate_enforces_the_optimistic_lock(self):
+        # The admin duplicate override sits on top of the "no land twice" guarantee — it must not
+        # be reachable without a version token, and must 409 on a stale one (§4.1, §5.7).
+        process = create_process(
+            client=self.client_row, assigned_lawyer=self.lawyer_a, actor=self.lawyer_a
+        )
+        process.duplicate_flagged = True
+        process.save(update_fields=["duplicate_flagged"])
+        url = reverse("process-override-duplicate", args=[process.id])
+        self.client.force_authenticate(self.admin)
+
+        no_version = self.client.post(
+            url, {"match_reason": "mother_name", "reason": "r"}, format="json"
+        )
+        self.assertEqual(no_version.status_code, status.HTTP_400_BAD_REQUEST)
+
+        stale = self.client.post(
+            url,
+            {"match_reason": "mother_name", "reason": "r", "version": process.version + 5},
+            format="json",
+        )
+        self.assertEqual(stale.status_code, status.HTTP_409_CONFLICT)
+        process.refresh_from_db()
+        self.assertTrue(process.duplicate_flagged)  # neither attempt cleared the flag
