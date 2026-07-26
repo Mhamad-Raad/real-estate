@@ -38,6 +38,8 @@ services:
       - ../backend:/app
       # Mask the host .venv (macOS binaries) so the container uses its own interpreter.
       - /app/.venv
+      # Read-only: a test asserts every `missing` code the API can emit has a translation.
+      - ../frontend/src/i18n/locales:/frontend_locales:ro
     ports:
       - "8000:8000"
     depends_on:

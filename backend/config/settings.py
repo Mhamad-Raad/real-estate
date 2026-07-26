@@ -66,6 +66,17 @@ DOCUMENTS_ROOT = Path(
 # Hard cap on uploaded PDF size (bytes) — reject anything larger before writing to disk.
 MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_BYTES", str(25 * 1024 * 1024)))
 
+# Frontend translation files, read by the test that proves every machine code the API emits has a
+# label (§3.6). Compose mounts them read-only at /frontend_locales; native dev finds them in-repo.
+FRONTEND_LOCALES_DIR = next(
+    (
+        p
+        for p in (Path("/frontend_locales"), BASE_DIR.parent / "frontend" / "src" / "i18n" / "locales")
+        if p.is_dir()
+    ),
+    None,
+)
+
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
