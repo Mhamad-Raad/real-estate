@@ -534,6 +534,8 @@ INSTITUTES = [
 
 The frontend never hard-codes this list — it reads `GET /api/institutes/`. Institute **display names** are i18n keys, not literals, so Sorani/Arabic/English labels come from the translation files while the stable machine `code` lives in the DB. `ProcessInstituteEntry.institute_code` stores the enum code for fixed institutes; `is_custom=True` + `custom_name` covers Step 3's out-of-city rows (which have no enum code).
 
+**Document types work the same way.** `catalog/document_types.py` is the one definition of the controlled `Document.document_type` vocabulary — `(code, i18n key, step, required)` — exposed read-only at `GET /api/v1/document-types/`. `processes/status.py` derives Step 1's required papers from it and `Step1Panel` lays out its upload slots from it, so a step can never require a document the UI offers no slot for. The vocabulary is deliberately partial (Steps 2–4 use a generic `InstituteDoc`; generated types arrive with It.3 — see §0).
+
 ### 3.5 Marital status & generated documents at the schema level
 
 `Client.marital_status` + nullable `Client.spouse_name` capture the Step-1 marital input. Generated eligibility PDFs are ordinary `Document` rows with `input_source="system_generated"`, `ocr_status="na"`, `verification_status="na"`, linked to the process — so they preview/print/download through the same document machinery as everything else. A married client simply yields **two** generated Documents (base + spouse); a single client yields one.
@@ -552,7 +554,12 @@ The frontend never hard-codes this list — it reads `GET /api/institutes/`. Ins
 
 Status values: `not_started` (no data), `in_progress` (some data, some required items missing), `missing` (explicitly flagged outstanding files), `complete`. These drive the accordion badge colors (§5, §8).
 
-**One source of truth.** `processes/status.py` implements the table above as `missing_requirements(process, n, step_row)`, which returns stable codes for everything the step still needs — `land_id`, `start_date`, `duplicate_flag`, `custom_entries`, `doc:<type>`, `institute:<code>`, `step:<n>`. A step is `complete` exactly when that list is empty, so the badge and the Proceed dialog's "still missing" list (§5.2) can never disagree. The list is served per step as `missing` on `ProcessStepSerializer`; the frontend localizes each code (institute codes resolve through the shared enum, §3.4).
+**One source of truth.** `processes/status.py` implements the table above as `missing_requirements(process, n, step_row)`, which returns stable codes for everything the step still needs — `land_id`, `start_date`, `duplicate_flag`, `custom_entries`, `doc:<type>`, `institute:<code>`, `step:<n>`. A step is `complete` exactly when that list is empty, so the badge and the Proceed dialog's "still missing" list (§5.2) can never disagree. The list is served per step as `missing` on `ProcessStepSerializer`; the frontend localizes each code (institute codes resolve through the shared enum §3.4, document codes through the shared vocabulary §6.7).
+
+Two things keep this honest:
+
+- **The stored status is re-derived wherever its inputs change** — document upload/delete, institute-entry writes, per-step save, the process header `PATCH` (Step 1 reads `land_id`/`category` from it) and the admin duplicate override. Otherwise a green badge could contradict the step's own `missing` list.
+- **`processes/test_missing_codes.py` proves every code the API can emit has a label.** It builds a maximally-incomplete case, collects the real output of all five steps, and checks each code against the shipped `en.json` (the i18n parity test then covers ar/ckb). Compose mounts the locale files read-only at `/frontend_locales` so this runs inside the container too.
 
 ### 3.7 Search & indexing strategy
 
@@ -606,6 +613,7 @@ A **REST** API (explicitly not GraphQL) under `/api/`, versioned `/api/v1/`, JSO
 | **Categories** | `GET /api/v1/categories/` | List A/B/C/G | All (read) |
 | | `POST/PATCH/DELETE /api/v1/categories/{id}/` | CRUD | Admin |
 | **Institutes** | `GET /api/v1/institutes/` | **Read-only shared enum** (code, i18n key, step) | All |
+| **Document types** | `GET /api/v1/document-types/` | **Read-only shared vocabulary** (code, i18n key, step, required) — §6.7 | All |
 | **Clients** | `GET/POST /api/v1/clients/` | List / create; `?search=&pid=` | All (create) |
 | | `GET/PATCH/DELETE /api/v1/clients/{id}/` | Retrieve / update / soft-delete | Admin or process assignee |
 | **Processes** | `GET /api/v1/processes/` | **Search/filter list** (see 4.3) | All (read all) |
