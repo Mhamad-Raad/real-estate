@@ -23,6 +23,11 @@ export function AccordionItem({
   children: React.ReactNode;
 }) {
   const [open, setOpen] = React.useState(defaultOpen && !locked);
+  // A section that becomes the default one (e.g. a workflow step the lawyer just unlocked) must
+  // reveal itself — the initial state above is only evaluated once, and items never remount.
+  React.useEffect(() => {
+    if (defaultOpen && !locked) setOpen(true);
+  }, [defaultOpen, locked]);
   const expanded = open && !locked;
   return (
     <div

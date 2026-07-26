@@ -38,4 +38,28 @@ describe("AccordionItem", () => {
     );
     expect(screen.queryByText("step body")).not.toBeInTheDocument();
   });
+
+  it("expands itself once it unlocks and becomes the default step", () => {
+    const item = (locked: boolean, defaultOpen: boolean) => (
+      <AccordionItem title="Step 3" locked={locked} defaultOpen={defaultOpen}>
+        <p>step body</p>
+      </AccordionItem>
+    );
+    // Mounts locked (a step the lawyer hasn't reached), then Proceed unlocks it.
+    const { rerender } = render(item(true, false));
+    expect(screen.queryByText("step body")).not.toBeInTheDocument();
+    rerender(item(false, true));
+    expect(screen.getByText("step body")).toBeInTheDocument();
+  });
+
+  it("stays closed when it unlocks but is not the default step", () => {
+    const item = (locked: boolean) => (
+      <AccordionItem title="Step 4" locked={locked} defaultOpen={false}>
+        <p>step body</p>
+      </AccordionItem>
+    );
+    const { rerender } = render(item(true));
+    rerender(item(false));
+    expect(screen.queryByText("step body")).not.toBeInTheDocument();
+  });
 });
