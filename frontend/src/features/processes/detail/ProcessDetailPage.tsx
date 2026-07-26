@@ -2,11 +2,11 @@ import { ArrowLeft } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Link, useParams } from "react-router-dom";
 
-import { useAppSelector } from "@/app/hooks";
 import { Accordion, AccordionItem } from "@/components/ui/accordion";
 import { Badge, type BadgeProps } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useMeQuery } from "@/features/auth/authApi";
 import { PageHeader } from "@/features/common/PageHeader";
 
 import { useGetProcessQuery } from "../processesApi";
@@ -29,7 +29,9 @@ export function ProcessDetailPage() {
   const { t } = useTranslation();
   const { id } = useParams();
   const processId = Number(id);
-  const user = useAppSelector((s) => s.auth.user);
+  // Read the warm /me cache, not the auth slice: ProtectedRoute hydrates the slice in an effect,
+  // so on a deep link it lags a render and would briefly show an admin their steps as locked.
+  const { data: user } = useMeQuery();
   const { data: process, isLoading, isError } = useGetProcessQuery(processId);
 
   if (isLoading) {
