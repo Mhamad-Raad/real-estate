@@ -45,7 +45,13 @@ class ProcessViewSet(AuditedSoftDeleteViewSet, ModelViewSet):
     audit_entity = "Process"
 
     def get_queryset(self):
-        return search_processes(self.request.query_params)
+        qs = search_processes(self.request.query_params)
+        if self.action == "retrieve":
+            # The detail payload derives every step's `missing` list from these three collections;
+            # prefetching turns five per-step round trips into one each (§3.6). Read-only action
+            # only — a mutating request must not read through a stale prefetch cache.
+            qs = qs.prefetch_related("steps", "documents", "institute_entries__documents")
+        return qs
 
     def get_serializer_class(self):
         return SERIALIZERS.get(self.action, ProcessDetailSerializer)

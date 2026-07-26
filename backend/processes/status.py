@@ -17,14 +17,15 @@ from .models import ProcessStep
 STEP1_REQUIRED_DOCS = ("ClientID", "RealEstate", "SignedAgreement")
 
 
+# These helpers walk `.all()` and filter in Python on purpose: the detail endpoint prefetches
+# documents/entries/steps, and `.filter()`/`.exists()` would bypass that cache and re-query per
+# step (five steps → an N+1 on every case load).
 def _present_doc_types(process, step_number) -> set[str]:
-    return set(
-        process.documents.filter(step_number=step_number).values_list("document_type", flat=True)
-    )
+    return {d.document_type for d in process.documents.all() if d.step_number == step_number}
 
 
 def _entry_complete(entry, step_number) -> bool:
-    has_doc = entry.documents.exists()
+    has_doc = bool(entry.documents.all())
     has_lawyer = entry.assigned_lawyer_id is not None
     if step_number == 2:
         return has_doc and has_lawyer and entry.approval_status != entry.ApprovalStatus.PENDING
@@ -43,7 +44,8 @@ def _missing_fixed_institutes(process, step_number) -> list[str]:
     """Fixed institutes for this step that are absent altogether or not yet finished."""
     entries = {
         e.institute_code: e
-        for e in process.institute_entries.filter(step_number=step_number, is_custom=False)
+        for e in process.institute_entries.all()
+        if e.step_number == step_number and not e.is_custom
     }
     return [
         f"institute:{code}"
@@ -75,31 +77,32 @@ def missing_requirements(process, step_number, step_row) -> list[str]:
     if step_number == 3:
         missing = _missing_fixed_institutes(process, 3)
         if step_row.out_of_city_flag:
-            customs = list(process.institute_entries.filter(step_number=3, is_custom=True))
+            customs = [
+                e for e in process.institute_entries.all() if e.step_number == 3 and e.is_custom
+            ]
             if not customs or not all(e.custom_name and _entry_complete(e, 3) for e in customs):
                 missing.append("custom_entries")
         return missing
     if step_number == 4:
         return _missing_fixed_institutes(process, 4)
     if step_number == 5:
+        prior = sorted(
+            (s for s in process.steps.all() if s.step_number < 5), key=lambda s: s.step_number
+        )
         return [
-            f"step:{s.step_number}"
-            for s in process.steps.filter(step_number__lt=5).order_by("step_number")
-            if s.status != ProcessStep.Status.COMPLETE
+            f"step:{s.step_number}" for s in prior if s.status != ProcessStep.Status.COMPLETE
         ]
     return []
 
 
 def _step_has_data(process, step_number, step_row) -> bool:
+    docs = [d for d in process.documents.all() if d.step_number == step_number]
     if step_number == 1:
-        return bool(
-            process.land_id or process.category_id or process.documents.filter(step_number=1).exists()
-        )
+        return bool(process.land_id or process.category_id or docs)
     if step_number == 5:
         return False  # Step 5 is derived from the others; it holds no data of its own
-    has_entries = process.institute_entries.filter(step_number=step_number).exists()
-    has_docs = process.documents.filter(step_number=step_number).exists()
-    return bool(has_entries or has_docs or step_row.start_date or step_row.end_date)
+    has_entries = any(e.step_number == step_number for e in process.institute_entries.all())
+    return bool(has_entries or docs or step_row.start_date or step_row.end_date)
 
 
 def compute_step_status(process, step_number, step_row) -> str:
