@@ -28,17 +28,18 @@ export function StepProceedBar({
   const { data: institutes } = useListInstitutesQuery();
   const [advance, { isLoading }] = useAdvanceStepMutation();
 
-  // Server sends stable codes (`institute:<code>`, `doc:<type>`, `step:<n>`, or a field name);
-  // each maps onto an existing translation so nothing is hard-coded twice.
+  // Server sends stable codes (`institute:<code>`, `doc:<type>`, or a bare field name); each maps
+  // onto an existing translation so nothing is hard-coded twice. `step:<n>` codes exist too but
+  // only ever come from Step 5, which has no Proceed bar. An unknown code degrades to its own
+  // text rather than leaking a raw i18n key into the dialog.
   const labelFor = (code: string): string => {
     const [kind, value] = code.split(":");
     if (kind === "institute") {
       const inst = institutes?.find((i) => i.code === value);
       return inst ? t(inst.display_key) : value;
     }
-    if (kind === "doc") return t(`workflow.docType.${value}`);
-    if (kind === "step") return t(`workflow.step${value}`);
-    return t(`workflow.missing.${code}`);
+    if (kind === "doc") return t(`workflow.docType.${value}`, { defaultValue: value });
+    return t(`workflow.missing.${code}`, { defaultValue: code });
   };
 
   const confirm = async () => {

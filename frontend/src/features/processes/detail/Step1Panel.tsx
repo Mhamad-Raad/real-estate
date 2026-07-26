@@ -11,21 +11,31 @@ import { toast } from "@/components/ui/toaster";
 import { useListCategoriesQuery } from "@/features/categories/categoriesApi";
 import { DocumentRow } from "@/features/documents/DocumentRow";
 import { DocumentUpload } from "@/features/documents/DocumentUpload";
+import { useListDocumentTypesQuery } from "@/features/documents/documentTypesApi";
 import { apiErrorMessage } from "@/lib/apiError";
 
 import { useUpdateProcessMutation } from "../processesApi";
 import type { ProcessDetail } from "../types";
 
-// Step 1: editable header (category + land id/address) plus the three client papers (§5.1).
-const STEP1_DOC_TYPES = ["ClientID", "RealEstate", "SignedAgreement"];
-
-export function Step1Panel({ process, canEdit }: { process: ProcessDetail; canEdit: boolean }) {
+// Step 1: editable header (category + land id/address) plus the client papers (§5.1). The
+// document types come from the shared vocabulary so the slots always match what the backend
+// requires for completion (§6.7).
+export function Step1Panel({
+  process,
+  canEdit,
+}: {
+  process: ProcessDetail;
+  canEdit: boolean;
+}) {
   const { t } = useTranslation();
   const { data: categories } = useListCategoriesQuery({});
+  const { data: documentTypes } = useListDocumentTypesQuery();
   const [update, { isLoading }] = useUpdateProcessMutation();
   const docs = process.documents.filter((d) => d.step_number === 1);
 
-  const [category, setCategory] = useState<string>(process.category ? String(process.category) : "");
+  const [category, setCategory] = useState<string>(
+    process.category ? String(process.category) : "",
+  );
   const [landId, setLandId] = useState(process.land_id);
   const [landAddress, setLandAddress] = useState(process.land_address);
 
@@ -109,33 +119,37 @@ export function Step1Panel({ process, canEdit }: { process: ProcessDetail; canEd
         </Button>
       )}
 
-      {STEP1_DOC_TYPES.map((type) => {
-        const forType = docs.filter((d) => d.document_type === type);
-        return (
-          <div key={type} className="space-y-2">
-            <div className="flex items-center justify-between gap-2">
-              <Label>{t(`workflow.docType.${type}`)}</Label>
-              {canEdit && (
-                <DocumentUpload
-                  process={process.id}
-                  step={1}
-                  documentType={type}
-                  label={t("workflow.import")}
-                />
+      {(documentTypes ?? [])
+        .filter((dt) => dt.step === 1)
+        .map(({ code: type, display_key }) => {
+          const forType = docs.filter((d) => d.document_type === type);
+          return (
+            <div key={type} className="space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <Label>{t(display_key)}</Label>
+                {canEdit && (
+                  <DocumentUpload
+                    process={process.id}
+                    step={1}
+                    documentType={type}
+                    label={t("workflow.import")}
+                  />
+                )}
+              </div>
+              {forType.length ? (
+                <div className="space-y-1">
+                  {forType.map((d) => (
+                    <DocumentRow key={d.id} doc={d} />
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  {t("workflow.noFile")}
+                </p>
               )}
             </div>
-            {forType.length ? (
-              <div className="space-y-1">
-                {forType.map((d) => (
-                  <DocumentRow key={d.id} doc={d} />
-                ))}
-              </div>
-            ) : (
-              <p className="text-xs text-muted-foreground">{t("workflow.noFile")}</p>
-            )}
-          </div>
-        );
-      })}
+          );
+        })}
     </div>
   );
 }

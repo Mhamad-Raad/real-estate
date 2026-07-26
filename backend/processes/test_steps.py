@@ -4,7 +4,9 @@ import tempfile
 from pathlib import Path
 
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.db import connection
 from django.test import override_settings
+from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
@@ -105,6 +107,97 @@ class WorkflowApiTests(APITestCase):
             self._upload(4, "ApprovalLetter", entry=e.data["id"])
         step4 = ProcessStep.objects.get(process=self.process, step_number=4)
         self.assertEqual(step4.status, ProcessStep.Status.COMPLETE)
+
+    def test_detail_query_count_does_not_grow_with_the_case(self):
+        # The per-step `missing` lists must come out of prefetched collections, not one query per
+        # step — otherwise every document or institute entry added makes the page slower (§3.6).
+        url = reverse("process-detail", args=[self.process.id])
+
+        def add(step, code, doc_type):
+            entry = self.client.post(
+                reverse("institute-entry-list"),
+                {"process": self.process.id, "step_number": step, "institute_code": code,
+                 "assigned_lawyer": self.lawyer.id},
+                format="json",
+            )
+            self._upload(step, doc_type, entry=entry.data["id"])
+
+        # Measure a case that already has one of everything, so fixed prefetch costs are paid…
+        self._upload(1, "ClientID")
+        add(2, "INST_S2_A", "InstituteDoc")
+        self.client.get(url)  # warm any one-off caches so the measurements are comparable
+        with CaptureQueriesContext(connection) as small_case:
+            self.client.get(url)
+
+        # …then triple the rows it has to walk. A prefetched read stays flat; an N+1 grows.
+        for doc_type in ("RealEstate", "SignedAgreement"):
+            self._upload(1, doc_type)
+        add(2, "INST_S2_B", "InstituteDoc")
+        add(4, "INST_S4_A", "InstituteDoc")
+        add(4, "INST_S4_B", "InstituteDoc")
+
+        with CaptureQueriesContext(connection) as big_case:
+            resp = self.client.get(url)
+        self.assertEqual(len(resp.data["documents"]), 7)
+        self.assertEqual(
+            len(big_case), len(small_case),
+            f"detail grew from {len(small_case)} to {len(big_case)} queries as the case filled up",
+        )
+
+    def test_editing_the_header_re_derives_step_1_status(self):
+        # Step 1 completes on header fields + the three client papers…
+        self.process.land_id = "PLOT-1"
+        self.process.save(update_fields=["land_id"])
+        for doc_type in ("ClientID", "RealEstate", "SignedAgreement"):
+            self._upload(1, doc_type)
+        step1 = ProcessStep.objects.get(process=self.process, step_number=1)
+        self.assertEqual(step1.status, ProcessStep.Status.COMPLETE)
+
+        # …so clearing land_id through the header PATCH must un-complete it, not leave a stale
+        # green badge contradicting the step's own `missing` list.
+        self.process.refresh_from_db()
+        resp = self.client.patch(
+            reverse("process-detail", args=[self.process.id]),
+            {"land_id": "", "version": self.process.version},
+            format="json",
+        )
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        step1.refresh_from_db()
+        self.assertEqual(step1.status, ProcessStep.Status.IN_PROGRESS)
+        detail = self.client.get(reverse("process-detail", args=[self.process.id]))
+        missing = [s["missing"] for s in detail.data["steps"] if s["step_number"] == 1][0]
+        self.assertIn("land_id", missing)
+
+    def test_override_re_derives_step_1_status(self):
+        # A fired duplicate warning blocks Step 1; clearing it can be the last missing piece.
+        self.process.land_id = "PLOT-1"
+        self.process.duplicate_flagged = True
+        self.process.save(update_fields=["land_id", "duplicate_flagged"])
+        for doc_type in ("ClientID", "RealEstate", "SignedAgreement"):
+            self._upload(1, doc_type)
+        step1 = ProcessStep.objects.get(process=self.process, step_number=1)
+        self.assertNotEqual(step1.status, ProcessStep.Status.COMPLETE)
+
+        self.client.force_authenticate(self.admin)
+        self.process.refresh_from_db()
+        resp = self.client.post(
+            reverse("process-override-duplicate", args=[self.process.id]),
+            {"match_reason": "mother_name", "reason": "sibling", "version": self.process.version},
+            format="json",
+        )
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        step1.refresh_from_db()
+        self.assertEqual(step1.status, ProcessStep.Status.COMPLETE)
+
+    def test_complete_without_a_version_is_rejected(self):
+        # Mark-complete is a write like any other — no version token, no lock, so 400 (§4.1).
+        self.client.force_authenticate(self.admin)
+        resp = self.client.post(
+            reverse("process-complete", args=[self.process.id]), {"force": True}, format="json"
+        )
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+        self.process.refresh_from_db()
+        self.assertNotEqual(self.process.overall_status, "complete")
 
     def test_complete_blocks_on_missing_then_admin_can_force(self):
         url = reverse("process-complete", args=[self.process.id])

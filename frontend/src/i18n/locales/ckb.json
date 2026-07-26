@@ -210,7 +210,8 @@
     "docType": {
       "ClientID": "ناسنامەی کڕیار",
       "RealEstate": "بەڵگەنامەی خانووبەرە",
-      "SignedAgreement": "ڕێککەوتنی واژۆکراو"
+      "SignedAgreement": "ڕێککەوتنی واژۆکراو",
+      "InstituteDoc": "بەڵگەنامەی دامەزراوە"
     },
     "import": "هاوردەی PDF",
     "upload": "بارکردن",

@@ -8,6 +8,7 @@ from rest_framework.viewsets import ModelViewSet
 from common.permissions import IsAdminOrReadOnly
 from common.viewsets import AuditedSoftDeleteViewSet
 
+from .document_types import document_types_as_dicts
 from .institutes import institutes_as_dicts
 from .models import Category
 from .serializers import CategorySerializer
@@ -27,3 +28,12 @@ class InstitutesView(APIView):
 
     def get(self, _request):
         return Response(institutes_as_dicts())
+
+
+class DocumentTypesView(APIView):
+    """The shared controlled document-type vocabulary — read-only single source of truth (§6.7)."""
+
+    permission_classes = (IsAuthenticated,)
+
+    def get(self, _request):
+        return Response(document_types_as_dicts())

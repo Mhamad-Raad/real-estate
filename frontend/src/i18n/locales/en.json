@@ -210,7 +210,8 @@
     "docType": {
       "ClientID": "Client ID",
       "RealEstate": "Real-estate papers",
-      "SignedAgreement": "Signed agreement"
+      "SignedAgreement": "Signed agreement",
+      "InstituteDoc": "Institute document"
     },
     "import": "Import PDF",
     "upload": "Upload",

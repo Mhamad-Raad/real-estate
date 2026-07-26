@@ -22,11 +22,13 @@ from .serializers import (
     ProcessStepSerializer,
     ProcessUpdateSerializer,
 )
+# Services that share a name with the view action below are aliased, so a stray `self.` can never
+# turn a service call into silent recursion.
 from .services import (
-    advance_step,
+    advance_step as advance_step_service,
     complete_process,
     create_process,
-    override_duplicate,
+    override_duplicate as override_duplicate_service,
     recompute_step,
     save_step,
 )
@@ -45,7 +47,13 @@ class ProcessViewSet(AuditedSoftDeleteViewSet, ModelViewSet):
     audit_entity = "Process"
 
     def get_queryset(self):
-        return search_processes(self.request.query_params)
+        qs = search_processes(self.request.query_params)
+        if self.action == "retrieve":
+            # The detail payload derives every step's `missing` list from these three collections;
+            # prefetching turns five per-step round trips into one each (§3.6). Read-only action
+            # only — a mutating request must not read through a stale prefetch cache.
+            qs = qs.prefetch_related("steps", "documents", "institute_entries__documents")
+        return qs
 
     def get_serializer_class(self):
         return SERIALIZERS.get(self.action, ProcessDetailSerializer)
@@ -65,6 +73,12 @@ class ProcessViewSet(AuditedSoftDeleteViewSet, ModelViewSet):
             request=self.request,
         )
 
+    def perform_update(self, serializer):
+        super().perform_update(serializer)
+        # Step 1's requirements include header fields (land_id, category) edited through here, so
+        # its stored status would otherwise go stale against the live requirement list (§3.6).
+        recompute_step(serializer.instance, 1)
+
     @action(
         detail=True,
         methods=["post"],
@@ -76,7 +90,7 @@ class ProcessViewSet(AuditedSoftDeleteViewSet, ModelViewSet):
         process = self.get_object()
         payload = OverrideSerializer(data=request.data)
         payload.is_valid(raise_exception=True)
-        override_duplicate(
+        override_duplicate_service(
             process=process,
             admin=request.user,
             match_reason=payload.validated_data["match_reason"],
@@ -108,7 +122,7 @@ class ProcessViewSet(AuditedSoftDeleteViewSet, ModelViewSet):
     def advance_step(self, request, pk=None):
         """Unlock the next step for this case — the lawyer's explicit "proceed" (§5.2)."""
         process = self.get_object()  # write action: assignee or admin only
-        process = advance_step(
+        process = advance_step_service(
             process=process,
             actor=request.user,
             expected_version=request.data.get("version"),
