@@ -22,11 +22,13 @@ from .serializers import (
     ProcessStepSerializer,
     ProcessUpdateSerializer,
 )
+# Services that share a name with the view action below are aliased, so a stray `self.` can never
+# turn a service call into silent recursion.
 from .services import (
-    advance_step,
+    advance_step as advance_step_service,
     complete_process,
     create_process,
-    override_duplicate,
+    override_duplicate as override_duplicate_service,
     recompute_step,
     save_step,
 )
@@ -88,7 +90,7 @@ class ProcessViewSet(AuditedSoftDeleteViewSet, ModelViewSet):
         process = self.get_object()
         payload = OverrideSerializer(data=request.data)
         payload.is_valid(raise_exception=True)
-        override_duplicate(
+        override_duplicate_service(
             process=process,
             admin=request.user,
             match_reason=payload.validated_data["match_reason"],
@@ -120,7 +122,7 @@ class ProcessViewSet(AuditedSoftDeleteViewSet, ModelViewSet):
     def advance_step(self, request, pk=None):
         """Unlock the next step for this case — the lawyer's explicit "proceed" (§5.2)."""
         process = self.get_object()  # write action: assignee or admin only
-        process = advance_step(
+        process = advance_step_service(
             process=process,
             actor=request.user,
             expected_version=request.data.get("version"),
