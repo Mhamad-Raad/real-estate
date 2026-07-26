@@ -80,6 +80,15 @@ export const processesApi = baseApi.injectEndpoints({
       }),
       invalidatesTags: (_r, _e, arg) => touch(arg.process),
     }),
+    // Explicit "proceed" — unlocks the next step for the lawyer (forward-only, server-side).
+    advanceStep: builder.mutation<ProcessDetail, { id: number; version: number }>({
+      query: ({ id, ...body }) => ({
+        url: `processes/${id}/advance-step/`,
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: (_r, _e, arg) => touch(arg.id),
+    }),
     completeProcess: builder.mutation<
       ProcessDetail,
       { id: number; version: number; force?: boolean }
@@ -123,6 +132,7 @@ export const {
   useUpdateProcessMutation,
   useOverrideDuplicateMutation,
   useSaveStepMutation,
+  useAdvanceStepMutation,
   useCompleteProcessMutation,
   useCreateEntryMutation,
   useUpdateEntryMutation,

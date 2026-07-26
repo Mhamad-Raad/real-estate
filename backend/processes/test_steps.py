@@ -120,3 +120,70 @@ class WorkflowApiTests(APITestCase):
         forced = self.client.post(url, {"force": True, "version": self.process.version}, format="json")
         self.assertEqual(forced.status_code, status.HTTP_200_OK)
         self.assertEqual(forced.data["overall_status"], "complete")
+
+
+@override_settings(DOCUMENTS_ROOT=Path(tempfile.mkdtemp()))
+class AdvanceStepTests(APITestCase):
+    """Progressive step unlocking — `current_step` is the highest step a lawyer may open (§5.2)."""
+
+    def setUp(self):
+        self.admin = User.objects.create_user("adm2", password="pw12345678", role=User.Role.ADMIN)
+        self.lawyer = User.objects.create_user("lw2", password="pw12345678")
+        self.other = User.objects.create_user("lw3", password="pw12345678")
+        self.category = Category.objects.create(code="B", name="B")
+        self.client_row = Client.objects.create(
+            full_name="Person2", pid="222", mother_full_name="Mother2", category=self.category
+        )
+        self.process = create_process(
+            client=self.client_row, assigned_lawyer=self.lawyer, actor=self.lawyer,
+            category=self.category,
+        )
+        self.url = reverse("process-advance-step", args=[self.process.id])
+        self.client.force_authenticate(self.lawyer)
+
+    def _advance(self):
+        self.process.refresh_from_db()
+        return self.client.post(self.url, {"version": self.process.version}, format="json")
+
+    def test_advance_unlocks_next_step_and_bumps_version(self):
+        before = self.process.version
+        resp = self._advance()
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(resp.data["current_step"], 2)
+        self.process.refresh_from_db()
+        self.assertEqual(self.process.version, before + 1)
+
+    def test_advance_is_allowed_while_the_step_is_still_incomplete(self):
+        # Step 1 has no documents, yet proceeding is a warning in the UI — never a server block.
+        step1 = ProcessStep.objects.get(process=self.process, step_number=1)
+        self.assertNotEqual(step1.status, ProcessStep.Status.COMPLETE)
+        self.assertEqual(self._advance().status_code, status.HTTP_200_OK)
+
+    def test_advance_stops_at_the_last_step(self):
+        for expected in (2, 3, 4, 5):
+            self.assertEqual(self._advance().data["current_step"], expected)
+        self.assertEqual(self._advance().status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_advance_requires_a_version_and_rejects_a_stale_one(self):
+        self.assertEqual(
+            self.client.post(self.url, {}, format="json").status_code,
+            status.HTTP_400_BAD_REQUEST,
+        )
+        stale = self.client.post(self.url, {"version": self.process.version + 5}, format="json")
+        self.assertEqual(stale.status_code, status.HTTP_409_CONFLICT)
+
+    def test_only_the_assigned_lawyer_or_an_admin_can_advance(self):
+        self.client.force_authenticate(self.other)
+        self.assertEqual(self._advance().status_code, status.HTTP_403_FORBIDDEN)
+        self.client.force_authenticate(self.admin)
+        self.assertEqual(self._advance().status_code, status.HTTP_200_OK)
+
+    def test_detail_lists_what_each_step_still_needs(self):
+        resp = self.client.get(reverse("process-detail", args=[self.process.id]))
+        missing = {s["step_number"]: s["missing"] for s in resp.data["steps"]}
+        # Category and land_id come from the header; the three client papers are not uploaded yet.
+        self.assertIn("land_id", missing[1])
+        self.assertNotIn("category", missing[1])
+        self.assertIn("doc:ClientID", missing[1])
+        self.assertIn("start_date", missing[2])
+        self.assertIn("institute:INST_S4_A", missing[4])

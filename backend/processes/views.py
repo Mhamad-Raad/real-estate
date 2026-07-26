@@ -22,7 +22,14 @@ from .serializers import (
     ProcessStepSerializer,
     ProcessUpdateSerializer,
 )
-from .services import complete_process, create_process, override_duplicate, recompute_step, save_step
+from .services import (
+    advance_step,
+    complete_process,
+    create_process,
+    override_duplicate,
+    recompute_step,
+    save_step,
+)
 
 SERIALIZERS = {
     "list": ProcessListSerializer,
@@ -96,6 +103,18 @@ class ProcessViewSet(AuditedSoftDeleteViewSet, ModelViewSet):
             request=request,
         )
         return Response(ProcessStepSerializer(step).data)
+
+    @action(detail=True, methods=["post"], url_path="advance-step")
+    def advance_step(self, request, pk=None):
+        """Unlock the next step for this case — the lawyer's explicit "proceed" (§5.2)."""
+        process = self.get_object()  # write action: assignee or admin only
+        process = advance_step(
+            process=process,
+            actor=request.user,
+            expected_version=request.data.get("version"),
+            request=request,
+        )
+        return Response(ProcessDetailSerializer(process).data)
 
     @action(detail=True, methods=["post"], url_path="steps/5/complete")
     def complete(self, request, pk=None):

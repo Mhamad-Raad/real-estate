@@ -50,6 +50,9 @@ export interface ProcessStep {
   end_date: string | null;
   approval_status: string;
   out_of_city_flag: boolean;
+  // Server-computed codes for what this step still needs: `institute:<code>`, `doc:<type>`,
+  // `step:<n>`, or a bare field name. Empty means complete.
+  missing: string[];
   version: number;
 }
 

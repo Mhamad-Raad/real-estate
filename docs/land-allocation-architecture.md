@@ -6,7 +6,7 @@
 
 ---
 
-## 0. Implementation deviations from this spec (living — updated through Iteration 2)
+## 0. Implementation deviations from this spec (living — updated through Iteration 2.5)
 
 This section records where the **built system intentionally differs** from the design below. It is the authoritative changelog; where a section further down conflicts, this table wins. All core invariants (soft-delete, append-only audit, DB-level dedup, server-side RBAC, optimistic locking, full i18n/RTL) are upheld.
 
@@ -21,6 +21,7 @@ This section records where the **built system intentionally differs** from the d
 | **User soft-delete** | "every domain model extends `SoftDeleteModel`" | `User` **mirrors** the soft-delete fields (`is_deleted/deleted_at/deleted_by/version`) rather than extending it | `AbstractUser` cannot cleanly multi-inherit `SoftDeleteModel`; behavior is identical (a deleted user is also `is_active=False`) |
 | **`version` field** | not shown in the `SoftDeleteModel` snippet (§3.1) | Present on every soft-deletable model incl. `User` | Required by the optimistic-locking invariant (§4.1, §12) |
 | **UI component library** | shadcn/ui (§8) | Hand-built shadcn-*style* primitives (Dialog/Select/Accordion have **zero** Radix deps) | Offline footprint + avoid dependency churn; same look and behavior |
+| **Step sequencing** | no forced sequence; `current_step` is informational and "not a gate" (§5.2) | `current_step` is the **highest step a lawyer has unlocked**. Steps above it render locked; an explicit **Proceed** (confirm dialog → `POST /processes/{id}/advance-step/`) unlocks the next one. Forward-only. Admins bypass it entirely and see all five | Product decision (It.2.5) — lawyers asked to walk one step at a time instead of facing all five at once. Unlocked steps stay editable, so non-linear work within them is unaffected |
 
 ### Temporary simplifications (revisit when the named iteration lands)
 
@@ -551,6 +552,8 @@ The frontend never hard-codes this list — it reads `GET /api/institutes/`. Ins
 
 Status values: `not_started` (no data), `in_progress` (some data, some required items missing), `missing` (explicitly flagged outstanding files), `complete`. These drive the accordion badge colors (§5, §8).
 
+**One source of truth.** `processes/status.py` implements the table above as `missing_requirements(process, n, step_row)`, which returns stable codes for everything the step still needs — `land_id`, `start_date`, `duplicate_flag`, `custom_entries`, `doc:<type>`, `institute:<code>`, `step:<n>`. A step is `complete` exactly when that list is empty, so the badge and the Proceed dialog's "still missing" list (§5.2) can never disagree. The list is served per step as `missing` on `ProcessStepSerializer`; the frontend localizes each code (institute codes resolve through the shared enum, §3.4).
+
 ### 3.7 Search & indexing strategy
 
 Processes are searched/filtered **only** by structured fields — **date, client PID, client name** — plus list filters (category, status, assigned lawyer). No document/OCR full-text search. Mother's full name is a **duplicate-detection key only**, never a search field.
@@ -613,6 +616,7 @@ A **REST** API (explicitly not GraphQL) under `/api/`, versioned `/api/v1/`, JSO
 | | `POST /api/v1/processes/{id}/restore/` | Restore | Admin |
 | **Per-step save** | `PATCH /api/v1/processes/{id}/steps/{n}/` | **Save step n incomplete or complete** | Assignee or Admin |
 | | `GET /api/v1/processes/{id}/steps/{n}/` | Step n data + computed status | All |
+| | `POST /api/v1/processes/{id}/advance-step/` | **Proceed** — unlock the next step (forward-only; body `{version}`) — §5.2 | Assignee or Admin |
 | | `POST /api/v1/processes/{id}/steps/5/complete/` | Mark complete (enforces missing-file rule; admin can force) | Assignee or Admin |
 | **Institute entries** | `GET /api/v1/processes/{id}/institute-entries/` | Entries for steps 2–4 | All |
 | | `POST /api/v1/processes/{id}/institute-entries/` | Add entry (fixed or custom out-of-city) + assigned lawyer | Assignee or Admin |
@@ -713,9 +717,13 @@ Each accordion section maps to `PATCH /processes/{id}/steps/{n}/`. Saving valida
 
 > **Implementation note (through It.2, see §0):** the built enum is `draft \| in_progress \| complete \| rejected` — Step-5 completion sets `complete` directly. The `submitted` stage (and renaming `complete`→`completed`) arrives with the Iteration-4 compiled export. Editing a completed process that breaks a step reverts it to `in_progress`.
 
+> **Implementation note (It.2.5, see §0) — `current_step` is a gate for lawyers.** It holds the highest step the lawyer has unlocked. Steps above it are shown locked (greyed, un-openable, body never mounted); the lawyer unlocks the next one with an explicit **Proceed** on the current step, which opens a confirm dialog and calls `POST /processes/{id}/advance-step/`. Advancing is **forward-only** and optimistic-locked, so an earlier step can never re-lock a later one. Proceeding is *never blocked* by an unfinished step — the dialog just lists what is still missing and lets the lawyer continue. Admins are exempt: they always see all five steps.
+
 ### 5.3 Accordion, editable anytime
 
 Steps render as shadcn `Accordion` items, each independently expandable and editable at any time. Re-opening a completed step and editing it re-runs that step's status computation and (for Step 2) keeps the auto-set `end_date` editable. Every edit is audited.
+
+**Unlocked ≠ ordered.** The It.2.5 gate above only controls *visibility*: once a step is unlocked it stays editable forever, so a lawyer can still go back and fix Step 2 while working Step 4.
 
 ### 5.4 Per-step missing-document status / color indicators
 

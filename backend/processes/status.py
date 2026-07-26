@@ -3,14 +3,18 @@
 Pure functions — no writes, no audit. `save_step` (services) calls `compute_step_status` and
 persists the result so list/badge queries stay index-fast. Note: the Step-1 generated-eligibility
 requirement lands in Iteration 3; until then Step 1 completes on client papers + header fields.
+
+`missing_requirements` is the single source of truth: a step is complete exactly when nothing is
+missing, so the badge and the "proceed anyway?" warning can never drift apart.
 """
 
 from catalog.institutes import codes_for_step
 
 from .models import ProcessStep
 
-# Controlled document types each step needs present to be "complete" (§3.6).
-STEP1_REQUIRED_DOCS = {"ClientID", "RealEstate", "SignedAgreement"}
+# Controlled document types each step needs present to be "complete" (§3.6). Ordered for
+# stable output — this list is rendered to the user in the proceed-anyway warning.
+STEP1_REQUIRED_DOCS = ("ClientID", "RealEstate", "SignedAgreement")
 
 
 def _present_doc_types(process, step_number) -> set[str]:
@@ -35,38 +39,55 @@ def _entry_complete(entry, step_number) -> bool:
     return False
 
 
-def _fixed_entries_complete(process, step_number) -> bool:
+def _missing_fixed_institutes(process, step_number) -> list[str]:
+    """Fixed institutes for this step that are absent altogether or not yet finished."""
     entries = {
         e.institute_code: e
         for e in process.institute_entries.filter(step_number=step_number, is_custom=False)
     }
-    return all(
-        code in entries and _entry_complete(entries[code], step_number)
+    return [
+        f"institute:{code}"
         for code in codes_for_step(step_number)
-    )
+        if code not in entries or not _entry_complete(entries[code], step_number)
+    ]
 
 
-def _step_complete(process, step_number, step_row) -> bool:
+def missing_requirements(process, step_number, step_row) -> list[str]:
+    """Stable codes for everything this step still needs — empty means complete (§3.6).
+
+    Codes are machine-readable so the frontend can localize them (`institute:<code>`,
+    `doc:<type>`, `step:<n>`, or a plain field name).
+    """
     if step_number == 1:
-        header_ok = bool(process.land_id and process.category_id) and not process.duplicate_flagged
-        return header_ok and STEP1_REQUIRED_DOCS <= _present_doc_types(process, 1)
+        missing = []
+        if not process.land_id:
+            missing.append("land_id")
+        if not process.category_id:
+            missing.append("category")
+        if process.duplicate_flagged:
+            missing.append("duplicate_flag")
+        present = _present_doc_types(process, 1)
+        missing += [f"doc:{doc}" for doc in STEP1_REQUIRED_DOCS if doc not in present]
+        return missing
     if step_number == 2:
-        return bool(step_row.start_date) and _fixed_entries_complete(process, 2)
+        missing = [] if step_row.start_date else ["start_date"]
+        return missing + _missing_fixed_institutes(process, 2)
     if step_number == 3:
-        if not _fixed_entries_complete(process, 3):
-            return False
+        missing = _missing_fixed_institutes(process, 3)
         if step_row.out_of_city_flag:
             customs = list(process.institute_entries.filter(step_number=3, is_custom=True))
-            return bool(customs) and all(
-                e.custom_name and _entry_complete(e, 3) for e in customs
-            )
-        return True
+            if not customs or not all(e.custom_name and _entry_complete(e, 3) for e in customs):
+                missing.append("custom_entries")
+        return missing
     if step_number == 4:
-        return _fixed_entries_complete(process, 4)
+        return _missing_fixed_institutes(process, 4)
     if step_number == 5:
-        prior = process.steps.filter(step_number__lt=5)
-        return all(s.status == ProcessStep.Status.COMPLETE for s in prior)
-    return False
+        return [
+            f"step:{s.step_number}"
+            for s in process.steps.filter(step_number__lt=5).order_by("step_number")
+            if s.status != ProcessStep.Status.COMPLETE
+        ]
+    return []
 
 
 def _step_has_data(process, step_number, step_row) -> bool:
@@ -83,7 +104,7 @@ def _step_has_data(process, step_number, step_row) -> bool:
 
 def compute_step_status(process, step_number, step_row) -> str:
     """Derive not_started / in_progress / complete for one step (missing is set explicitly)."""
-    if _step_complete(process, step_number, step_row):
+    if not missing_requirements(process, step_number, step_row):
         return ProcessStep.Status.COMPLETE
     if _step_has_data(process, step_number, step_row):
         return ProcessStep.Status.IN_PROGRESS
