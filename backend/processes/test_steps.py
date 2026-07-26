@@ -106,6 +106,51 @@ class WorkflowApiTests(APITestCase):
         step4 = ProcessStep.objects.get(process=self.process, step_number=4)
         self.assertEqual(step4.status, ProcessStep.Status.COMPLETE)
 
+    def test_editing_the_header_re_derives_step_1_status(self):
+        # Step 1 completes on header fields + the three client papers…
+        self.process.land_id = "PLOT-1"
+        self.process.save(update_fields=["land_id"])
+        for doc_type in ("ClientID", "RealEstate", "SignedAgreement"):
+            self._upload(1, doc_type)
+        step1 = ProcessStep.objects.get(process=self.process, step_number=1)
+        self.assertEqual(step1.status, ProcessStep.Status.COMPLETE)
+
+        # …so clearing land_id through the header PATCH must un-complete it, not leave a stale
+        # green badge contradicting the step's own `missing` list.
+        self.process.refresh_from_db()
+        resp = self.client.patch(
+            reverse("process-detail", args=[self.process.id]),
+            {"land_id": "", "version": self.process.version},
+            format="json",
+        )
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        step1.refresh_from_db()
+        self.assertEqual(step1.status, ProcessStep.Status.IN_PROGRESS)
+        detail = self.client.get(reverse("process-detail", args=[self.process.id]))
+        missing = [s["missing"] for s in detail.data["steps"] if s["step_number"] == 1][0]
+        self.assertIn("land_id", missing)
+
+    def test_override_re_derives_step_1_status(self):
+        # A fired duplicate warning blocks Step 1; clearing it can be the last missing piece.
+        self.process.land_id = "PLOT-1"
+        self.process.duplicate_flagged = True
+        self.process.save(update_fields=["land_id", "duplicate_flagged"])
+        for doc_type in ("ClientID", "RealEstate", "SignedAgreement"):
+            self._upload(1, doc_type)
+        step1 = ProcessStep.objects.get(process=self.process, step_number=1)
+        self.assertNotEqual(step1.status, ProcessStep.Status.COMPLETE)
+
+        self.client.force_authenticate(self.admin)
+        self.process.refresh_from_db()
+        resp = self.client.post(
+            reverse("process-override-duplicate", args=[self.process.id]),
+            {"match_reason": "mother_name", "reason": "sibling", "version": self.process.version},
+            format="json",
+        )
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        step1.refresh_from_db()
+        self.assertEqual(step1.status, ProcessStep.Status.COMPLETE)
+
     def test_complete_without_a_version_is_rejected(self):
         # Mark-complete is a write like any other — no version token, no lock, so 400 (§4.1).
         self.client.force_authenticate(self.admin)

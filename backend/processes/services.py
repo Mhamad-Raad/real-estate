@@ -97,6 +97,8 @@ def override_duplicate(
         overridden_by=admin,
         reason=reason,
     )
+    # Clearing the flag can be the last thing Step 1 was waiting on (§3.6).
+    recompute_step(process, 1)
     record_activity(
         actor=admin,
         action=ActivityLog.Action.OVERRIDE,

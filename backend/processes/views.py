@@ -65,6 +65,12 @@ class ProcessViewSet(AuditedSoftDeleteViewSet, ModelViewSet):
             request=self.request,
         )
 
+    def perform_update(self, serializer):
+        super().perform_update(serializer)
+        # Step 1's requirements include header fields (land_id, category) edited through here, so
+        # its stored status would otherwise go stale against the live requirement list (§3.6).
+        recompute_step(serializer.instance, 1)
+
     @action(
         detail=True,
         methods=["post"],
