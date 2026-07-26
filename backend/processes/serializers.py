@@ -3,9 +3,13 @@ from rest_framework import serializers
 from catalog.institutes import INSTITUTE_CODES, STEP_FOR_CODE
 
 from .models import DuplicateOverride, Process, ProcessInstituteEntry, ProcessStep
+from .status import missing_requirements
 
 
 class ProcessStepSerializer(serializers.ModelSerializer):
+    # What this step still needs — drives the "proceed anyway?" warning (§5.2).
+    missing = serializers.SerializerMethodField()
+
     class Meta:
         model = ProcessStep
         fields = (
@@ -16,9 +20,13 @@ class ProcessStepSerializer(serializers.ModelSerializer):
             "end_date",
             "approval_status",
             "out_of_city_flag",
+            "missing",
             "version",
         )
         read_only_fields = ("id", "version")
+
+    def get_missing(self, obj) -> list[str]:
+        return missing_requirements(obj.process, obj.step_number, obj)
 
 
 class InstituteEntrySerializer(serializers.ModelSerializer):

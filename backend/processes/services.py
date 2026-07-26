@@ -18,6 +18,7 @@ from . import status as step_status
 from .models import DuplicateOverride, Process, ProcessInstituteEntry, ProcessStep
 
 STEP_NUMBERS = range(1, 6)
+LAST_STEP = 5
 
 
 class MissingFiles(APIException):
@@ -157,6 +158,30 @@ def save_step(*, process, step_number, data, actor, expected_version=None, reque
         request=request,
     )
     return step
+
+
+@transaction.atomic
+def advance_step(*, process, actor, expected_version=None, request=None) -> Process:
+    """Unlock the next step (§5.2). `current_step` is the highest step the lawyer may open, so
+    this is deliberately forward-only — an earlier step stays editable but can't re-lock later
+    ones. Incompleteness is a UI warning, not a block: the lawyer may proceed anyway."""
+    check_version(process, expected_version, required=True)
+    if process.current_step >= LAST_STEP:
+        raise ValidationError({"current_step": "The final step is already unlocked."})
+    before = process.current_step
+    process.current_step = before + 1
+    process.version += 1
+    process.save(update_fields=["current_step", "version", "updated_at"])
+    record_activity(
+        actor=actor,
+        action=ActivityLog.Action.UPDATE,
+        entity_type="Process",
+        entity_id=process.id,
+        before={"current_step": before},
+        after={"current_step": process.current_step},
+        request=request,
+    )
+    return process
 
 
 @transaction.atomic

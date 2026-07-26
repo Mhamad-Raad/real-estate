@@ -122,6 +122,7 @@ This plan front-loads the demo and defers **OCR** (Iteration 5) and the **offlin
 - [ ] Steps 2–4 APIs: per-institute entries + per-institute lawyer; Step-3 out-of-city custom rows; approvals/dates; end-date auto-set-but-editable — *§5*.
 - [ ] Per-step status computation + `step_status_summary`; per-step save (`PATCH`, save-incomplete); Lawyer Notes; `overall_status` lifecycle — *§3.6, §5*.
 - [ ] Frontend (clean + localized): accordion multi-step form with per-step save + status/color badges; institute dropdowns from the enum; repeatable custom rows; upload/import + download; Lawyer Notes.
+- [ ] *(It.2.5)* **Progressive step unlocking for lawyers:** steps above `current_step` render locked; an explicit **Proceed** (confirm dialog listing what's still missing) calls `POST /processes/{id}/advance-step/` to unlock the next one. Forward-only; admins exempt — *§5.2, architecture §0*.
 
 **Deliverable / demo:** build a complete case end-to-end by importing PDFs, saving steps incompletely, watching per-step badges update, and downloading documents with friendly filenames. **← First fully-usable, showable product** (manual entry + imports; no OCR/scan needed).
 

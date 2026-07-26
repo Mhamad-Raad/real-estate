@@ -16,6 +16,7 @@ import { LawyerNotes } from "./LawyerNotes";
 import { Step1Panel } from "./Step1Panel";
 import { Step5Panel } from "./Step5Panel";
 import { StepBadge } from "./StepBadge";
+import { StepProceedBar } from "./StepProceedBar";
 
 const OVERALL_VARIANT: Record<OverallStatus, BadgeProps["variant"]> = {
   draft: "neutral",
@@ -51,9 +52,15 @@ export function ProcessDetailPage() {
     );
   }
 
-  const canEdit = Boolean(user?.is_admin || process.assigned_lawyer === user?.id);
+  const isAdmin = Boolean(user?.is_admin);
+  const canEdit = Boolean(isAdmin || process.assigned_lawyer === user?.id);
   const summary = process.step_status_summary;
   const statusFor = (n: number): StepStatus => summary.steps[String(n)] ?? "not_started";
+  // Lawyers walk the steps one at a time — `current_step` is the highest one they've unlocked
+  // via Proceed. Admins get the whole case at once for oversight (§5.2).
+  const unlockedThrough = isAdmin ? 5 : Math.max(1, process.current_step);
+  const missingFor = (n: number): string[] =>
+    process.steps.find((s) => s.step_number === n)?.missing ?? [];
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
@@ -83,22 +90,33 @@ export function ProcessDetailPage() {
       <LawyerNotes process={process} canEdit={canEdit} />
 
       <Accordion>
-        {[1, 2, 3, 4, 5].map((n) => (
-          <AccordionItem
-            key={n}
-            defaultOpen={n === (process.current_step || 1)}
-            title={t(`workflow.step${n}`)}
-            meta={<StepBadge status={statusFor(n)} />}
-          >
-            {n === 1 && <Step1Panel process={process} canEdit={canEdit} />}
-            {(n === 2 || n === 3 || n === 4) && (
-              <InstituteStepPanel process={process} step={n} canEdit={canEdit} />
-            )}
-            {n === 5 && (
-              <Step5Panel process={process} canEdit={canEdit} isAdmin={Boolean(user?.is_admin)} />
-            )}
-          </AccordionItem>
-        ))}
+        {[1, 2, 3, 4, 5].map((n) => {
+          const locked = n > unlockedThrough;
+          return (
+            <AccordionItem
+              key={n}
+              locked={locked}
+              defaultOpen={n === (process.current_step || 1)}
+              title={t(`workflow.step${n}`)}
+              meta={
+                locked ? (
+                  <span className="text-xs text-muted-foreground">{t("workflow.locked")}</span>
+                ) : (
+                  <StepBadge status={statusFor(n)} />
+                )
+              }
+            >
+              {n === 1 && <Step1Panel process={process} canEdit={canEdit} />}
+              {(n === 2 || n === 3 || n === 4) && (
+                <InstituteStepPanel process={process} step={n} canEdit={canEdit} />
+              )}
+              {n === 5 && <Step5Panel process={process} canEdit={canEdit} isAdmin={isAdmin} />}
+              {n === process.current_step && n < 5 && canEdit && (
+                <StepProceedBar process={process} step={n} missing={missingFor(n)} />
+              )}
+            </AccordionItem>
+          );
+        })}
       </Accordion>
     </div>
   );

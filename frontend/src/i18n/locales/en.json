@@ -240,7 +240,22 @@
     "completeHint": "Completing requires all prior steps to have their files. An admin can force completion.",
     "completed": "Case marked complete",
     "missingFiles": "Some steps still have missing files.",
-    "caseComplete": "This case is complete."
+    "caseComplete": "This case is complete.",
+    "locked": "Locked",
+    "proceed": "Proceed",
+    "proceedTo": "Proceed to step {{n}}",
+    "proceedTitle": "Proceed to step {{n}}?",
+    "proceedConfirm": "This unlocks step {{n}} so you can start working on it.",
+    "proceedIncomplete": "Step {{n}} is not finished yet. Still missing:",
+    "proceedAnyway": "You can proceed anyway and come back to finish it later.",
+    "proceeded": "Step {{n}} unlocked",
+    "missing": {
+      "land_id": "Land ID",
+      "category": "Category",
+      "duplicate_flag": "Duplicate warning not yet overridden",
+      "start_date": "Start date",
+      "custom_entries": "Out-of-city institutes"
+    }
   },
   "institute": {
     "s2_a": "Institute S2-A",
