@@ -1,15 +1,18 @@
 """Write-side rules for documents — validate the PDF, write to the store, audit (§4.4, §6.7)."""
 
+import io
+
 from django.conf import settings
 from django.db import transaction
 from rest_framework import status
+from docxtpl import DocxTemplate
 from rest_framework.exceptions import APIException, ValidationError
 
 from common.models import ActivityLog
 from common.services import record_activity
 
 from . import filestore
-from .models import Document
+from .models import Document, DocumentTemplate
 
 
 class PayloadTooLarge(APIException):
@@ -81,3 +84,49 @@ def create_document(
         dest.unlink(missing_ok=True)  # don't leave an orphan file if the row didn't commit
         raise
     return document
+
+
+def create_template(*, template_type: str, name: str, upload, actor, request=None):
+    """Validate and store a `.docx` letter template, making it the active one for its type.
+
+    The previous active template is deactivated rather than deleted — a regenerated letter must
+    still be traceable to the exact file that produced the earlier one (§6.6).
+    """
+    content = upload.read()
+    if len(content) > settings.MAX_UPLOAD_BYTES:
+        raise PayloadTooLarge()
+    if not filestore.looks_like_docx(content):
+        raise ValidationError({"file": "File is not a .docx document."})
+    # Opening it here means a corrupt template fails at upload, not mid-generation.
+    try:
+        DocxTemplate(io.BytesIO(content)).get_undeclared_template_variables()
+    except Exception as exc:
+        raise ValidationError({"file": f"File is not a readable Word template: {exc}"}) from exc
+
+    rel = filestore.write_template(template_type=template_type, name=name, content=content)
+    try:
+        with transaction.atomic():
+            DocumentTemplate.objects.filter(
+                template_type=template_type, is_active=True
+            ).update(is_active=False)
+            template = DocumentTemplate.objects.create(
+                template_type=template_type,
+                name=name,
+                file_path=str(rel),
+                original_filename=getattr(upload, "name", "")[:255],
+                sha256=filestore.sha256_hex(content),
+                size_bytes=len(content),
+                uploaded_by=actor,
+            )
+            record_activity(
+                actor=actor,
+                action=ActivityLog.Action.CREATE,
+                entity_type="DocumentTemplate",
+                entity_id=template.id,
+                after={"name": name, "template_type": template_type},
+                request=request,
+            )
+    except Exception:
+        (settings.LETTER_TEMPLATES_ROOT / rel).unlink(missing_ok=True)
+        raise
+    return template
