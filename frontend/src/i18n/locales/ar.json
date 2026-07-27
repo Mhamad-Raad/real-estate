@@ -110,6 +110,8 @@
     "motherName": "اسم الأم الكامل",
     "maritalStatus": "الحالة الاجتماعية",
     "spouseName": "اسم الزوج/الزوجة",
+    "spouseDateOfBirth": "تاريخ ميلاد الزوج/الزوجة",
+    "spouseMotherName": "اسم والدة الزوج/الزوجة الكامل",
     "dateOfBirth": "تاريخ الميلاد",
     "placeOfBirth": "مكان الميلاد",
     "phone": "الهاتف",
@@ -194,6 +196,9 @@
     "landIdPlaceholder": "مثال: رقم القطعة / التسجيل",
     "landAddress": "عنوان الأرض",
     "landAddressPlaceholder": "عنوان / موقع الأرض",
+    "clientDetails": "بيانات المستفيد",
+    "saveClient": "حفظ بيانات المستفيد",
+    "spouseSection": "الزوج/الزوجة",
     "saveLand": "حفظ بيانات الأرض",
     "flaggedNote": "تكرار محتمل — يجب على مدير أن يتجاوزه قبل إتمام هذه المعاملة.",
     "step1": "الخطوة 1 — المراجع والمستندات",
@@ -209,6 +214,7 @@
     },
     "docType": {
       "ClientID": "هوية المراجع",
+      "SpouseID": "هوية الزوج/الزوجة",
       "RealEstate": "أوراق العقار",
       "SignedAgreement": "الاتفاقية الموقّعة",
       "InstituteDoc": "مستند الجهة"

@@ -13,9 +13,14 @@ export const clientsApi = baseApi.injectEndpoints({
       query: (body) => ({ url: "clients/", method: "POST", body }),
       invalidatesTags: ["Client"],
     }),
-    updateClient: builder.mutation<Client, { id: number; version: number } & ClientInput>({
+    updateClient: builder.mutation<
+      Client,
+      { id: number; version: number } & Partial<ClientInput>
+    >({
       query: ({ id, ...body }) => ({ url: `clients/${id}/`, method: "PATCH", body }),
-      invalidatesTags: ["Client"],
+      // Also Process: marital status and the spouse fields decide what Step 1 still requires,
+      // so a stale process detail would show the wrong `missing` list (§3.6).
+      invalidatesTags: ["Client", "Process"],
     }),
     deleteClient: builder.mutation<void, number>({
       query: (id) => ({ url: `clients/${id}/`, method: "DELETE" }),

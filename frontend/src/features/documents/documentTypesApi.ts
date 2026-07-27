@@ -7,6 +7,7 @@ export interface DocumentType {
   display_key: string; // i18n key; label comes from the translation files
   step: number | null; // null = not tied to one step (e.g. the generic institute document)
   required: boolean;
+  only_when_married: boolean; // e.g. the spouse ID — no spouse, no slot
 }
 
 export const documentTypesApi = baseApi.injectEndpoints({

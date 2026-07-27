@@ -110,6 +110,8 @@
     "motherName": "Mother's full name",
     "maritalStatus": "Marital status",
     "spouseName": "Spouse name",
+    "spouseDateOfBirth": "Spouse date of birth",
+    "spouseMotherName": "Spouse's mother's full name",
     "dateOfBirth": "Date of birth",
     "placeOfBirth": "Place of birth",
     "phone": "Phone",
@@ -194,6 +196,9 @@
     "landIdPlaceholder": "e.g. plot / registry number",
     "landAddress": "Land address",
     "landAddressPlaceholder": "Address / location of the land",
+    "clientDetails": "Beneficiary details",
+    "saveClient": "Save beneficiary details",
+    "spouseSection": "Spouse",
     "saveLand": "Save land details",
     "flaggedNote": "Possible duplicate — an admin must override before this case can be completed.",
     "step1": "Step 1 — Client & documents",
@@ -209,6 +214,7 @@
     },
     "docType": {
       "ClientID": "Client ID",
+      "SpouseID": "Spouse ID",
       "RealEstate": "Real-estate papers",
       "SignedAgreement": "Signed agreement",
       "InstituteDoc": "Institute document"

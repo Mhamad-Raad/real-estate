@@ -81,5 +81,6 @@ export interface ProcessDetail extends ProcessListItem {
   institute_entries: InstituteEntry[];
   step_status_summary: StepStatusSummary;
   documents: import("@/features/documents/types").DocumentMeta[];
+  client_detail: import("@/features/clients/types").Client;
 }
 

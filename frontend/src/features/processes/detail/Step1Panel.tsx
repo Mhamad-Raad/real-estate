@@ -15,6 +15,7 @@ import { useListDocumentTypesQuery } from "@/features/documents/documentTypesApi
 import { apiErrorMessage } from "@/lib/apiError";
 
 import { useUpdateProcessMutation } from "../processesApi";
+import { ClientDetailsPanel } from "./ClientDetailsPanel";
 import type { ProcessDetail } from "../types";
 
 // Step 1: editable header (category + land id/address) plus the client papers (§5.1). The
@@ -74,6 +75,8 @@ export function Step1Panel({
         </div>
       )}
 
+      <ClientDetailsPanel client={process.client_detail} canEdit={canEdit} />
+
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-1.5">
           <Label htmlFor="s1-category">{t("processes.category")}</Label>
@@ -120,7 +123,10 @@ export function Step1Panel({
       )}
 
       {(documentTypes ?? [])
-        .filter((dt) => dt.step === 1)
+        .filter(
+          (dt) =>
+            dt.step === 1 && (!dt.only_when_married || process.client_detail.is_married),
+        )
         .map(({ code: type, display_key }) => {
           const forType = docs.filter((d) => d.document_type === type);
           return (
