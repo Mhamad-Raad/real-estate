@@ -6,8 +6,8 @@ upload slots. Keeping the list here means a step can never require a document th
 slot for. Display names are i18n keys, so the code stays stable in the DB while ckb/ar/en labels
 come from the translation files.
 
-The vocabulary is deliberately partial — steps 2–4 use the generic `InstituteDoc`, and generated
-types (the eligibility letter) land with Iteration 3 (§0).
+The vocabulary is deliberately partial — steps 2–4 use the generic `InstituteDoc`, and the
+generated type (the eligibility letter) is produced by the system, never uploaded.
 """
 
 from typing import NamedTuple
@@ -21,6 +21,8 @@ class DocumentType(NamedTuple):
     # Some papers only exist when there is a spouse; the condition belongs to the type itself so
     # the backend requirement and the frontend upload slot can never disagree.
     only_when_married: bool = False
+    # Produced by the system (§6.6) — shown as output, never offered as an upload slot.
+    generated: bool = False
 
 
 DOCUMENT_TYPES: list[DocumentType] = [
@@ -28,6 +30,9 @@ DOCUMENT_TYPES: list[DocumentType] = [
     DocumentType("SpouseID", "workflow.docType.SpouseID", 1, True, only_when_married=True),
     DocumentType("RealEstate", "workflow.docType.RealEstate", 1, True),
     DocumentType("SignedAgreement", "workflow.docType.SignedAgreement", 1, True),
+    DocumentType(
+        "EligibilityLetter", "workflow.docType.EligibilityLetter", 1, False, generated=True
+    ),
     # Steps 2–4 attach one generic document per institute entry, not a fixed named set.
     DocumentType("InstituteDoc", "workflow.docType.InstituteDoc", None, False),
 ]

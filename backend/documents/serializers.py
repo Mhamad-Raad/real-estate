@@ -3,7 +3,7 @@ from rest_framework import serializers
 from catalog.document_types import DOCUMENT_TYPE_CODES
 from processes.models import Process, ProcessInstituteEntry
 
-from .models import Document
+from .models import Document, DocumentTemplate, GenerationJob
 
 
 class DocumentSerializer(serializers.ModelSerializer):
@@ -59,3 +59,53 @@ class DocumentUploadSerializer(serializers.Serializer):
                 {"institute_entry": "Entry does not belong to this process/step."}
             )
         return attrs
+
+
+class DocumentTemplateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DocumentTemplate
+        fields = (
+            "id",
+            "template_type",
+            "name",
+            "original_filename",
+            "size_bytes",
+            "is_active",
+            "uploaded_by",
+            "version",
+            "created_at",
+        )
+        read_only_fields = (
+            "id",
+            "original_filename",
+            "size_bytes",
+            "uploaded_by",
+            "version",
+            "created_at",
+        )
+
+
+class DocumentTemplateUploadSerializer(serializers.Serializer):
+    """Admin upload of a `.docx` letter template (§6.6)."""
+
+    template_type = serializers.ChoiceField(choices=DocumentTemplate.TemplateType.choices)
+    name = serializers.CharField(max_length=120)
+    file = serializers.FileField()
+
+
+class GenerationJobSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = GenerationJob
+        fields = (
+            "id",
+            "kind",
+            "status",
+            "template",
+            "process",
+            "process_ids",
+            "document",
+            "error",
+            "requested_by",
+            "created_at",
+        )
+        read_only_fields = fields

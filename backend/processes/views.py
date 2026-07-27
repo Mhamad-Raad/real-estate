@@ -2,6 +2,7 @@
 
 from django.db import IntegrityError
 from django.utils import timezone
+from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.response import Response
@@ -9,11 +10,14 @@ from rest_framework.viewsets import ModelViewSet
 
 from common.permissions import IsAdmin, IsProcessAssigneeOrAdmin
 from common.viewsets import AuditedSoftDeleteViewSet
+from documents.generation import start_eligibility_job, start_process_list_job
+from documents.serializers import GenerationJobSerializer
 
 from .models import ProcessInstituteEntry
 from .permissions import IsEntryEditorOrAdmin
 from .selectors import search_processes
 from .serializers import (
+    GenerateDocumentSerializer,
     InstituteEntrySerializer,
     OverrideSerializer,
     ProcessCreateSerializer,
@@ -145,6 +149,31 @@ class ProcessViewSet(AuditedSoftDeleteViewSet, ModelViewSet):
             request=request,
         )
         return Response(ProcessDetailSerializer(process).data)
+
+    @action(detail=True, methods=["post"], url_path="generate-eligibility")
+    def generate_eligibility(self, request, pk=None):
+        """Queue the beneficiary's letter (§6.6). Generation is a *result* of finishing Step 1,
+        never a requirement of it — requiring it would deadlock the step it depends on (§0)."""
+        process = self.get_object()  # write action: assignee or admin only
+        job = start_eligibility_job(
+            process=process, actor=request.user, template_id=request.data.get("template")
+        )
+        return Response(GenerationJobSerializer(job).data, status=status.HTTP_202_ACCEPTED)
+
+    @action(detail=False, methods=["post"], url_path="generate-document")
+    def generate_document(self, request):
+        """Queue one list letter covering the selected allocations (§6.8).
+
+        Any authenticated user may generate: it only exports rows they can already see.
+        """
+        payload = GenerateDocumentSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+        job = start_process_list_job(
+            process_ids=payload.validated_data["process_ids"],
+            actor=request.user,
+            template_id=payload.validated_data.get("template"),
+        )
+        return Response(GenerationJobSerializer(job).data, status=status.HTTP_202_ACCEPTED)
 
 
 class InstituteEntryViewSet(AuditedSoftDeleteViewSet, ModelViewSet):
