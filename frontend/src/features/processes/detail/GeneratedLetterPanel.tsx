@@ -39,7 +39,11 @@ export function GeneratedLetterPanel({
   });
 
   const codes = new Set(generatedTypes.map((dt) => dt.code));
-  const letters = documents.filter((d) => codes.has(d.document_type));
+  // Superseding leaves exactly one live letter, but don't rely on the payload's order for it.
+  const letters = documents
+    .filter((d) => codes.has(d.document_type))
+    .slice()
+    .sort((a, b) => b.id - a.id);
   const busy = starting || running;
 
   const run = async () => {

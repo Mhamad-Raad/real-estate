@@ -314,6 +314,7 @@
     "types": {
       "eligibility_single": "Eligibility letter (one beneficiary)",
       "process_list": "Beneficiary list letter"
-    }
+    },
+    "deleteActiveConfirm": "Delete template “{{name}}”? It is the ACTIVE template — letters cannot be generated until another one is activated."
   }
 }

@@ -155,7 +155,11 @@ export function TemplatesPage() {
       <ConfirmDialog
         open={Boolean(toDelete)}
         title={t("templates.deleteTitle")}
-        description={t("templates.deleteConfirm", { name: toDelete?.name ?? "" })}
+        description={
+          toDelete?.is_active
+            ? t("templates.deleteActiveConfirm", { name: toDelete.name })
+            : t("templates.deleteConfirm", { name: toDelete?.name ?? "" })
+        }
         confirmLabel={t("common.delete")}
         loading={removing}
         onConfirm={confirmDelete}
