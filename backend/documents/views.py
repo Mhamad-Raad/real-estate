@@ -96,6 +96,16 @@ class DocumentTemplateViewSet(AuditedSoftDeleteViewSet, ModelViewSet):
         template_type = self.request.query_params.get("template_type")
         return qs.filter(template_type=template_type) if template_type else qs
 
+    def perform_update(self, serializer):
+        template = serializer.instance
+        # "Active" is exclusive per type (partial-unique index): activating one retires the rest,
+        # rather than letting the DB reject the write as a 500.
+        if serializer.validated_data.get("is_active") and not template.is_active:
+            DocumentTemplate.objects.filter(
+                template_type=template.template_type, is_active=True
+            ).exclude(pk=template.pk).update(is_active=False)
+        super().perform_update(serializer)
+
     def create(self, request, *args, **kwargs):
         payload = DocumentTemplateUploadSerializer(data=request.data)
         payload.is_valid(raise_exception=True)
