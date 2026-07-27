@@ -27,6 +27,8 @@ const EMPTY: ClientInput = {
   mother_full_name: "",
   marital_status: "single",
   spouse_name: "",
+  spouse_date_of_birth: null,
+  spouse_mother_full_name: "",
   date_of_birth: null,
   place_of_birth: "",
   address: "",
@@ -42,6 +44,8 @@ function toInput(client: Client): ClientInput {
     mother_full_name: client.mother_full_name,
     marital_status: client.marital_status,
     spouse_name: client.spouse_name,
+    spouse_date_of_birth: client.spouse_date_of_birth,
+    spouse_mother_full_name: client.spouse_mother_full_name,
     date_of_birth: client.date_of_birth,
     place_of_birth: client.place_of_birth,
     address: client.address,
@@ -97,10 +101,14 @@ export function ClientFormDialog({
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const married = form.marital_status === "married";
     const payload: ClientInput = {
       ...form,
       date_of_birth: form.date_of_birth || null,
-      spouse_name: form.marital_status === "married" ? form.spouse_name : "",
+      // Drop spouse details a change of status left behind, so they never reach the letter.
+      spouse_name: married ? form.spouse_name : "",
+      spouse_date_of_birth: married ? form.spouse_date_of_birth || null : null,
+      spouse_mother_full_name: married ? form.spouse_mother_full_name : "",
     };
     try {
       const result = await checkDuplicate({
@@ -154,11 +162,34 @@ export function ClientFormDialog({
                 ))}
               </Select>
             </div>
+            {/* The generated letter prints a spouse row of name / birth date / mother's name,
+                so a married client needs all three (§6.6). */}
             {form.marital_status === "married" && (
-              <div className="space-y-2">
-                <Label htmlFor="c-spouse">{t("clients.spouseName")}</Label>
-                <Input id="c-spouse" value={form.spouse_name} onChange={set("spouse_name")} required />
-              </div>
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="c-spouse">{t("clients.spouseName")}</Label>
+                  <Input id="c-spouse" value={form.spouse_name} onChange={set("spouse_name")} required />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="c-spouse-dob">{t("clients.spouseDateOfBirth")}</Label>
+                  <Input
+                    id="c-spouse-dob"
+                    type="date"
+                    value={form.spouse_date_of_birth ?? ""}
+                    onChange={set("spouse_date_of_birth")}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="c-spouse-mother">{t("clients.spouseMotherName")}</Label>
+                  <Input
+                    id="c-spouse-mother"
+                    value={form.spouse_mother_full_name}
+                    onChange={set("spouse_mother_full_name")}
+                    required
+                  />
+                </div>
+              </>
             )}
             <div className="space-y-2">
               <Label htmlFor="c-dob">{t("clients.dateOfBirth")}</Label>
@@ -167,6 +198,7 @@ export function ClientFormDialog({
                 type="date"
                 value={form.date_of_birth ?? ""}
                 onChange={set("date_of_birth")}
+                required
               />
             </div>
             <div className="space-y-2">

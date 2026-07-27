@@ -9,27 +9,28 @@ from common.models import ActivityLog
 from .models import Client
 from .selectors import duplicate_matches
 from .services import create_client
+from .factories import client_data, make_client
 
 
 class ClientIdentityTests(TestCase):
     def test_pid_partial_unique_blocks_second_active_client(self):
-        Client.objects.create(full_name="Sara", pid="199001011234", mother_full_name="Amina")
+        make_client(full_name="Sara", pid="199001011234", mother_full_name="Amina")
         with self.assertRaises(IntegrityError):
             with transaction.atomic():
-                Client.objects.create(
+                make_client(
                     full_name="Sara Dup", pid="199001011234", mother_full_name="Other"
                 )
 
     def test_soft_deleted_pid_can_be_reused(self):
-        first = Client.objects.create(full_name="Sara", pid="P1", mother_full_name="Amina")
+        first = make_client(full_name="Sara", pid="P1", mother_full_name="Amina")
         first.is_deleted = True
         first.save(update_fields=["is_deleted"])
         # Partial index excludes deleted rows, so the same PID is free again.
-        second = Client.objects.create(full_name="Sara Again", pid="P1", mother_full_name="Amina")
+        second = make_client(full_name="Sara Again", pid="P1", mother_full_name="Amina")
         self.assertNotEqual(first.id, second.id)
 
     def test_active_manager_hides_soft_deleted(self):
-        c = Client.objects.create(full_name="Ghost", pid="P9", mother_full_name="M")
+        c = make_client(full_name="Ghost", pid="P9", mother_full_name="M")
         c.is_deleted = True
         c.save(update_fields=["is_deleted"])
         self.assertEqual(Client.objects.count(), 0)
@@ -38,7 +39,7 @@ class ClientIdentityTests(TestCase):
 
 class DuplicateDetectionTests(TestCase):
     def setUp(self):
-        self.existing = Client.objects.create(
+        self.existing = make_client(
             full_name="Karwan Ali", pid="111", mother_full_name="Nasrin Hassan Mahmoud"
         )
 
@@ -69,7 +70,7 @@ class ClientServiceTests(TestCase):
     def test_create_client_writes_audit(self):
         actor = User.objects.create_user(username="lw", password="pw12345678")
         client = create_client(
-            data={"full_name": "Nma", "pid": "555", "mother_full_name": "Bahar"},
+            data=client_data(full_name="Nma", pid="555", mother_full_name="Bahar"),
             actor=actor,
         )
         self.assertTrue(
@@ -79,3 +80,24 @@ class ClientServiceTests(TestCase):
                 entity_id=str(client.id),
             ).exists()
         )
+
+
+class SpouseDetailConstraintTests(TestCase):
+    """The DB is the last line: the serializer can be bypassed, a check constraint cannot."""
+
+    def test_married_client_without_spouse_details_is_rejected_by_the_database(self):
+        for field in ("spouse_name", "spouse_date_of_birth", "spouse_mother_full_name"):
+            with self.subTest(blank=field):
+                data = client_data(
+                    pid=f"CK-{field}",
+                    marital_status=Client.MaritalStatus.MARRIED,
+                )
+                data[field] = None if field == "spouse_date_of_birth" else ""
+                with self.assertRaises(IntegrityError):
+                    with transaction.atomic():
+                        Client.objects.create(**data)
+
+    def test_unmarried_client_with_blank_spouse_details_is_fine(self):
+        client = make_client(pid="CK-single", marital_status=Client.MaritalStatus.SINGLE)
+
+        self.assertEqual(client.spouse_name, "")

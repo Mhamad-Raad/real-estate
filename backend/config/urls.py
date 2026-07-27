@@ -8,7 +8,7 @@ from rest_framework.routers import DefaultRouter
 from accounts.views import AssignableLawyersView, UserViewSet
 from catalog.views import CategoryViewSet, DocumentTypesView, InstitutesView
 from clients.views import ClientViewSet
-from documents.views import DocumentViewSet
+from documents.views import DocumentTemplateViewSet, DocumentViewSet, GenerationJobViewSet
 from processes.views import InstituteEntryViewSet, ProcessViewSet
 
 
@@ -23,6 +23,8 @@ router.register("clients", ClientViewSet, basename="client")
 router.register("processes", ProcessViewSet, basename="process")
 router.register("institute-entries", InstituteEntryViewSet, basename="institute-entry")
 router.register("documents", DocumentViewSet, basename="document")
+router.register("document-templates", DocumentTemplateViewSet, basename="document-template")
+router.register("generation-jobs", GenerationJobViewSet, basename="generation-job")
 
 urlpatterns = [
     path("admin/", admin.site.urls),

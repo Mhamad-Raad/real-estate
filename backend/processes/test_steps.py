@@ -17,6 +17,8 @@ from clients.models import Client
 
 from .models import ProcessInstituteEntry, ProcessStep
 from .services import create_process
+from .status import missing_requirements
+from clients.factories import make_client
 
 
 @override_settings(DOCUMENTS_ROOT=Path(tempfile.mkdtemp()))
@@ -25,7 +27,7 @@ class WorkflowApiTests(APITestCase):
         self.admin = User.objects.create_user("adm", password="pw12345678", role=User.Role.ADMIN)
         self.lawyer = User.objects.create_user("lw", password="pw12345678")
         self.category = Category.objects.create(code="A", name="A")
-        self.client_row = Client.objects.create(
+        self.client_row = make_client(
             full_name="Person", pid="111", mother_full_name="Mother", category=self.category
         )
         self.process = create_process(
@@ -104,7 +106,7 @@ class WorkflowApiTests(APITestCase):
                  "assigned_lawyer": self.lawyer.id},
                 format="json",
             )
-            self._upload(4, "ApprovalLetter", entry=e.data["id"])
+            self._upload(4, "InstituteDoc", entry=e.data["id"])
         step4 = ProcessStep.objects.get(process=self.process, step_number=4)
         self.assertEqual(step4.status, ProcessStep.Status.COMPLETE)
 
@@ -224,7 +226,7 @@ class AdvanceStepTests(APITestCase):
         self.lawyer = User.objects.create_user("lw2", password="pw12345678")
         self.other = User.objects.create_user("lw3", password="pw12345678")
         self.category = Category.objects.create(code="B", name="B")
-        self.client_row = Client.objects.create(
+        self.client_row = make_client(
             full_name="Person2", pid="222", mother_full_name="Mother2", category=self.category
         )
         self.process = create_process(
@@ -280,3 +282,84 @@ class AdvanceStepTests(APITestCase):
         self.assertIn("doc:ClientID", missing[1])
         self.assertIn("start_date", missing[2])
         self.assertIn("institute:INST_S4_A", missing[4])
+
+
+@override_settings(DOCUMENTS_ROOT=Path(tempfile.mkdtemp()))
+class SpouseIdRequirementTests(APITestCase):
+    """Step 1 wants a spouse ID only when there is a spouse (§3.6)."""
+
+    def setUp(self):
+        self.lawyer = User.objects.create_user("slw", password="pw12345678")
+        self.category = Category.objects.create(code="S", name="S")
+
+    def _missing_step1(self, **client_overrides):
+        client_row = make_client(
+            full_name="Person", pid=f"SP-{client_overrides.get('marital_status', 'single')}",
+            mother_full_name="Mother", category=self.category, **client_overrides
+        )
+        process = create_process(
+            client=client_row, assigned_lawyer=self.lawyer, actor=self.lawyer,
+            category=self.category,
+        )
+        step1 = process.steps.get(step_number=1)
+        return missing_requirements(process, 1, step1)
+
+    def test_married_client_owes_a_spouse_id(self):
+        self.assertIn("doc:SpouseID", self._missing_step1(marital_status="married"))
+
+    def test_single_client_is_never_asked_for_a_spouse_id(self):
+        self.assertNotIn("doc:SpouseID", self._missing_step1(marital_status="single"))
+
+
+@override_settings(DOCUMENTS_ROOT=Path(tempfile.mkdtemp()))
+class ClientChangeRecomputesStepTests(APITestCase):
+    """Marital status decides whether Step 1 owes a spouse ID, so editing the client must
+    re-derive the stored step status — otherwise the badge says complete while it is not."""
+
+    def setUp(self):
+        self.lawyer = User.objects.create_user("clw", password="pw12345678")
+        self.category = Category.objects.create(code="R", name="R")
+        self.client_row = make_client(
+            full_name="Recompute", pid="RC-1", mother_full_name="Mother",
+            category=self.category, created_by=self.lawyer,
+        )
+        self.process = create_process(
+            client=self.client_row, assigned_lawyer=self.lawyer, actor=self.lawyer,
+            category=self.category,
+        )
+        self.process.land_id = "L-1"
+        self.process.save(update_fields=["land_id"])
+        self.client.force_authenticate(self.lawyer)
+        for doc_type in ("ClientID", "RealEstate", "SignedAgreement"):
+            self.client.post(
+                reverse("document-list"),
+                {
+                    "process": self.process.id,
+                    "step_number": 1,
+                    "document_type": doc_type,
+                    "file": SimpleUploadedFile(
+                        "f.pdf", b"%PDF-1.4 x", content_type="application/pdf"
+                    ),
+                },
+                format="multipart",
+            )
+
+    def test_marrying_the_client_reopens_a_completed_step_1(self):
+        step1 = self.process.steps.get(step_number=1)
+        self.assertEqual(step1.status, ProcessStep.Status.COMPLETE)
+
+        resp = self.client.patch(
+            reverse("client-detail", args=[self.client_row.id]),
+            {
+                "marital_status": "married",
+                "spouse_name": "Partner",
+                "spouse_date_of_birth": "1992-02-02",
+                "spouse_mother_full_name": "Partner Mother",
+                "version": self.client_row.version,
+            },
+            format="json",
+        )
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+
+        step1.refresh_from_db()
+        self.assertEqual(step1.status, ProcessStep.Status.IN_PROGRESS)

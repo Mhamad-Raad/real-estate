@@ -18,6 +18,7 @@ from clients.models import Client
 from .models import ProcessStep
 from .services import create_process
 from .status import missing_requirements
+from clients.factories import make_client
 
 
 def _lookup(translations: dict, dotted_key: str) -> bool:
@@ -32,8 +33,12 @@ def _lookup(translations: dict, dotted_key: str) -> bool:
 class MissingCodeVocabularyTests(TestCase):
     def setUp(self):
         self.lawyer = User.objects.create_user("vlw", password="pw12345678")
-        self.client_row = Client.objects.create(
-            full_name="Vocab", pid="V-1", mother_full_name="Vocab Mother"
+        # Married, so the marital-conditional spouse-ID requirement is part of the vocabulary too.
+        self.client_row = make_client(
+            full_name="Vocab",
+            pid="V-1",
+            mother_full_name="Vocab Mother",
+            marital_status="married",
         )
         # No category, no land, no docs, no entries, a fired duplicate flag and the out-of-city
         # flag on Step 3 — the state that makes every step report everything it can want.

@@ -16,10 +16,11 @@ from common.models import ActivityLog
 
 from .models import DuplicateOverride, Process, ProcessStep
 from .services import create_process, override_duplicate
+from clients.factories import make_client
 
 
 def _make_client(pid="111"):
-    return Client.objects.create(full_name="Beneficiary", pid=pid, mother_full_name="Mother")
+    return make_client(full_name="Beneficiary", pid=pid, mother_full_name="Mother")
 
 
 class NoLandTwiceTests(TestCase):
@@ -61,7 +62,7 @@ class NoLandTwiceTests(TestCase):
 
     def test_duplicate_flag_is_server_computed_from_mother_name(self):
         # A sibling (same mother, different PID) exists → the server must raise the flag itself.
-        Client.objects.create(full_name="Sibling", pid="999", mother_full_name="Mother")
+        make_client(full_name="Sibling", pid="999", mother_full_name="Mother")
         flagged = self._new_process()
         self.assertTrue(flagged.duplicate_flagged)
 

@@ -7,6 +7,8 @@ export interface Client {
   mother_full_name: string;
   marital_status: MaritalStatus;
   spouse_name: string;
+  spouse_date_of_birth: string | null;
+  spouse_mother_full_name: string;
   is_married: boolean;
   date_of_birth: string | null;
   place_of_birth: string;
@@ -24,6 +26,8 @@ export interface ClientInput {
   mother_full_name: string;
   marital_status: MaritalStatus;
   spouse_name: string;
+  spouse_date_of_birth: string | null;
+  spouse_mother_full_name: string;
   date_of_birth: string | null;
   place_of_birth: string;
   address: string;

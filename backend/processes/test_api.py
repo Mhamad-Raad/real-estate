@@ -9,6 +9,7 @@ from clients.models import Client
 
 from .models import Process
 from .services import create_process
+from clients.factories import make_client
 
 
 class ProcessApiTests(APITestCase):
@@ -16,7 +17,7 @@ class ProcessApiTests(APITestCase):
         self.admin = User.objects.create_user("admin_a", password="pw12345678", role=User.Role.ADMIN)
         self.lawyer_a = User.objects.create_user("lawyer_a", password="pw12345678")
         self.lawyer_b = User.objects.create_user("lawyer_b", password="pw12345678")
-        self.client_row = Client.objects.create(full_name="Ben", pid="900", mother_full_name="Mo")
+        self.client_row = make_client(full_name="Ben", pid="900", mother_full_name="Mo")
 
     def test_list_requires_authentication(self):
         self.assertEqual(self.client.get(reverse("process-list")).status_code, 401)
@@ -33,7 +34,7 @@ class ProcessApiTests(APITestCase):
 
     def test_list_can_filter_by_current_step(self):
         p1 = create_process(client=self.client_row, assigned_lawyer=self.lawyer_a, actor=self.lawyer_a)
-        other = Client.objects.create(full_name="Two", pid="901", mother_full_name="M2")
+        other = make_client(full_name="Two", pid="901", mother_full_name="M2")
         p3 = create_process(client=other, assigned_lawyer=self.lawyer_a, actor=self.lawyer_a)
         Process.objects.filter(pk=p3.pk).update(current_step=3)
         self.client.force_authenticate(self.lawyer_a)

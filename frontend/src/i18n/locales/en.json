@@ -110,6 +110,8 @@
     "motherName": "Mother's full name",
     "maritalStatus": "Marital status",
     "spouseName": "Spouse name",
+    "spouseDateOfBirth": "Spouse date of birth",
+    "spouseMotherName": "Spouse's mother's full name",
     "dateOfBirth": "Date of birth",
     "placeOfBirth": "Place of birth",
     "phone": "Phone",
@@ -181,7 +183,11 @@
         "pid": "Same National ID",
         "mother_name": "Similar mother's name (sibling)"
       }
-    }
+    },
+    "selectedCount": "{{count}} selected",
+    "printStep1": "Print Step 1",
+    "selectAll": "Select all",
+    "selectRow": "Select allocation"
   },
   "workflow": {
     "backToList": "Back to processes",
@@ -194,6 +200,9 @@
     "landIdPlaceholder": "e.g. plot / registry number",
     "landAddress": "Land address",
     "landAddressPlaceholder": "Address / location of the land",
+    "clientDetails": "Beneficiary details",
+    "saveClient": "Save beneficiary details",
+    "spouseSection": "Spouse",
     "saveLand": "Save land details",
     "flaggedNote": "Possible duplicate — an admin must override before this case can be completed.",
     "step1": "Step 1 — Client & documents",
@@ -209,9 +218,11 @@
     },
     "docType": {
       "ClientID": "Client ID",
+      "SpouseID": "Spouse ID",
       "RealEstate": "Real-estate papers",
       "SignedAgreement": "Signed agreement",
-      "InstituteDoc": "Institute document"
+      "InstituteDoc": "Institute document",
+      "EligibilityLetter": "Eligibility letter"
     },
     "import": "Import PDF",
     "upload": "Upload",
@@ -256,7 +267,15 @@
       "duplicate_flag": "Duplicate warning not yet overridden",
       "start_date": "Start date",
       "custom_entries": "Out-of-city institutes"
-    }
+    },
+    "generatedSection": "Generated letter",
+    "generate": "Generate document",
+    "regenerate": "Regenerate",
+    "generating": "Generating…",
+    "generateLocked": "Finish Step 1 to generate the letter.",
+    "generateFailed": "Generation failed",
+    "generateStarted": "Preparing the document…",
+    "noLetterYet": "No letter has been generated yet."
   },
   "institute": {
     "s2_a": "Institute S2-A",

@@ -1,8 +1,9 @@
 from rest_framework import serializers
 
+from catalog.document_types import DOCUMENT_TYPE_CODES
 from processes.models import Process, ProcessInstituteEntry
 
-from .models import Document
+from .models import Document, DocumentTemplate, GenerationJob
 
 
 class DocumentSerializer(serializers.ModelSerializer):
@@ -43,6 +44,13 @@ class DocumentUploadSerializer(serializers.Serializer):
     )
     file = serializers.FileField()
 
+    def validate_document_type(self, value):
+        """Only the shared vocabulary (§6.7) — an unknown type would file a document under a
+        label no step requires and no upload slot renders, leaving it invisible in the UI."""
+        if value not in DOCUMENT_TYPE_CODES:
+            raise serializers.ValidationError(f"Unknown document type '{value}'.")
+        return value
+
     def validate(self, attrs):
         # An institute entry must belong to the same process and step it's being attached under.
         entry = attrs.get("institute_entry")
@@ -51,3 +59,53 @@ class DocumentUploadSerializer(serializers.Serializer):
                 {"institute_entry": "Entry does not belong to this process/step."}
             )
         return attrs
+
+
+class DocumentTemplateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DocumentTemplate
+        fields = (
+            "id",
+            "template_type",
+            "name",
+            "original_filename",
+            "size_bytes",
+            "is_active",
+            "uploaded_by",
+            "version",
+            "created_at",
+        )
+        read_only_fields = (
+            "id",
+            "original_filename",
+            "size_bytes",
+            "uploaded_by",
+            "version",
+            "created_at",
+        )
+
+
+class DocumentTemplateUploadSerializer(serializers.Serializer):
+    """Admin upload of a `.docx` letter template (§6.6)."""
+
+    template_type = serializers.ChoiceField(choices=DocumentTemplate.TemplateType.choices)
+    name = serializers.CharField(max_length=120)
+    file = serializers.FileField()
+
+
+class GenerationJobSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = GenerationJob
+        fields = (
+            "id",
+            "kind",
+            "status",
+            "template",
+            "process",
+            "process_ids",
+            "document",
+            "error",
+            "requested_by",
+            "created_at",
+        )
+        read_only_fields = fields

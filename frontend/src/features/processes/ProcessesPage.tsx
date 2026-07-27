@@ -21,6 +21,7 @@ import { toast } from "@/components/ui/toaster";
 import { useListCategoriesQuery } from "@/features/categories/categoriesApi";
 import { ConfirmDialog } from "@/features/common/ConfirmDialog";
 import { PageHeader } from "@/features/common/PageHeader";
+import { SelectionToolbar } from "./SelectionToolbar";
 import { Pagination } from "@/features/common/Pagination";
 import { TableStateRows } from "@/features/common/TableStateRows";
 import { apiErrorMessage } from "@/lib/apiError";
@@ -74,6 +75,13 @@ export function ProcessesPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [overriding, setOverriding] = useState<ProcessListItem | null>(null);
   const [toDelete, setToDelete] = useState<ProcessListItem | null>(null);
+  const [selected, setSelected] = useState<number[]>([]);
+
+  // Ticks are scoped to what is on screen: keeping them across a filter or page change would
+  // silently print rows the user can no longer see (§6.8).
+  useEffect(() => {
+    setSelected([]);
+  }, [search, pid, category, status, step, page]);
 
   const confirmDelete = async () => {
     if (!toDelete) return;
@@ -88,6 +96,15 @@ export function ProcessesPage() {
 
   const rows = data?.results ?? [];
   const loading = isLoading;
+  const allSelected = rows.length > 0 && rows.every((r) => selected.includes(r.id));
+  const toggle = (id: number) =>
+    setSelected((ids) => (ids.includes(id) ? ids.filter((i) => i !== id) : [...ids, id]));
+  const toggleAll = () =>
+    setSelected((ids) =>
+      allSelected
+        ? ids.filter((id) => !rows.some((r) => r.id === id))
+        : [...new Set([...ids, ...rows.map((r) => r.id)])],
+    );
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -101,6 +118,8 @@ export function ProcessesPage() {
           </Button>
         }
       />
+
+      <SelectionToolbar selected={selected} onClear={() => setSelected([])} />
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <Input
@@ -152,6 +171,15 @@ export function ProcessesPage() {
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-10">
+                <input
+                  type="checkbox"
+                  className="size-4 align-middle accent-primary"
+                  checked={allSelected}
+                  onChange={toggleAll}
+                  aria-label={t("processes.selectAll")}
+                />
+              </TableHead>
               <TableHead>{t("processes.client")}</TableHead>
               <TableHead>{t("clients.pid")}</TableHead>
               <TableHead>{t("processes.step")}</TableHead>
@@ -163,7 +191,7 @@ export function ProcessesPage() {
           </TableHeader>
           <TableBody>
             <TableStateRows
-              colSpan={7}
+              colSpan={8}
               isLoading={loading}
               isError={isError}
               isEmpty={rows.length === 0}
@@ -175,6 +203,15 @@ export function ProcessesPage() {
               !isError &&
               rows.map((process) => (
                 <TableRow key={process.id}>
+                  <TableCell>
+                    <input
+                      type="checkbox"
+                      className="size-4 align-middle accent-primary"
+                      checked={selected.includes(process.id)}
+                      onChange={() => toggle(process.id)}
+                      aria-label={t("processes.selectRow")}
+                    />
+                  </TableCell>
                   <TableCell className="font-medium">
                     <span className="flex items-center gap-2">
                       <Link to={`/processes/${process.id}`} className="text-primary hover:underline">

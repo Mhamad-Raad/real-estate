@@ -110,6 +110,8 @@
     "motherName": "اسم الأم الكامل",
     "maritalStatus": "الحالة الاجتماعية",
     "spouseName": "اسم الزوج/الزوجة",
+    "spouseDateOfBirth": "تاريخ ميلاد الزوج/الزوجة",
+    "spouseMotherName": "اسم والدة الزوج/الزوجة الكامل",
     "dateOfBirth": "تاريخ الميلاد",
     "placeOfBirth": "مكان الميلاد",
     "phone": "الهاتف",
@@ -181,7 +183,11 @@
         "pid": "نفس الرقم الوطني",
         "mother_name": "اسم أم مشابه (شقيق)"
       }
-    }
+    },
+    "selectedCount": "{{count}} محدد",
+    "printStep1": "طباعة الخطوة ١",
+    "selectAll": "تحديد الكل",
+    "selectRow": "تحديد المعاملة"
   },
   "workflow": {
     "backToList": "العودة إلى المعاملات",
@@ -194,6 +200,9 @@
     "landIdPlaceholder": "مثال: رقم القطعة / التسجيل",
     "landAddress": "عنوان الأرض",
     "landAddressPlaceholder": "عنوان / موقع الأرض",
+    "clientDetails": "بيانات المستفيد",
+    "saveClient": "حفظ بيانات المستفيد",
+    "spouseSection": "الزوج/الزوجة",
     "saveLand": "حفظ بيانات الأرض",
     "flaggedNote": "تكرار محتمل — يجب على مدير أن يتجاوزه قبل إتمام هذه المعاملة.",
     "step1": "الخطوة 1 — المراجع والمستندات",
@@ -209,9 +218,11 @@
     },
     "docType": {
       "ClientID": "هوية المراجع",
+      "SpouseID": "هوية الزوج/الزوجة",
       "RealEstate": "أوراق العقار",
       "SignedAgreement": "الاتفاقية الموقّعة",
-      "InstituteDoc": "مستند الجهة"
+      "InstituteDoc": "مستند الجهة",
+      "EligibilityLetter": "كتاب الاستحقاق"
     },
     "import": "استيراد PDF",
     "upload": "رفع",
@@ -256,7 +267,15 @@
       "duplicate_flag": "تحذير التكرار لم يتم تجاوزه بعد",
       "start_date": "تاريخ البدء",
       "custom_entries": "الجهات خارج المدينة"
-    }
+    },
+    "generatedSection": "الكتاب المُنشأ",
+    "generate": "إنشاء المستند",
+    "regenerate": "إعادة الإنشاء",
+    "generating": "جارٍ الإنشاء…",
+    "generateLocked": "أكمل الخطوة ١ لإنشاء الكتاب.",
+    "generateFailed": "فشل الإنشاء",
+    "generateStarted": "جارٍ تحضير المستند…",
+    "noLetterYet": "لم يتم إنشاء أي كتاب بعد."
   },
   "institute": {
     "s2_a": "الجهة S2-A",

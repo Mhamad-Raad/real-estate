@@ -15,6 +15,8 @@ import { useListDocumentTypesQuery } from "@/features/documents/documentTypesApi
 import { apiErrorMessage } from "@/lib/apiError";
 
 import { useUpdateProcessMutation } from "../processesApi";
+import { ClientDetailsPanel } from "./ClientDetailsPanel";
+import { GeneratedLetterPanel } from "./GeneratedLetterPanel";
 import type { ProcessDetail } from "../types";
 
 // Step 1: editable header (category + land id/address) plus the client papers (§5.1). The
@@ -32,6 +34,10 @@ export function Step1Panel({
   const { data: documentTypes } = useListDocumentTypesQuery();
   const [update, { isLoading }] = useUpdateProcessMutation();
   const docs = process.documents.filter((d) => d.step_number === 1);
+  const types = documentTypes ?? [];
+  // Generating the letter is unlocked by finishing Step 1, never the other way round (§0).
+  const stepComplete =
+    (process.steps.find((s) => s.step_number === 1)?.missing.length ?? 1) === 0;
 
   const [category, setCategory] = useState<string>(
     process.category ? String(process.category) : "",
@@ -73,6 +79,8 @@ export function Step1Panel({
           {t("workflow.flaggedNote")}
         </div>
       )}
+
+      <ClientDetailsPanel client={process.client_detail} canEdit={canEdit} />
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-1.5">
@@ -119,8 +127,19 @@ export function Step1Panel({
         </Button>
       )}
 
-      {(documentTypes ?? [])
-        .filter((dt) => dt.step === 1)
+      {types
+        .filter(
+          (dt) =>
+            dt.step === 1 &&
+            // Generated letters are output, not something anyone uploads.
+            !dt.generated &&
+            // A conditional slot still shows while it holds a file: a client who stops being
+            // married would otherwise leave an uploaded spouse ID on disk with no way to see
+            // or remove it.
+            (!dt.only_when_married ||
+              process.client_detail.is_married ||
+              docs.some((d) => d.document_type === dt.code)),
+        )
         .map(({ code: type, display_key }) => {
           const forType = docs.filter((d) => d.document_type === type);
           return (
@@ -150,6 +169,14 @@ export function Step1Panel({
             </div>
           );
         })}
+
+      <GeneratedLetterPanel
+        processId={process.id}
+        documents={docs}
+        generatedTypes={types.filter((dt) => dt.generated)}
+        canGenerate={canEdit}
+        stepComplete={stepComplete}
+      />
     </div>
   );
 }

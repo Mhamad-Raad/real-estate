@@ -73,3 +73,26 @@ def write_pdf(rel_path: Path, content: bytes) -> Path:
     dest.parent.mkdir(parents=True, exist_ok=True)
     dest.write_bytes(content)
     return dest
+
+
+# A .docx is a zip archive; this is its magic number.
+DOCX_MAGIC = b"PK\x03\x04"
+
+
+def looks_like_docx(content: bytes) -> bool:
+    return content[:4] == DOCX_MAGIC
+
+
+def write_template(*, template_type: str, name: str, content: bytes) -> Path:
+    """Store an uploaded .docx under LETTER_TEMPLATES_ROOT, returning its relative path.
+
+    Same naming discipline as documents: sanitized name plus a short id, so re-uploading a
+    template never overwrites the file the previous version still points at.
+    """
+    rel = Path(sanitize(template_type, "template", 32)) / (
+        f"{sanitize(name, 'template')}__{short_id()}.docx"
+    )
+    dest = Path(settings.LETTER_TEMPLATES_ROOT) / rel
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_bytes(content)
+    return rel

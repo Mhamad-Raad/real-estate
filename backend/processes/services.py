@@ -138,6 +138,21 @@ def recompute_step(process, step_number: int) -> ProcessStep:
     return step
 
 
+def recompute_client_steps(client) -> None:
+    """Re-derive Step 1 for every process of a client whose own details changed.
+
+    Marital status decides whether Step 1 owes a spouse ID, so without this the stored status
+    (what the badges and list read) drifts from the live `missing` list (§3.6).
+    """
+    processes = (
+        Process.objects.filter(client=client)
+        .select_related("client")
+        .prefetch_related("steps", "documents", "institute_entries__documents")
+    )
+    for process in processes:
+        recompute_step(process, 1)
+
+
 @transaction.atomic
 def save_step(*, process, step_number, data, actor, expected_version=None, request=None) -> ProcessStep:
     """Partial per-step save (§5.2). Validates only present fields, recomputes status, audits."""

@@ -2,10 +2,11 @@
 
 Two independent ways to run the app locally:
 
-- **[Method A — Docker](#method-a--docker-recommended)** — Postgres + Django in containers, pinned to
-  Python 3.12 so behaviour matches the Windows production host. Recommended.
+- **[Method A — Docker](#method-a--docker-recommended)** — Postgres, Redis, Django and the Celery
+  worker in containers, pinned to Python 3.12 so behaviour matches the Windows production host.
+  Recommended, and the only method that renders documents out of the box.
 - **[Method B — Native](#method-b--native-fastest-inner-loop)** — Homebrew Postgres + a local Python
-  venv. Fastest reload, no containers.
+  venv. Fastest reload, no containers; needs extra setup for document generation.
 
 In **both** methods the **frontend runs natively** with Vite (`npm run dev`) — only the
 backend/DB differ. The two methods are isolated (different databases and ports), so you can
@@ -26,9 +27,11 @@ switch between them freely without them clashing.
 | Docker | Desktop **or** colima | Method A only |
 | Python | 3.12–3.14 | Method B only (via Homebrew) |
 | PostgreSQL | 16/17 | Method B only (`brew install postgresql@17`) |
+| Redis | 7 | Method B only, for background jobs (`brew install redis`) |
+| LibreOffice | 7+ | Method B only, to render letters (`brew install --cask libreoffice`) |
 
 Ports used: **5173** (frontend), **8000** (backend), **5432** (native Postgres),
-**5433** (Docker Postgres, published to the host).
+**5433** (Docker Postgres, published to the host), **6379** (Redis).
 
 > Inside Docker the backend reaches the database as **`db:5432`** (the compose service name on
 > the internal network) — the host-published **5433** is only for connecting from your machine
@@ -90,8 +93,23 @@ From the repo root (`~/Desktop/Land-Allocation-System`):
 docker compose -f deploy/docker-compose.dev.yml up -d --build
 ```
 
-This builds the Django image (Python 3.12), starts Postgres 16, waits until the DB is healthy,
-runs migrations automatically, and serves the API on **http://localhost:8000**.
+This builds the Django image (Python 3.12, with headless LibreOffice and the Noto fonts inside),
+starts Postgres 16 and Redis 7, waits until both are healthy, runs migrations automatically, and
+serves the API on **http://localhost:8000**. Four services come up:
+
+| Service | Role |
+|---------|------|
+| `db` | Postgres 16 (published on host **5433**) |
+| `redis` | Celery broker — queue only, no persistence |
+| `backend` | migrations + the API on **8000** |
+| `worker` | Celery worker: renders `.docx` letters to PDF via headless LibreOffice |
+
+`backend` and `worker` are the same image with different commands, and share the
+`documents_data` volume so the API can serve what the worker writes.
+
+> **Celery does not hot-reload.** Editing task code needs
+> `docker compose -f deploy/docker-compose.dev.yml restart worker` — unlike the API, which
+> reloads from the bind mount.
 
 > **Editing code vs. changing models.** Your `backend/` folder is bind-mounted, so ordinary code
 > edits hot-reload with no rebuild — `--build` is only needed when `requirements.txt` changes.
@@ -166,7 +184,25 @@ python3.14 -m venv .venv          # first run only (any Python 3.12–3.14)
 .venv/bin/python manage.py runserver                  # -> http://localhost:8000
 ```
 
-### 3. Frontend (separate terminal)
+### 3. Background jobs (only if you need document generation)
+
+Generating letters natively needs a broker and LibreOffice; the rest of the app runs without them.
+
+```bash
+brew services start redis                             # broker on 6379
+cd backend && .venv/bin/celery -A config worker --loglevel=info
+```
+
+Point `LIBREOFFICE_BIN` in `backend/.env` at the macOS binary — it is not on `PATH`:
+
+```
+LIBREOFFICE_BIN=/Applications/LibreOffice.app/Contents/MacOS/soffice
+```
+
+> macOS ships no Sorani-capable font that matches the container's, so a natively rendered letter
+> can differ from production output. Verify generated documents under **Method A**.
+
+### 4. Frontend (separate terminal)
 
 ```bash
 cd frontend
@@ -195,7 +231,7 @@ Dev-only seed accounts (created by `seed_dev` — not for production):
 ## Running the tests
 
 ```bash
-# Backend (Docker):
+# Backend (Docker) — the full suite:
 docker compose -f deploy/docker-compose.dev.yml exec backend python manage.py test
 # Backend (native):
 cd backend && .venv/bin/python manage.py test
@@ -203,6 +239,11 @@ cd backend && .venv/bin/python manage.py test
 # Frontend:
 cd frontend && npm test
 ```
+
+> **Run the backend suite in Docker.** The document-rendering tests skip themselves when
+> LibreOffice is absent, so a native run reports OK on a smaller suite rather than failing —
+> compare the test count (`Ran N tests`) if you are unsure. Celery tasks run inline under
+> `manage.py test`, so no broker is needed either way.
 
 ---
 
@@ -217,3 +258,7 @@ cd frontend && npm test
 | `permission denied to create database` (native tests) | The `landalloc` role needs `CREATEDB`: `psql -d postgres -c "ALTER ROLE landalloc CREATEDB;"`. |
 | Frontend loads but API calls fail | Backend not up on `:8000`, or you started the frontend before the backend finished migrating. |
 | Changed backend code isn't reflected | Docker: source is bind-mounted and auto-reloads; if stuck, `... restart backend`. |
+| Changed **task** code isn't reflected | Celery has no autoreload: `... restart worker`. |
+| A generated document never appears | Check the worker: `... logs -f worker`. If it is down or cannot reach Redis, jobs queue forever. |
+| `LibreOffice binary not found` | Native run without LibreOffice — set `LIBREOFFICE_BIN` in `backend/.env`, or use Method A. |
+| Backend container exits on boot | A settings/import error kills it (the dev server does not retry). Read the cause: `... logs backend`. |

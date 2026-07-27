@@ -7,6 +7,14 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
+# Headless LibreOffice renders the generated letters (§6.6). The Noto fonts must be installed
+# system-wide: if the .docx names a face the image lacks, LibreOffice silently substitutes one
+# and the Sorani letterforms come out wrong on a document that goes to a ministry.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libreoffice-writer-nogui \
+        fonts-noto-core \
+    && rm -rf /var/lib/apt/lists/*
+
 # psycopg[binary] ships wheels, so no build toolchain is needed here.
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt

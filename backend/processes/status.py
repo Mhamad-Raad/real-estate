@@ -66,7 +66,10 @@ def missing_requirements(process, step_number, step_row) -> list[str]:
         if process.duplicate_flagged:
             missing.append("duplicate_flag")
         present = _present_doc_types(process, 1)
-        missing += [f"doc:{doc}" for doc in required_codes_for_step(1) if doc not in present]
+        # A married client also owes a spouse ID; the DB constraint already guarantees the spouse's
+        # written details, so only the paper needs checking here.
+        required = required_codes_for_step(1, married=process.client.is_married)
+        missing += [f"doc:{doc}" for doc in required if doc not in present]
         return missing
     if step_number == 2:
         missing = [] if step_row.start_date else ["start_date"]

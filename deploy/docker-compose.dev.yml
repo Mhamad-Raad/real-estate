@@ -1,7 +1,35 @@
-# Dev-only stack: Postgres + Django with hot reload. NOT the offline production
-# packaging (Nginx/image save-load/LAN/backups) — that stays at Iteration 7.
+# Dev-only stack: Postgres + Redis + Django + Celery worker, with hot reload. NOT the offline
+# production packaging (Nginx/image save-load/LAN/backups) — that stays at Iteration 7.
 # Run from anywhere:  docker compose -f deploy/docker-compose.dev.yml up
 name: land-allocation-dev
+
+# The API and the worker are the same image with the same environment — only the command differs.
+x-django: &django
+  build:
+    context: ../backend
+    dockerfile: Dockerfile.dev
+  env_file:
+    - ../backend/.env
+  environment:
+    # Override the native-dev values from .env for the compose network.
+    DB_HOST: db
+    DB_PORT: "5432"
+    DJANGO_ALLOWED_HOSTS: "localhost,127.0.0.1,0.0.0.0,backend"
+    CELERY_BROKER_URL: "redis://redis:6379/0"
+    # Both containers must see the same files: the worker writes the generated PDF, the API serves it.
+    DOCUMENTS_ROOT: /data/documents
+  volumes:
+    - ../backend:/app
+    # Mask the host .venv (macOS binaries) so the container uses its own interpreter.
+    - /app/.venv
+    # Read-only: a test asserts every `missing` code the API can emit has a translation.
+    - ../frontend/src/i18n/locales:/frontend_locales:ro
+    - documents_data:/data/documents
+  depends_on:
+    db:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
 
 services:
   db:
@@ -21,30 +49,28 @@ services:
       timeout: 3s
       retries: 10
 
+  redis:
+    image: redis:7-alpine
+    # Celery job queue only — nothing here needs to survive a restart, so no persistence.
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   backend:
-    build:
-      context: ../backend
-      dockerfile: Dockerfile.dev
-    # Migrate on boot, then serve; source hot-reloads via the bind mount below.
+    <<: *django
+    # Migrate on boot, then serve; source hot-reloads via the bind mount.
     command: sh -c "python manage.py migrate && python manage.py runserver 0.0.0.0:8000"
-    env_file:
-      - ../backend/.env
-    environment:
-      # Override the native-dev values from .env for the compose network.
-      DB_HOST: db
-      DB_PORT: "5432"
-      DJANGO_ALLOWED_HOSTS: "localhost,127.0.0.1,0.0.0.0,backend"
-    volumes:
-      - ../backend:/app
-      # Mask the host .venv (macOS binaries) so the container uses its own interpreter.
-      - /app/.venv
-      # Read-only: a test asserts every `missing` code the API can emit has a translation.
-      - ../frontend/src/i18n/locales:/frontend_locales:ro
     ports:
       - "8000:8000"
-    depends_on:
-      db:
-        condition: service_healthy
+
+  worker:
+    <<: *django
+    # Celery has no autoreload — restart this service after changing task code.
+    command: celery -A config worker --loglevel=info --concurrency=2
 
 volumes:
   db_data:
+  documents_data:

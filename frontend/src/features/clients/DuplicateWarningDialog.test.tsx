@@ -13,6 +13,8 @@ function client(over: Partial<Client> = {}): Client {
     mother_full_name: "Test Mother",
     marital_status: "single",
     spouse_name: "",
+    spouse_date_of_birth: null,
+    spouse_mother_full_name: "",
     is_married: false,
     date_of_birth: null,
     place_of_birth: "",

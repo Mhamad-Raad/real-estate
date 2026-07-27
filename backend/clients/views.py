@@ -5,6 +5,7 @@ from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
 from common.viewsets import AuditedSoftDeleteViewSet
+from processes.services import recompute_client_steps
 
 from .permissions import IsClientEditorOrAdmin
 from .selectors import duplicate_matches, search_clients
@@ -28,6 +29,12 @@ class ClientViewSet(AuditedSoftDeleteViewSet, ModelViewSet):
         serializer.instance = create_client(
             data=serializer.validated_data, actor=self.request.user, request=self.request
         )
+
+    def perform_update(self, serializer):
+        super().perform_update(serializer)
+        # Marital status decides whether Step 1 owes a spouse ID, so the stored step status has
+        # to be re-derived here or the badge keeps claiming complete (§3.6).
+        recompute_client_steps(serializer.instance)
 
     @action(detail=False, methods=["post"], url_path="duplicate-check")
     def duplicate_check(self, request):
