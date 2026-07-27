@@ -1,5 +1,4 @@
 import { FileSignature } from "lucide-react";
-import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { useAppDispatch } from "@/app/hooks";
@@ -8,11 +7,8 @@ import { Spinner } from "@/components/ui/spinner";
 import { toast } from "@/components/ui/toaster";
 import { DocumentRow } from "@/features/documents/DocumentRow";
 import type { DocumentType } from "@/features/documents/documentTypesApi";
-import {
-  isSettled,
-  useGenerateEligibilityMutation,
-  useGetGenerationJobQuery,
-} from "@/features/documents/generationApi";
+import { useGenerateEligibilityMutation } from "@/features/documents/generationApi";
+import { useGenerationRun } from "@/features/documents/useGenerationRun";
 import type { DocumentMeta } from "@/features/documents/types";
 import { apiErrorMessage } from "@/lib/apiError";
 import { baseApi } from "@/services/baseApi";
@@ -35,34 +31,20 @@ export function GeneratedLetterPanel({
   const { t } = useTranslation();
   const dispatch = useAppDispatch();
   const [generate, { isLoading: starting }] = useGenerateEligibilityMutation();
-  const [jobId, setJobId] = useState<number | null>(null);
-
-  // Poll only while a run is in flight; clearing jobId below stops it (§8).
-  const { data: job } = useGetGenerationJobQuery(jobId as number, {
-    skip: jobId === null,
-    pollingInterval: 1500,
+  const { start, busy: running } = useGenerationRun(() => {
+    // The letter is a new Document on the process — pull the detail again so it appears.
+    dispatch(baseApi.util.invalidateTags([{ type: "Process", id: processId }]));
+    toast.success(t("common.saved"));
   });
-
-  useEffect(() => {
-    if (!job || !isSettled(job.status)) return;
-    setJobId(null);
-    if (job.status === "done") {
-      // The letter is a new Document on the process — pull the detail again so it appears.
-      dispatch(baseApi.util.invalidateTags([{ type: "Process", id: processId }]));
-      toast.success(t("common.saved"));
-    } else {
-      toast.error(job.error || t("workflow.generateFailed"));
-    }
-  }, [job, dispatch, processId, t]);
 
   const codes = new Set(generatedTypes.map((dt) => dt.code));
   const letters = documents.filter((d) => codes.has(d.document_type));
-  const busy = starting || jobId !== null;
+  const busy = starting || running;
 
   const run = async () => {
     try {
       const started = await generate({ process: processId }).unwrap();
-      setJobId(started.id);
+      start(started.id);
       toast.success(t("workflow.generateStarted"));
     } catch (err) {
       toast.error(apiErrorMessage(err, t("workflow.generateFailed")));

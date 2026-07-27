@@ -1,5 +1,4 @@
 import { Printer } from "lucide-react";
-import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { useAppSelector } from "@/app/hooks";
@@ -7,11 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "@/components/ui/toaster";
 import { downloadGenerationJob } from "@/features/documents/download";
-import {
-  isSettled,
-  useGenerateProcessListMutation,
-  useGetGenerationJobQuery,
-} from "@/features/documents/generationApi";
+import { useGenerateProcessListMutation } from "@/features/documents/generationApi";
+import { useGenerationRun } from "@/features/documents/useGenerationRun";
 import { apiErrorMessage } from "@/lib/apiError";
 
 // Bulk letter for the rows ticked on the Processes page (§6.8). The output spans several people,
@@ -26,33 +22,20 @@ export function SelectionToolbar({
   const { t } = useTranslation();
   const token = useAppSelector((s) => s.auth.access);
   const [generate, { isLoading: starting }] = useGenerateProcessListMutation();
-  const [jobId, setJobId] = useState<number | null>(null);
-
-  const { data: job } = useGetGenerationJobQuery(jobId as number, {
-    skip: jobId === null,
-    pollingInterval: 1500,
-  });
-
-  useEffect(() => {
-    if (!job || !isSettled(job.status)) return;
-    setJobId(null);
-    if (job.status !== "done") {
-      toast.error(job.error || t("workflow.generateFailed"));
-      return;
-    }
+  const { start, busy: running } = useGenerationRun((job) => {
     downloadGenerationJob(job.id, token)
       .then(onClear)
       .catch(() => toast.error(t("workflow.downloadError")));
-  }, [job, token, onClear, t]);
+  });
 
   if (!selected.length) return null;
 
-  const busy = starting || jobId !== null;
+  const busy = starting || running;
 
   const run = async () => {
     try {
       const started = await generate({ process_ids: selected }).unwrap();
-      setJobId(started.id);
+      start(started.id);
       toast.success(t("workflow.generateStarted"));
     } catch (err) {
       toast.error(apiErrorMessage(err, t("workflow.generateFailed")));

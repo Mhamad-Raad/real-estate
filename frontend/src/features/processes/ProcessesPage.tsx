@@ -77,6 +77,12 @@ export function ProcessesPage() {
   const [toDelete, setToDelete] = useState<ProcessListItem | null>(null);
   const [selected, setSelected] = useState<number[]>([]);
 
+  // Ticks are scoped to what is on screen: keeping them across a filter or page change would
+  // silently print rows the user can no longer see (§6.8).
+  useEffect(() => {
+    setSelected([]);
+  }, [search, pid, category, status, step, page]);
+
   const confirmDelete = async () => {
     if (!toDelete) return;
     try {
