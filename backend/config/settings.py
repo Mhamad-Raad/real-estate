@@ -66,6 +66,13 @@ DOCUMENTS_ROOT = Path(
 # Hard cap on uploaded PDF size (bytes) — reject anything larger before writing to disk.
 MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_BYTES", str(25 * 1024 * 1024)))
 
+# Admin-uploaded .docx letter templates (§3.5, §6.6) — kept beside the documents they generate.
+TEMPLATES_ROOT = Path(os.getenv("TEMPLATES_ROOT", str(DOCUMENTS_ROOT / "_templates")))
+# Headless LibreOffice does the .docx→PDF render (D5): it shapes RTL Sorani/Arabic correctly,
+# which the lightweight HTML-to-PDF engines do not.
+LIBREOFFICE_BIN = os.getenv("LIBREOFFICE_BIN", "soffice")
+LIBREOFFICE_TIMEOUT_SECONDS = int(os.getenv("LIBREOFFICE_TIMEOUT_SECONDS", "120"))
+
 # Frontend translation files, read by the test that proves every machine code the API emits has a
 # label (§3.6). Compose mounts them read-only at /frontend_locales; native dev finds them in-repo.
 FRONTEND_LOCALES_DIR = next(
@@ -158,3 +165,17 @@ SIMPLE_JWT = {
 CORS_ALLOWED_ORIGINS = env_list(
     "CORS_ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173"
 )
+
+# Celery (§6.6) — LibreOffice startup is far too slow to sit on a request.
+CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", "redis://127.0.0.1:6379/0")
+CELERY_RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND", CELERY_BROKER_URL)
+CELERY_ACCEPT_CONTENT = ["json"]
+CELERY_TASK_SERIALIZER = "json"
+CELERY_RESULT_SERIALIZER = "json"
+CELERY_TIMEZONE = TIME_ZONE
+# A generation job that outlives this is wedged; kill it rather than hold the worker.
+CELERY_TASK_TIME_LIMIT = 300
+CELERY_TASK_SOFT_TIME_LIMIT = 270
+# Tests run tasks inline so they never need a broker.
+CELERY_TASK_ALWAYS_EAGER = env_bool("CELERY_TASK_ALWAYS_EAGER", False)
+CELERY_TASK_EAGER_PROPAGATES = True
