@@ -10,6 +10,7 @@ const generate = vi.fn(() => ({ unwrap }));
 
 vi.mock("@/app/hooks", () => ({ useAppDispatch: () => vi.fn(), useAppSelector: () => "token" }));
 vi.mock("@/components/ui/toaster", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+vi.mock("@/features/documents/DocumentPreview", () => ({ DocumentPreview: () => null }));
 vi.mock("@/features/documents/DocumentRow", () => ({
   DocumentRow: ({ doc }: { doc: { display_filename: string } }) => <div>{doc.display_filename}</div>,
 }));
