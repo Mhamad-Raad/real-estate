@@ -6,8 +6,10 @@ from pathlib import Path
 from django.core.exceptions import ImproperlyConfigured
 from dotenv import load_dotenv
 import os
+import sys
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+TESTING = "test" in sys.argv
 
 # Load local .env (never committed); missing file is fine in CI/prod where env is set directly.
 load_dotenv(BASE_DIR / ".env")
@@ -67,7 +69,10 @@ DOCUMENTS_ROOT = Path(
 MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_BYTES", str(25 * 1024 * 1024)))
 
 # Admin-uploaded .docx letter templates (§3.5, §6.6) — kept beside the documents they generate.
-TEMPLATES_ROOT = Path(os.getenv("TEMPLATES_ROOT", str(DOCUMENTS_ROOT / "_templates")))
+# Named to stay clearly distinct from Django's own TEMPLATES setting below.
+LETTER_TEMPLATES_ROOT = Path(
+    os.getenv("LETTER_TEMPLATES_ROOT", str(DOCUMENTS_ROOT / "_templates"))
+)
 # Headless LibreOffice does the .docx→PDF render (D5): it shapes RTL Sorani/Arabic correctly,
 # which the lightweight HTML-to-PDF engines do not.
 LIBREOFFICE_BIN = os.getenv("LIBREOFFICE_BIN", "soffice")
@@ -176,6 +181,6 @@ CELERY_TIMEZONE = TIME_ZONE
 # A generation job that outlives this is wedged; kill it rather than hold the worker.
 CELERY_TASK_TIME_LIMIT = 300
 CELERY_TASK_SOFT_TIME_LIMIT = 270
-# Tests run tasks inline so they never need a broker.
-CELERY_TASK_ALWAYS_EAGER = env_bool("CELERY_TASK_ALWAYS_EAGER", False)
+# Under `manage.py test` tasks run inline, so the suite never needs a broker running.
+CELERY_TASK_ALWAYS_EAGER = env_bool("CELERY_TASK_ALWAYS_EAGER", TESTING)
 CELERY_TASK_EAGER_PROPAGATES = True
