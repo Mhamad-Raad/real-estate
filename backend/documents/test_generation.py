@@ -443,3 +443,37 @@ class TemplateActivationTests(APITestCase):
         second.refresh_from_db()
         self.assertTrue(first.is_active)
         self.assertFalse(second.is_active)
+
+    def test_deleting_a_template_clears_its_active_flag(self):
+        """Otherwise restoring it beside its replacement violates the one-active-per-type index."""
+        active = make_template(
+            DocumentTemplate.TemplateType.ELIGIBILITY_SINGLE, build_eligibility_single, name="One"
+        )
+
+        self.client.delete(reverse("document-template-detail", args=[active.id]))
+
+        active.refresh_from_db()
+        self.assertTrue(active.is_deleted)
+        self.assertFalse(active.is_active)
+
+    def test_a_restored_template_does_not_collide_with_its_replacement(self):
+        active = make_template(
+            DocumentTemplate.TemplateType.ELIGIBILITY_SINGLE, build_eligibility_single, name="One"
+        )
+        self.client.delete(reverse("document-template-detail", args=[active.id]))
+        replacement = make_template(
+            DocumentTemplate.TemplateType.ELIGIBILITY_SINGLE, build_eligibility_single, name="Two"
+        )
+
+        resp = self.client.post(reverse("document-template-restore", args=[active.id]))
+
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        # Restored as retired; the replacement stays the one generation uses.
+        self.assertEqual(
+            DocumentTemplate.objects.filter(
+                template_type=DocumentTemplate.TemplateType.ELIGIBILITY_SINGLE, is_active=True
+            ).count(),
+            1,
+        )
+        replacement.refresh_from_db()
+        self.assertTrue(replacement.is_active)

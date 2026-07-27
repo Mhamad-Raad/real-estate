@@ -96,6 +96,14 @@ class DocumentTemplateViewSet(AuditedSoftDeleteViewSet, ModelViewSet):
         template_type = self.request.query_params.get("template_type")
         return qs.filter(template_type=template_type) if template_type else qs
 
+    def perform_destroy(self, instance):
+        # A deleted template is not "the active one". Leaving the flag set means restoring it
+        # later, after a replacement took over, collides with the partial-unique index (a 500).
+        if instance.is_active:
+            instance.is_active = False
+            instance.save(update_fields=["is_active"])
+        super().perform_destroy(instance)
+
     def perform_update(self, serializer):
         template = serializer.instance
         # "Active" is exclusive per type (partial-unique index): activating one retires the rest,
