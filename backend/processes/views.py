@@ -156,7 +156,10 @@ class ProcessViewSet(AuditedSoftDeleteViewSet, ModelViewSet):
         never a requirement of it — requiring it would deadlock the step it depends on (§0)."""
         process = self.get_object()  # write action: assignee or admin only
         job = start_eligibility_job(
-            process=process, actor=request.user, template_id=request.data.get("template")
+            process=process,
+            actor=request.user,
+            template_id=request.data.get("template"),
+            request=request,
         )
         return Response(GenerationJobSerializer(job).data, status=status.HTTP_202_ACCEPTED)
 
@@ -172,6 +175,7 @@ class ProcessViewSet(AuditedSoftDeleteViewSet, ModelViewSet):
             process_ids=payload.validated_data["process_ids"],
             actor=request.user,
             template_id=payload.validated_data.get("template"),
+            request=request,
         )
         return Response(GenerationJobSerializer(job).data, status=status.HTTP_202_ACCEPTED)
 

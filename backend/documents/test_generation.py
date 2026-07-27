@@ -142,8 +142,14 @@ class GenerationJobTests(APITestCase):
         self.assertEqual(document.document_type, ELIGIBILITY_DOC_TYPE)
         self.assertEqual(document.input_source, Document.InputSource.SYSTEM_GENERATED)
         self.assertTrue((settings.DOCUMENTS_ROOT / document.file_path).is_file())
+        # The job itself is audited when it is REQUESTED (see GenerationAuditTests); here the
+        # artefact is what matters — the stored document carries its own create row.
         self.assertTrue(
-            ActivityLog.objects.filter(entity_type="GenerationJob", entity_id=str(job.id)).exists()
+            ActivityLog.objects.filter(
+                entity_type="Document",
+                entity_id=str(document.id),
+                action=ActivityLog.Action.CREATE,
+            ).exists()
         )
 
     def test_regenerating_supersedes_the_previous_letter_instead_of_overwriting_it(self):
@@ -350,3 +356,90 @@ class DocumentTemplateApiTests(APITestCase):
 
         self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("file", resp.data)
+
+
+@unittest.skipUnless(HAS_LIBREOFFICE, "LibreOffice not installed (run inside the container)")
+@override_settings(
+    DOCUMENTS_ROOT=Path(tempfile.mkdtemp()), LETTER_TEMPLATES_ROOT=Path(tempfile.mkdtemp())
+)
+class GenerationAuditTests(APITestCase):
+    """Audit is the append-only record (§11): every generation and every supersede leaves a row."""
+
+    def setUp(self):
+        self.lawyer = User.objects.create_user("audlw", password="pw12345678")
+        self.category = Category.objects.create(code="U", name="U")
+        self.process = create_process(
+            client=make_client(pid="AUD-1", category=self.category),
+            assigned_lawyer=self.lawyer, actor=self.lawyer, category=self.category,
+        )
+
+    def test_superseding_a_letter_audits_the_deletion_of_the_old_one(self):
+        """A bulk UPDATE would soft-delete the old PDF leaving no trace of who or when."""
+        template = make_template(
+            DocumentTemplate.TemplateType.ELIGIBILITY_SINGLE, build_eligibility_single
+        )
+
+        def generate():
+            job = GenerationJob.objects.create(
+                kind=GenerationJob.Kind.ELIGIBILITY, template=template,
+                process=self.process, requested_by=self.lawyer,
+            )
+            run_eligibility_job(job.id)
+            job.refresh_from_db()
+            return job
+
+        first = generate()
+        generate()
+
+        self.assertTrue(
+            ActivityLog.objects.filter(
+                entity_type="Document",
+                entity_id=str(first.document_id),
+                action=ActivityLog.Action.DELETE,
+            ).exists()
+        )
+
+    def test_a_failed_bulk_export_is_still_traceable(self):
+        """The request is what must be recorded — a render can fail long after the click."""
+        template = make_template(DocumentTemplate.TemplateType.PROCESS_LIST, build_process_list)
+        job = start_process_list_job(process_ids=[self.process.id], actor=self.lawyer)
+        (settings.LETTER_TEMPLATES_ROOT / template.file_path).unlink()
+
+        with self.assertRaises(Exception):
+            run_process_list_job(job.id)
+
+        job.refresh_from_db()
+        self.assertEqual(job.status, GenerationJob.Status.FAILED)
+        row = ActivityLog.objects.get(
+            entity_type="GenerationJob", entity_id=str(job.id), action=ActivityLog.Action.GENERATE
+        )
+        self.assertEqual(row.after["process_ids"], [self.process.id])
+
+
+@override_settings(LETTER_TEMPLATES_ROOT=Path(tempfile.mkdtemp()))
+class TemplateActivationTests(APITestCase):
+    def setUp(self):
+        self.admin = User.objects.create_user("acadm", password="pw12345678", role=User.Role.ADMIN)
+        self.client.force_authenticate(self.admin)
+
+    def test_reactivating_a_retired_template_retires_the_current_one(self):
+        """Two active templates violate the unique index; that surfaced to the client as a 500."""
+        first = make_template(
+            DocumentTemplate.TemplateType.ELIGIBILITY_SINGLE, build_eligibility_single, name="A"
+        )
+        second = make_template(
+            DocumentTemplate.TemplateType.ELIGIBILITY_SINGLE, build_eligibility_single, name="B"
+        )
+        first.refresh_from_db()
+
+        resp = self.client.patch(
+            reverse("document-template-detail", args=[first.id]),
+            {"is_active": True, "version": first.version},
+            format="json",
+        )
+
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        first.refresh_from_db()
+        second.refresh_from_db()
+        self.assertTrue(first.is_active)
+        self.assertFalse(second.is_active)

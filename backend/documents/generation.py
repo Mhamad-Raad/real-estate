@@ -61,14 +61,23 @@ def run_eligibility_job(job_id: int) -> None:
         with transaction.atomic():
             # A regenerated letter supersedes the last one — the old PDF is soft-deleted, never
             # overwritten, so the audit trail keeps what was previously sent out (§6.6).
-            superseded = list(
-                Document.objects.filter(
-                    process=job.process, document_type=ELIGIBILITY_DOC_TYPE
-                ).values_list("id", flat=True)
-            )
-            Document.objects.filter(id__in=superseded).update(
-                is_deleted=True, deleted_at=timezone.now(), deleted_by=job.requested_by
-            )
+            for old in Document.objects.filter(
+                process=job.process, document_type=ELIGIBILITY_DOC_TYPE
+            ):
+                old.is_deleted = True
+                old.deleted_at = timezone.now()
+                old.deleted_by = job.requested_by
+                old.version += 1
+                old.save(
+                    update_fields=["is_deleted", "deleted_at", "deleted_by", "version"]
+                )
+                record_activity(
+                    actor=job.requested_by,
+                    action=ActivityLog.Action.DELETE,
+                    entity_type="Document",
+                    entity_id=old.pk,
+                    before={"display_filename": old.display_filename, "superseded_by_job": job.id},
+                )
             document = create_document(
                 process=job.process,
                 step_number=1,
@@ -80,19 +89,6 @@ def run_eligibility_job(job_id: int) -> None:
             job.document = document
             job.status = GenerationJob.Status.DONE
             job.save(update_fields=["document", "status", "updated_at"])
-            record_activity(
-                actor=job.requested_by,
-                action=ActivityLog.Action.CREATE,
-                entity_type="GenerationJob",
-                entity_id=job.id,
-                after={
-                    "kind": job.kind,
-                    "process_id": job.process_id,
-                    "template_id": job.template_id,
-                    "document_id": document.id,
-                    "superseded_document_ids": superseded,
-                },
-            )
     except Exception as exc:  # a failed render must never look like a success
         _fail(job, str(exc))
         raise
@@ -123,18 +119,6 @@ def run_process_list_job(job_id: int) -> None:
         job.output_path = f"{GENERATED_LISTS_DIR}/{out_file.name}"
         job.status = GenerationJob.Status.DONE
         job.save(update_fields=["output_path", "status", "updated_at"])
-        record_activity(
-            actor=job.requested_by,
-            action=ActivityLog.Action.CREATE,
-            entity_type="GenerationJob",
-            entity_id=job.id,
-            after={
-                "kind": job.kind,
-                "template_id": job.template_id,
-                "process_ids": job.process_ids,
-                "count": len(processes),
-            },
-        )
     except Exception as exc:
         _fail(job, str(exc))
         raise
@@ -158,7 +142,18 @@ def _template_or_400(template_type: str, template_id=None) -> DocumentTemplate:
     return template
 
 
-def start_eligibility_job(*, process, actor, template_id=None) -> GenerationJob:
+def _audit_requested(job: GenerationJob, extra: dict, request=None) -> None:
+    record_activity(
+        actor=job.requested_by,
+        action=ActivityLog.Action.GENERATE,
+        entity_type="GenerationJob",
+        entity_id=job.id,
+        after={"kind": job.kind, "template_id": job.template_id, **extra},
+        request=request,
+    )
+
+
+def start_eligibility_job(*, process, actor, template_id=None, request=None) -> GenerationJob:
     """Queue the single-beneficiary letter for a process."""
     from .tasks import generate_eligibility
 
@@ -171,12 +166,13 @@ def start_eligibility_job(*, process, actor, template_id=None) -> GenerationJob:
         process=process,
         requested_by=actor,
     )
+    _audit_requested(job, {"process_id": process.id}, request)
     # on_commit: the worker must never look up a job row this transaction has not committed yet.
     transaction.on_commit(lambda: generate_eligibility.delay(job.id))
     return job
 
 
-def start_process_list_job(*, process_ids, actor, template_id=None) -> GenerationJob:
+def start_process_list_job(*, process_ids, actor, template_id=None, request=None) -> GenerationJob:
     """Queue the multi-beneficiary list letter for the selected processes."""
     from .tasks import generate_process_list
 
@@ -193,5 +189,8 @@ def start_process_list_job(*, process_ids, actor, template_id=None) -> Generatio
         process_ids=list(process_ids),
         requested_by=actor,
     )
+    # A bulk letter exports personal data for many people — the request itself is the thing that
+    # must be traceable, whether or not the render later succeeds (§6.8, §11).
+    _audit_requested(job, {"process_ids": job.process_ids, "count": len(job.process_ids)}, request)
     transaction.on_commit(lambda: generate_process_list.delay(job.id))
     return job
