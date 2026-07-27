@@ -21,6 +21,15 @@ def docx_to_pdf(docx_path: Path, out_dir: Path) -> Path:
     docx_path = Path(docx_path)
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
+    produced = out_dir / f"{docx_path.stem}.pdf"
+
+    # Clear any earlier output at this path FIRST. LibreOffice exits 0 even when it converts
+    # nothing, so a leftover file would otherwise pass the success check below and a failed
+    # regeneration would hand back the superseded letter — stale data, presented as current.
+    try:
+        produced.unlink(missing_ok=True)
+    except OSError as exc:
+        raise RenderError(f"Could not clear previous output {produced}: {exc}") from exc
 
     # Every call gets a throwaway user profile: concurrent workers sharing the default one
     # silently hand the job to a single running instance and one of them comes back empty.
@@ -52,8 +61,7 @@ def docx_to_pdf(docx_path: Path, out_dir: Path) -> Path:
                 f"LibreOffice timed out after {settings.LIBREOFFICE_TIMEOUT_SECONDS}s"
             ) from exc
 
-    # LibreOffice exits 0 on some failures, so the output file is the real success signal.
-    produced = out_dir / f"{docx_path.stem}.pdf"
+    # Having cleared the path above, the file existing now proves THIS call produced it.
     if not produced.is_file():
         detail = (result.stderr or result.stdout).decode("utf-8", "replace").strip()
         raise RenderError(f"LibreOffice produced no PDF (exit {result.returncode}): {detail}")

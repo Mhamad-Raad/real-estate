@@ -13,10 +13,11 @@ from pathlib import Path
 from django.conf import settings
 from django.test import SimpleTestCase
 from docx import Document as Docx
+from docx.oxml.ns import qn
 from docxtpl import DocxTemplate
 from pypdf import PdfReader
 
-from .docx_rtl import rtl_paragraph, rtl_table
+from .docx_rtl import rtl_paragraph, rtl_run, rtl_table
 from .rendering import RenderError, docx_to_pdf
 
 HAS_LIBREOFFICE = shutil.which(settings.LIBREOFFICE_BIN) is not None
@@ -52,6 +53,7 @@ def build_template(path: Path) -> None:
 class DocxToPdfTests(SimpleTestCase):
     def setUp(self):
         self.work = Path(tempfile.mkdtemp(prefix="render-test-"))
+        self.addCleanup(shutil.rmtree, self.work, ignore_errors=True)
 
     def render(self, context: dict) -> str:
         template = self.work / "template.docx"
@@ -94,3 +96,45 @@ class DocxToPdfTests(SimpleTestCase):
     def test_missing_input_file_raises_render_error(self):
         with self.assertRaises(RenderError):
             docx_to_pdf(self.work / "nope.docx", self.work / "out")
+
+    def test_failed_render_never_returns_an_earlier_pdf(self):
+        """A superseded letter must not come back as if it were freshly generated.
+
+        LibreOffice exits 0 having produced nothing, so without clearing the target first a
+        failed regeneration would hand back the previous client data as a success.
+        """
+        out = self.work / "out"
+        out.mkdir()
+        stale = out / "letter.pdf"
+        stale.write_bytes(b"%PDF-1.4 SUPERSEDED LETTER")
+        # Valid path, unreadable content — what a corrupt uploaded template looks like.
+        corrupt = self.work / "letter.docx"
+        corrupt.write_bytes(b"PK\x03\x04 truncated archive")
+
+        with self.assertRaises(RenderError):
+            docx_to_pdf(corrupt, out)
+        self.assertFalse(stale.exists(), "the superseded PDF must not survive a failed render")
+
+
+class RtlHelperTests(SimpleTestCase):
+    """The direction flags are write-once: a duplicated w:bidi/w:rtl is invalid OOXML."""
+
+    def test_helpers_are_idempotent(self):
+        doc = Docx()
+        paragraph = rtl_paragraph(doc.add_paragraph(), "تاقیکردنەوە")
+        rtl_paragraph(paragraph)
+        self.assertEqual(len(paragraph._p.get_or_add_pPr().findall(qn("w:bidi"))), 1)
+
+        run = paragraph.runs[0]
+        rtl_run(run)
+        self.assertEqual(len(run._r.get_or_add_rPr().findall(qn("w:rtl"))), 1)
+
+        table = rtl_table(doc.add_table(rows=1, cols=1))
+        rtl_table(table)
+        self.assertEqual(len(table._tbl.tblPr.findall(qn("w:bidiVisual"))), 1)
+
+    def test_rtl_run_sits_in_schema_order_after_size(self):
+        """Out-of-order OOXML is ignored without error — w:rtl must follow sz/szCs."""
+        run = rtl_run(Docx().add_paragraph().add_run("x"), size_pt=12)
+        tags = [child.tag.split("}")[1] for child in run._r.get_or_add_rPr()]
+        self.assertLess(tags.index("sz"), tags.index("rtl"))
