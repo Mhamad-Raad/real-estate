@@ -20,7 +20,14 @@ RTL_FONT = "Noto Naskh Arabic"
 
 
 def _insert_ordered(parent, tag: str, before_tags: list[str]):
-    """Insert a child in schema order — OOXML silently ignores out-of-order elements."""
+    """Insert a child in schema order, once — OOXML silently ignores out-of-order elements.
+
+    Idempotent: these read as setters, and a duplicated flag is invalid OOXML.
+    """
+    existing = parent.find(qn(tag))
+    if existing is not None:
+        return existing
+
     element = parent.makeelement(qn(tag), {})
     successors = {qn(t) for t in before_tags}
     anchor = next((child for child in parent if child.tag in successors), None)
@@ -39,7 +46,7 @@ def rtl_run(run, font: str = RTL_FONT, size_pt: float | None = None):
     rFonts = rPr.get_or_add_rFonts()
     for slot in ("w:ascii", "w:hAnsi", "w:cs"):
         rFonts.set(qn(slot), font)
-    rPr.append(rPr.makeelement(qn("w:rtl"), {}))
+    _insert_ordered(rPr, "w:rtl", ["w:cs", "w:em", "w:lang", "w:eastAsianLayout", "w:oMath"])
     return run
 
 
