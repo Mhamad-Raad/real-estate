@@ -136,10 +136,10 @@ This plan front-loads the demo and defers **OCR** (Iteration 5) and the **offlin
 
 **Tasks**
 
-- [~] `DocumentTemplate` model + stored `.docx` templates; template admin management (`.docx` upload) — *§3.5, §6.6, §6.8*. **Backend done:** one active template per type (partial-unique index), admin-only `/document-templates/`, upload validates the file really opens as a Word template so a bad file fails at upload rather than mid-generation. **Not done: the admin SCREEN** — templates are currently registered by `manage.py build_placeholder_templates` or an API call, so an admin cannot yet upload a Word file from the UI.
+- [x] `DocumentTemplate` model + stored `.docx` templates; template admin management (`.docx` upload) — *§3.5, §6.6, §6.8*. One active template per type (partial-unique index), admin-only `/document-templates/`, upload validates the file really opens as a Word template so a bad file fails at upload rather than mid-generation. **Admin screen** at `/templates`: upload, activate (retires the previous), soft-delete.
 - [x] Eligibility generation: `docxtpl` fill → headless LibreOffice → PDF; stored as `system_generated`; regenerate supersedes. **One letter with both tables** (spouse cells blank when unmarried), not two PDFs — see §0 — and it is generated *by* completing Step 1, never required *for* it.
 - [x] **Bulk document from the Processes page (§6.8):** checkbox multi-select (+ select-all) → `POST /processes/generate-document/` → letter page naming the first/last beneficiary, table on its own page → download/print; ids re-validated server-side; audited.
-- [~] Frontend (clean + localized): generate/**download** in Step 1 (button unlocks when the step is complete, polls the job); Processes-list multi-select + "Print Step 1" toolbar action. **Not done:** in-page **preview** and a direct **print** action (the PDF downloads and is printed from the viewer), and the template picker for the bulk letter (it uses the active template).
+- [x] Frontend (clean + localized): generate / **in-page preview** / **print** / download in Step 1 (button unlocks when the step is complete, polls the job); Processes-list multi-select + "Print Step 1" toolbar action. **Only remaining nicety:** a template picker for the bulk letter — it currently uses the active `process_list` template.
 
 **Deliverable / demo:** complete Step 1 for a married client → base + spouse PDFs generated; select several rows on the Processes page → print a template document with their names auto-filled. High visual wow-factor (printable outputs).
 
