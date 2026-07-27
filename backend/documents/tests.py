@@ -117,3 +117,43 @@ class FileStoreUnitTests(APITestCase):
     def test_looks_like_pdf(self):
         self.assertTrue(filestore.looks_like_pdf(b"%PDF-1.7 ..."))
         self.assertFalse(filestore.looks_like_pdf(b"GIF89a"))
+
+
+class DocumentTypeVocabularyTests(APITestCase):
+    """`document_type` is a controlled vocabulary (§6.7) — enforced on write, not just in the UI."""
+
+    def setUp(self):
+        self.lawyer = User.objects.create_user("vlw2", password="pw12345678")
+        self.category = Category.objects.create(code="V", name="V")
+        self.client_row = make_client(pid="VOC-1", category=self.category)
+        self.process = create_process(
+            client=self.client_row, assigned_lawyer=self.lawyer, actor=self.lawyer,
+            category=self.category,
+        )
+        self.client.force_authenticate(self.lawyer)
+
+    def _post(self, document_type):
+        return self.client.post(
+            reverse("document-list"),
+            {
+                "process": self.process.id,
+                "step_number": 1,
+                "document_type": document_type,
+                "file": SimpleUploadedFile(
+                    "f.pdf", b"%PDF-1.4 x", content_type="application/pdf"
+                ),
+            },
+            format="multipart",
+        )
+
+    def test_unknown_document_type_is_rejected(self):
+        """Otherwise the file is stored under a label no step wants and no slot renders."""
+        resp = self._post("NotARealType")
+
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("document_type", resp.data)
+
+    def test_known_document_type_is_accepted(self):
+        resp = self._post("ClientID")
+
+        self.assertEqual(resp.status_code, status.HTTP_201_CREATED)

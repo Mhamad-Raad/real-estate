@@ -1,5 +1,6 @@
 from rest_framework import serializers
 
+from catalog.document_types import DOCUMENT_TYPE_CODES
 from processes.models import Process, ProcessInstituteEntry
 
 from .models import Document
@@ -42,6 +43,13 @@ class DocumentUploadSerializer(serializers.Serializer):
         queryset=ProcessInstituteEntry.objects.all(), required=False, allow_null=True
     )
     file = serializers.FileField()
+
+    def validate_document_type(self, value):
+        """Only the shared vocabulary (§6.7) — an unknown type would file a document under a
+        label no step requires and no upload slot renders, leaving it invisible in the UI."""
+        if value not in DOCUMENT_TYPE_CODES:
+            raise serializers.ValidationError(f"Unknown document type '{value}'.")
+        return value
 
     def validate(self, attrs):
         # An institute entry must belong to the same process and step it's being attached under.
