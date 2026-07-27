@@ -1,4 +1,5 @@
 import {
+  FileType,
   LayoutDashboard,
   Users,
   FolderKanban,
@@ -30,6 +31,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: "/reports", labelKey: "nav.reports", icon: FileBarChart, adminOnly: true },
   { to: "/activities", labelKey: "nav.activities", icon: ScrollText, adminOnly: true },
   { to: "/categories", labelKey: "nav.categories", icon: Tags, adminOnly: true },
+  { to: "/templates", labelKey: "nav.templates", icon: FileType, adminOnly: true },
   { to: "/users", labelKey: "nav.users", icon: UserCog, adminOnly: true },
   { to: "/settings", labelKey: "nav.settings", icon: Settings },
 ];
