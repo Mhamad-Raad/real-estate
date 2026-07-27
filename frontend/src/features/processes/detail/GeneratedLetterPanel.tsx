@@ -5,6 +5,7 @@ import { useAppDispatch } from "@/app/hooks";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "@/components/ui/toaster";
+import { DocumentPreview } from "@/features/documents/DocumentPreview";
 import { DocumentRow } from "@/features/documents/DocumentRow";
 import type { DocumentType } from "@/features/documents/documentTypesApi";
 import { useGenerateEligibilityMutation } from "@/features/documents/generationApi";
@@ -76,10 +77,18 @@ export function GeneratedLetterPanel({
       </div>
 
       {letters.length ? (
-        <div className="space-y-1">
-          {letters.map((doc) => (
-            <DocumentRow key={doc.id} doc={doc} />
-          ))}
+        <div className="space-y-3">
+          <div className="space-y-1">
+            {letters.map((doc) => (
+              <DocumentRow key={doc.id} doc={doc} />
+            ))}
+          </div>
+          {/* The newest letter is shown inline so it can be checked and printed without leaving
+              the case; regenerating swaps it, since the old one is superseded. */}
+          <DocumentPreview
+            documentId={letters[0].id}
+            title={letters[0].display_filename}
+          />
         </div>
       ) : (
         <p className="text-xs text-muted-foreground">

@@ -32,3 +32,12 @@ export async function downloadGenerationJob(id: number, token: string | null) {
   a.remove();
   URL.revokeObjectURL(url);
 }
+
+/** Blob URL for inline preview/print — the file needs the auth header, so it cannot be an <iframe src>. */
+export async function fetchDocumentBlobUrl(id: number, token: string | null) {
+  const res = await fetch(`/api/v1/documents/${id}/file/`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!res.ok) throw new Error("preview failed");
+  return URL.createObjectURL(await res.blob());
+}

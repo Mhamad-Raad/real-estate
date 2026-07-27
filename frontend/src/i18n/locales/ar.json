@@ -11,7 +11,8 @@
     "activities": "سجل النشاط",
     "categories": "الفئات",
     "users": "المستخدمون",
-    "settings": "الإعدادات"
+    "settings": "الإعدادات",
+    "templates": "القوالب"
   },
   "auth": {
     "title": "تسجيل الدخول",
@@ -275,7 +276,10 @@
     "generateLocked": "أكمل الخطوة ١ لإنشاء الكتاب.",
     "generateFailed": "فشل الإنشاء",
     "generateStarted": "جارٍ تحضير المستند…",
-    "noLetterYet": "لم يتم إنشاء أي كتاب بعد."
+    "noLetterYet": "لم يتم إنشاء أي كتاب بعد.",
+    "preview": "معاينة",
+    "print": "طباعة",
+    "previewError": "تعذّر تحميل المعاينة."
   },
   "institute": {
     "s2_a": "الجهة S2-A",
@@ -289,5 +293,27 @@
   "notFound": {
     "title": "الصفحة غير موجودة",
     "back": "العودة إلى لوحة المعلومات"
+  },
+  "templates": {
+    "title": "قوالب الكتب",
+    "subtitle": "قوالب Word التي يملؤها النظام لإنشاء الكتب.",
+    "upload": "رفع قالب",
+    "name": "الاسم",
+    "type": "الكتاب",
+    "file": "ملف Word‏ (.docx)",
+    "fileHint": "يصبح الملف الجديد القالب الفعّال لهذا الكتاب.",
+    "fileColumn": "الملف",
+    "statusLabel": "الحالة",
+    "active": "فعّال",
+    "retired": "متقاعد",
+    "activate": "تفعيل",
+    "activated": "تم تفعيل القالب.",
+    "empty": "لم يتم رفع أي قالب بعد.",
+    "deleteTitle": "حذف القالب",
+    "deleteConfirm": "حذف القالب «{{name}}»؟ يمكن استعادته لاحقًا.",
+    "types": {
+      "eligibility_single": "كتاب الاستحقاق (مستفيد واحد)",
+      "process_list": "كتاب قائمة المستفيدين"
+    }
   }
 }

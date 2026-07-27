@@ -6,6 +6,7 @@ import { AdminRoute } from "@/features/auth/AdminRoute";
 import { LoginPage } from "@/features/auth/LoginPage";
 import { ProtectedRoute } from "@/features/auth/ProtectedRoute";
 import { CategoriesPage } from "@/features/categories/CategoriesPage";
+import { TemplatesPage } from "@/features/templates/TemplatesPage";
 import { ClientsPage } from "@/features/clients/ClientsPage";
 import { ProcessesPage } from "@/features/processes/ProcessesPage";
 import { ProcessDetailPage } from "@/features/processes/detail/ProcessDetailPage";
@@ -31,6 +32,7 @@ export default function App() {
             {/* Admin-only management screens (server enforces RBAC too). */}
             <Route element={<AdminRoute />}>
               <Route path="categories" element={<CategoriesPage />} />
+              <Route path="templates" element={<TemplatesPage />} />
               <Route path="users" element={<UsersPage />} />
             </Route>
             <Route path="settings" element={<PlaceholderPage titleKey="nav.settings" />} />
