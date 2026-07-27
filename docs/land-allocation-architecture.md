@@ -917,7 +917,7 @@ A **Processes-page** feature (the list/overview level — *not* the process-deta
 **Flow:**
 
 1. On the Processes list, tick the checkboxes for the desired rows (with a select-all that respects the current filter); a **"Generate document"** toolbar action shows the number selected.
-2. The user picks a **template** (from admin-managed `DocumentTemplate`s of type `process_list`) and confirms.
+2. The system uses the **active** `process_list` template. **Deviation (user decision, 2026-07-27):** no template picker — the office sends the same Step-1 letter every time, so a dropdown with one option would be noise. `POST /processes/generate-document/` still accepts an optional `template` id, so a picker can be added later without an API change.
 3. `POST /api/v1/processes/generate-document/` with `{ template_id, process_ids: [...] }` enqueues a **Celery** task (same plumbing as eligibility generation).
 4. The task loads the `.docx` template and **`docxtpl` loops over the selected processes**, inserting each one's client `full_name` (plus any other placeholders the template declares — e.g. PID, category, parcel) into a repeating region/table; headless **LibreOffice** renders it to **PDF** (correct RTL for Sorani/Arabic).
 5. The UI polls for completion, then opens the PDF for **print** and **save/download**.
