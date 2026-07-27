@@ -183,7 +183,11 @@
         "pid": "نفس الرقم الوطني",
         "mother_name": "اسم أم مشابه (شقيق)"
       }
-    }
+    },
+    "selectedCount": "{{count}} محدد",
+    "printStep1": "طباعة الخطوة ١",
+    "selectAll": "تحديد الكل",
+    "selectRow": "تحديد المعاملة"
   },
   "workflow": {
     "backToList": "العودة إلى المعاملات",
@@ -217,7 +221,8 @@
       "SpouseID": "هوية الزوج/الزوجة",
       "RealEstate": "أوراق العقار",
       "SignedAgreement": "الاتفاقية الموقّعة",
-      "InstituteDoc": "مستند الجهة"
+      "InstituteDoc": "مستند الجهة",
+      "EligibilityLetter": "كتاب الاستحقاق"
     },
     "import": "استيراد PDF",
     "upload": "رفع",
@@ -262,7 +267,15 @@
       "duplicate_flag": "تحذير التكرار لم يتم تجاوزه بعد",
       "start_date": "تاريخ البدء",
       "custom_entries": "الجهات خارج المدينة"
-    }
+    },
+    "generatedSection": "الكتاب المُنشأ",
+    "generate": "إنشاء المستند",
+    "regenerate": "إعادة الإنشاء",
+    "generating": "جارٍ الإنشاء…",
+    "generateLocked": "أكمل الخطوة ١ لإنشاء الكتاب.",
+    "generateFailed": "فشل الإنشاء",
+    "generateStarted": "جارٍ تحضير المستند…",
+    "noLetterYet": "لم يتم إنشاء أي كتاب بعد."
   },
   "institute": {
     "s2_a": "الجهة S2-A",
