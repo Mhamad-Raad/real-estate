@@ -106,6 +106,9 @@ class ProcessDetailSerializer(ProcessListSerializer):
     institute_entries = InstituteEntrySerializer(many=True, read_only=True)
     step_status_summary = serializers.SerializerMethodField()
     documents = serializers.SerializerMethodField()
+    # Step 1 edits the beneficiary's own details (birth date, spouse) inline, and the spouse-ID
+    # upload slot only appears for a married client — both need the client row, not just a name.
+    client_detail = serializers.SerializerMethodField()
 
     class Meta(ProcessListSerializer.Meta):
         fields = ProcessListSerializer.Meta.fields + (
@@ -114,7 +117,13 @@ class ProcessDetailSerializer(ProcessListSerializer):
             "institute_entries",
             "step_status_summary",
             "documents",
+            "client_detail",
         )
+
+    def get_client_detail(self, obj):
+        from clients.serializers import ClientSerializer
+
+        return ClientSerializer(obj.client).data
 
     def get_step_status_summary(self, obj):
         from .status import step_status_summary

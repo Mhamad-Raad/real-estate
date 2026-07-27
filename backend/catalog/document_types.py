@@ -7,28 +7,42 @@ slot for. Display names are i18n keys, so the code stays stable in the DB while 
 come from the translation files.
 
 The vocabulary is deliberately partial — steps 2–4 use the generic `InstituteDoc`, and generated
-types (EligibilityBase, spouse PDFs) land with Iteration 3 (§0).
+types (the eligibility letter) land with Iteration 3 (§0).
 """
 
-# (code, i18n display key, step, required for that step's completion)
-DOCUMENT_TYPES: list[tuple[str, str, int, bool]] = [
-    ("ClientID", "workflow.docType.ClientID", 1, True),
-    ("RealEstate", "workflow.docType.RealEstate", 1, True),
-    ("SignedAgreement", "workflow.docType.SignedAgreement", 1, True),
+from typing import NamedTuple
+
+
+class DocumentType(NamedTuple):
+    code: str
+    display_key: str
+    step: int | None
+    required: bool
+    # Some papers only exist when there is a spouse; the condition belongs to the type itself so
+    # the backend requirement and the frontend upload slot can never disagree.
+    only_when_married: bool = False
+
+
+DOCUMENT_TYPES: list[DocumentType] = [
+    DocumentType("ClientID", "workflow.docType.ClientID", 1, True),
+    DocumentType("SpouseID", "workflow.docType.SpouseID", 1, True, only_when_married=True),
+    DocumentType("RealEstate", "workflow.docType.RealEstate", 1, True),
+    DocumentType("SignedAgreement", "workflow.docType.SignedAgreement", 1, True),
     # Steps 2–4 attach one generic document per institute entry, not a fixed named set.
-    ("InstituteDoc", "workflow.docType.InstituteDoc", None, False),
+    DocumentType("InstituteDoc", "workflow.docType.InstituteDoc", None, False),
 ]
 
-DOCUMENT_TYPE_CODES = frozenset(code for code, _key, _step, _req in DOCUMENT_TYPES)
+DOCUMENT_TYPE_CODES = frozenset(dt.code for dt in DOCUMENT_TYPES)
 
 
-def required_codes_for_step(step: int) -> tuple[str, ...]:
+def required_codes_for_step(step: int, *, married: bool = False) -> tuple[str, ...]:
     """Codes a step must have on file to count as complete (§3.6). Ordered — it is rendered."""
-    return tuple(code for code, _key, s, required in DOCUMENT_TYPES if s == step and required)
+    return tuple(
+        dt.code
+        for dt in DOCUMENT_TYPES
+        if dt.step == step and dt.required and (married or not dt.only_when_married)
+    )
 
 
 def document_types_as_dicts() -> list[dict]:
-    return [
-        {"code": code, "display_key": key, "step": step, "required": required}
-        for code, key, step, required in DOCUMENT_TYPES
-    ]
+    return [dt._asdict() for dt in DOCUMENT_TYPES]
