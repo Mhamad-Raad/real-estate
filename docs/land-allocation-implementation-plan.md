@@ -136,10 +136,10 @@ This plan front-loads the demo and defers **OCR** (Iteration 5) and the **offlin
 
 **Tasks**
 
-- [ ] `DocumentTemplate` model + stored `.docx` templates; template admin management (`.docx` upload) — *§3.5, §6.6, §6.8*.
-- [ ] Eligibility generation (base always + spouse when married): `docxtpl` fill → headless LibreOffice → PDF; store as `system_generated`; regenerate supersedes — *§6.6*.
-- [ ] **Bulk document from the Processes page (§6.8):** checkbox multi-select → pick a `process_list` template → `POST /processes/generate-document/` (loops selected clients' names → PDF) → save/print; audited.
-- [ ] Frontend (clean + localized): generate/preview/print in Step 1; Processes-list multi-select + "Generate document" toolbar action.
+- [x] `DocumentTemplate` model + stored `.docx` templates; template admin management (`.docx` upload) — *§3.5, §6.6, §6.8*. One active template per type (partial-unique index); upload validates the file really opens as a Word template, so a bad file fails at upload rather than mid-generation.
+- [x] Eligibility generation: `docxtpl` fill → headless LibreOffice → PDF; stored as `system_generated`; regenerate supersedes. **One letter with both tables** (spouse cells blank when unmarried), not two PDFs — see §0 — and it is generated *by* completing Step 1, never required *for* it.
+- [x] **Bulk document from the Processes page (§6.8):** checkbox multi-select (+ select-all) → `POST /processes/generate-document/` → letter page naming the first/last beneficiary, table on its own page → download/print; ids re-validated server-side; audited.
+- [x] Frontend (clean + localized): generate/download in Step 1 (button unlocks when the step is complete, polls the job); Processes-list multi-select + "Print Step 1" toolbar action. **Still to do:** replace the placeholder `.docx` templates with the office's real Word files (upload, no code change).
 
 **Deliverable / demo:** complete Step 1 for a married client → base + spouse PDFs generated; select several rows on the Processes page → print a template document with their names auto-filled. High visual wow-factor (printable outputs).
 
