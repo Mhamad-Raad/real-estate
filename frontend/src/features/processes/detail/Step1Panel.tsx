@@ -125,7 +125,13 @@ export function Step1Panel({
       {(documentTypes ?? [])
         .filter(
           (dt) =>
-            dt.step === 1 && (!dt.only_when_married || process.client_detail.is_married),
+            dt.step === 1 &&
+            // A conditional slot still shows while it holds a file: a client who stops being
+            // married would otherwise leave an uploaded spouse ID on disk with no way to see
+            // or remove it.
+            (!dt.only_when_married ||
+              process.client_detail.is_married ||
+              docs.some((d) => d.document_type === dt.code)),
         )
         .map(({ code: type, display_key }) => {
           const forType = docs.filter((d) => d.document_type === type);
