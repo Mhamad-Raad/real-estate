@@ -15,6 +15,8 @@ class ClientSerializer(serializers.ModelSerializer):
             "mother_full_name",
             "marital_status",
             "spouse_name",
+            "spouse_date_of_birth",
+            "spouse_mother_full_name",
             "is_married",
             "date_of_birth",
             "place_of_birth",
@@ -27,14 +29,27 @@ class ClientSerializer(serializers.ModelSerializer):
         )
         read_only_fields = ("id", "created_by", "version", "created_at")
 
+    # The letter prints a spouse row of name / birth date / mother's name, so a married client
+    # needs all three — the same set the DB check constraint enforces (§6.6).
+    SPOUSE_FIELDS = ("spouse_name", "spouse_date_of_birth", "spouse_mother_full_name")
+
     def validate(self, attrs):
-        # A married client must name a spouse (drives the spouse eligibility PDF in Step 1, §3.5).
-        marital = attrs.get("marital_status", getattr(self.instance, "marital_status", None))
-        spouse = attrs.get("spouse_name", getattr(self.instance, "spouse_name", ""))
-        if marital == Client.MaritalStatus.MARRIED and not (spouse and spouse.strip()):
-            raise serializers.ValidationError(
-                {"spouse_name": "Spouse name is required when marital status is married."}
-            )
+        def resolved(field):
+            return attrs.get(field, getattr(self.instance, field, None))
+
+        if resolved("marital_status") == Client.MaritalStatus.MARRIED:
+            missing = {
+                field: "Required when marital status is married."
+                for field in self.SPOUSE_FIELDS
+                if not (str(resolved(field) or "").strip())
+            }
+            if missing:
+                raise serializers.ValidationError(missing)
+        else:
+            # Clear spouse details a divorce or bereavement left behind, so the letter prints the
+            # blank spouse row the paper form expects rather than a former spouse's data.
+            attrs.update({"spouse_name": "", "spouse_mother_full_name": ""})
+            attrs["spouse_date_of_birth"] = None
         return attrs
 
 

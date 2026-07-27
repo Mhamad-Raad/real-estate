@@ -19,6 +19,7 @@ from processes.services import create_process
 
 from . import filestore
 from .models import Document
+from clients.factories import make_client
 
 
 def pdf_file(name="id.pdf", body=b"%PDF-1.4 minimal test pdf"):
@@ -32,7 +33,7 @@ class DocumentApiTests(APITestCase):
         self.lawyer = User.objects.create_user("lw", password="pw12345678")
         self.other = User.objects.create_user("lw2", password="pw12345678")
         self.category = Category.objects.create(code="A", name="Cat A")
-        self.client_row = Client.objects.create(
+        self.client_row = make_client(
             full_name="Ahmad Mohammed", pid="1990111", mother_full_name="Mother", category=self.category
         )
         self.process = create_process(
