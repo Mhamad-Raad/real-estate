@@ -58,6 +58,7 @@ INSTALLED_APPS = [
     "parcels",
     "processes",
     "documents",
+    "reports",
 ]
 
 # Offline document file store (§2.5, §6.7) — lives OUTSIDE the repo, bind-mounted in prod.
