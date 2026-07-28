@@ -68,6 +68,10 @@ DOCUMENTS_ROOT = Path(
 )
 # Hard cap on uploaded PDF size (bytes) — reject anything larger before writing to disk.
 MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_BYTES", str(25 * 1024 * 1024)))
+# Separate, larger bound for files the SERVER produces (§10.3). The compiled case merges
+# documents that were each already accepted, so the upload cap would reject a legitimate export
+# of a large case; this is a runaway-merge backstop, not an input restriction.
+MAX_GENERATED_BYTES = int(os.getenv("MAX_GENERATED_BYTES", str(200 * 1024 * 1024)))
 
 # Admin-uploaded .docx letter templates (§3.5, §6.6) — kept beside the documents they generate.
 # Named to stay clearly distinct from Django's own TEMPLATES setting below.

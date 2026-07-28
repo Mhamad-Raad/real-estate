@@ -22,6 +22,8 @@ from pypdf import PdfReader, PdfWriter
 from common.models import ActivityLog
 from common.services import record_activity
 
+from processes.models import Process
+
 from .models import Document, DocumentTemplate, GenerationJob
 from .rendering import RenderError
 from .services import create_document
@@ -79,9 +81,14 @@ def run_compile_case_job(job_id: int) -> None:
     """Render the summary, merge the case, and attach the result to the process."""
     from .generation import render_to_pdf
 
-    job = GenerationJob.objects.select_related(
-        "process__client", "process__category", "process__assigned_lawyer", "template"
-    ).get(pk=job_id)
+    job = (
+        GenerationJob.objects.select_related(
+            "process__client", "process__category", "process__assigned_lawyer", "template"
+        )
+        # The summary walks all three collections; without this each is a separate round trip.
+        .prefetch_related("process__steps", "process__documents", "process__institute_entries")
+        .get(pk=job_id)
+    )
     job.status = GenerationJob.Status.RUNNING
     job.save(update_fields=["status", "updated_at"])
 
@@ -90,10 +97,16 @@ def run_compile_case_job(job_id: int) -> None:
         attachments = documents_in_step_order(process)
 
         with tempfile.TemporaryDirectory(prefix="compile-") as work:
-            summary = render_to_pdf(job.template, case_summary_context(process), Path(work))
+            summary = render_to_pdf(
+                job.template, case_summary_context(process, attachments), Path(work)
+            )
         merged = merge_pdfs(summary, attachments)
 
         with transaction.atomic():
+            # Lock the case for the supersede-then-create window. Two computers compiling the
+            # same case at once would otherwise interleave and both leave a live export (§12
+            # concurrent edits) — the second waits here and supersedes the first's output.
+            Process.objects.select_for_update().get(pk=process.pk)
             # A recompiled case supersedes the last one — soft-deleted and audited, never
             # overwritten, so the trail keeps whatever was previously handed to leadership.
             for old in Document.objects.filter(process=process, document_type=COMPILED_DOC_TYPE):

@@ -17,10 +17,12 @@ from processes.services import create_process
 from .compile import COMPILED_DOC_TYPE, documents_in_step_order, merge_pdfs, run_compile_case_job
 from .models import Document, DocumentTemplate, GenerationJob
 from .rendering import RenderError
-from .services import create_document
+from .letters import to_arabic_indic
+from .services import PayloadTooLarge, create_document
+from .summary import case_summary_context
 
 
-def one_page_pdf(label: str = "x") -> bytes:
+def one_page_pdf() -> bytes:
     """A real, minimal PDF — `create_document` validates magic bytes, so a stub won't do."""
     writer = PdfWriter()
     writer.add_blank_page(width=200, height=200)
@@ -140,6 +142,57 @@ class CompileJobTests(CompileTestBase):
         self.assertEqual(job.status, GenerationJob.Status.FAILED)
         self.assertIn("missing", job.error)
         self.assertIsNone(job.document)
+
+
+class SummaryContextTests(CompileTestBase):
+    def test_document_count_matches_what_is_merged(self):
+        """The previous compilation is still live while the summary renders — counting it would
+        print a total one higher than the file actually contains."""
+        self._document(1, "ClientID")
+        self._document(2)
+        create_document(
+            process=self.process,
+            step_number=5,
+            document_type=COMPILED_DOC_TYPE,
+            input_source=Document.InputSource.SYSTEM_GENERATED,
+            content=one_page_pdf(),
+            actor=self.admin,
+        )
+        attachments = documents_in_step_order(self.process)
+        context = case_summary_context(self.process, attachments)
+
+        self.assertEqual(len(attachments), 2)
+        self.assertEqual(context["document_count"], to_arabic_indic(2))
+
+
+class GeneratedSizeTests(CompileTestBase):
+    def test_a_large_generated_file_is_not_held_to_the_upload_cap(self):
+        """The compiled case merges files each already accepted; the upload cap must not
+        reject a legitimate export of a large case (§10.3)."""
+        oversized = one_page_pdf() + b"\n%" + b"x" * (settings.MAX_UPLOAD_BYTES + 1024)
+
+        document = create_document(
+            process=self.process,
+            step_number=5,
+            document_type=COMPILED_DOC_TYPE,
+            input_source=Document.InputSource.SYSTEM_GENERATED,
+            content=oversized,
+            actor=self.admin,
+        )
+        self.assertGreater(document.size_bytes, settings.MAX_UPLOAD_BYTES)
+
+    def test_an_upload_is_still_capped(self):
+        oversized = one_page_pdf() + b"\n%" + b"x" * (settings.MAX_UPLOAD_BYTES + 1024)
+
+        with self.assertRaises(PayloadTooLarge):
+            create_document(
+                process=self.process,
+                step_number=1,
+                document_type="ClientID",
+                input_source=Document.InputSource.IMPORTED,
+                content=oversized,
+                actor=self.admin,
+            )
 
 
 class CompileApiTests(APITestCase):

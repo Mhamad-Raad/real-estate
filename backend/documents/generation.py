@@ -59,6 +59,9 @@ def run_eligibility_job(job_id: int) -> None:
             pdf = render_to_pdf(job.template, eligibility_context(job.process), Path(work))
 
         with transaction.atomic():
+            # Same lock as the compiled export: two concurrent regenerations would otherwise
+            # both leave a live letter on the case.
+            Process.objects.select_for_update().get(pk=job.process_id)
             # A regenerated letter supersedes the last one — the old PDF is soft-deleted, never
             # overwritten, so the audit trail keeps what was previously sent out (§6.6).
             for old in Document.objects.filter(

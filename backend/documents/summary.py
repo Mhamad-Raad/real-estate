@@ -79,10 +79,15 @@ def _step_rows(process) -> list[dict]:
     ]
 
 
-def case_summary_context(process) -> dict:
-    """Everything the compiled cover sheet prints about one allocation."""
+def case_summary_context(process, attachments) -> dict:
+    """Everything the compiled cover sheet prints about one allocation.
+
+    `attachments` is the exact list that will be merged after this cover sheet. It is passed in
+    rather than recomputed because `process.documents` still contains the *previous* compiled
+    export at this point — counting that would print a document total one higher than the file
+    actually contains, on a signed government document.
+    """
     client = process.client
-    documents = list(process.documents.all())
 
     return {
         "client_name": client.full_name,
@@ -101,5 +106,5 @@ def case_summary_context(process) -> dict:
         "created_at": _date(process.created_at.date()),
         "steps": _step_rows(process),
         "institutes": _institute_rows(process),
-        "document_count": to_arabic_indic(len(documents)),
+        "document_count": to_arabic_indic(len(attachments)),
     }
