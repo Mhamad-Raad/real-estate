@@ -22,8 +22,15 @@ describe("bidi-safe formatting (§9)", () => {
     }
   });
 
-  it("Kurdish falls back to Arabic Intl data (no crash, non-empty)", () => {
-    const out = formatNumber(2026, "ckb");
-    expect(out.length).toBeGreaterThan(0);
+  it("renders Arabic-Indic digits for both RTL languages, matching the printed letters", () => {
+    // Guards a real trap: plain `ar` resolves to Latin digits under modern CLDR, so screens
+    // would disagree with the generated PDFs unless the numbering system is pinned.
+    for (const lang of ["ckb", "ar"]) {
+      const out = formatNumber(2026, lang);
+      expect(out).toMatch(/[٠-٩]/);
+      expect(out).not.toMatch(/[0-9]/);
+    }
+    expect(formatNumber(2026, "en")).toMatch(/[0-9]/);
+    expect(formatNumber(2026, "en")).not.toMatch(/[٠-٩]/);
   });
 });
