@@ -149,6 +149,8 @@ This plan front-loads the demo and defers **OCR** (Iteration 5) and the **offlin
 
 ## Iteration 4 — Reports, dashboard, activities, compiled export
 
+**✅ COMPLETE (2026-07-28).** Notes: "mark-complete" already shipped in It.2, so It.4 covered four items, not five. `by_lawyer_this_week` counts cases *created* this week grouped by assignee, not cases *handled* via `activity_log` — a narrower reading of §10.1, still open. The compiled export ships with a **placeholder** summary `.docx` (as the letters did) — swapping in the office's own is an upload, no code change.
+
 **Goal:** the outputs admins and leadership consume. After this the app is feature-complete for daily use with manual entry.
 
 **Tasks**
