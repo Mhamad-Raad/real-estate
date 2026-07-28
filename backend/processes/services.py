@@ -53,7 +53,10 @@ def create_process(
     pid_matches, mother_matches = duplicate_matches(
         pid=client.pid, mother_full_name=client.mother_full_name, exclude_id=client.id
     )
-    duplicate_flagged = bool(pid_matches or mother_matches)
+    # Only a PID collision is a real duplicate. A similar mother name is almost always a sibling,
+    # so it is recorded as advisory and never gates the workflow (§5.7).
+    duplicate_flagged = bool(pid_matches)
+    similar_name_flagged = bool(mother_matches)
     try:
         # Savepoint so an IntegrityError here can't poison the surrounding transaction.
         with transaction.atomic():
@@ -62,6 +65,7 @@ def create_process(
                 assigned_lawyer=assigned_lawyer,
                 category=category,
                 duplicate_flagged=duplicate_flagged,
+                similar_name_flagged=similar_name_flagged,
             )
             ProcessStep.objects.bulk_create(
                 [ProcessStep(process=process, step_number=n) for n in STEP_NUMBERS]

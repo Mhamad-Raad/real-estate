@@ -94,6 +94,7 @@ class ProcessListSerializer(serializers.ModelSerializer):
             "overall_status",
             "current_step",
             "duplicate_flagged",
+            "similar_name_flagged",
             "assigned_lawyer",
             "assigned_lawyer_username",
             "created_at",

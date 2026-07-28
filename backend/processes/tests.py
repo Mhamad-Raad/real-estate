@@ -16,6 +16,7 @@ from common.models import ActivityLog
 
 from .models import DuplicateOverride, Process, ProcessStep
 from .services import create_process, override_duplicate
+from .status import missing_requirements
 from clients.factories import make_client
 
 
@@ -60,18 +61,42 @@ class NoLandTwiceTests(TestCase):
         p = create_process(client=other, assigned_lawyer=self.lawyer, actor=self.lawyer)
         self.assertEqual(p.client_id, other.id)
 
-    def test_duplicate_flag_is_server_computed_from_mother_name(self):
-        # A sibling (same mother, different PID) exists → the server must raise the flag itself.
+    def test_similar_mother_name_is_advisory_and_never_blocks(self):
+        # A sibling (same mother, different PID) is flagged for a human glance — but identity is
+        # the government PID, so this must not raise the blocking duplicate flag.
         make_client(full_name="Sibling", pid="999", mother_full_name="Mother")
         flagged = self._new_process()
-        self.assertTrue(flagged.duplicate_flagged)
+        self.assertTrue(flagged.similar_name_flagged)
+        self.assertFalse(flagged.duplicate_flagged)
 
-    def test_no_duplicate_flag_for_a_clean_client(self):
+    def test_similar_name_does_not_gate_step_one(self):
+        """The regression this split exists to prevent: a sibling stalling a legitimate case.
+
+        Creation tells the lawyer a mother-name hit is a sibling and lets them proceed; Step 1
+        used to then refuse to complete until an admin overrode it.
+        """
+        make_client(full_name="Sibling", pid="999", mother_full_name="Mother")
+        process = self._new_process()
+        step = process.steps.get(step_number=1)
+        self.assertNotIn("duplicate_flag", missing_requirements(process, 1, step))
+
+    def test_no_flags_for_a_clean_client(self):
         clean = _make_client(pid="555")
         clean.mother_full_name = "Farida Ahmed"  # no trigram overlap with the setUp client's "Mother"
         clean.save(update_fields=["mother_full_name"])
         process = create_process(client=clean, assigned_lawyer=self.lawyer, actor=self.lawyer)
         self.assertFalse(process.duplicate_flagged)
+        self.assertFalse(process.similar_name_flagged)
+
+    def test_shared_given_name_stays_below_the_threshold(self):
+        # Two mothers sharing only a common first name score 0.21 — over Postgres' 0.3 default
+        # once other names overlap, but never over 0.5. This is the false-flag case in real data.
+        subject = make_client(
+            full_name="Karwan Ali", pid="661", mother_full_name="Nasrin Hassan Mahmoud"
+        )
+        make_client(full_name="Unrelated", pid="662", mother_full_name="Nasrin Omar Salih")
+        process = create_process(client=subject, assigned_lawyer=self.lawyer, actor=self.lawyer)
+        self.assertFalse(process.similar_name_flagged)
 
     def test_create_process_makes_five_steps_and_audits(self):
         process = self._new_process()

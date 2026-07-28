@@ -40,8 +40,11 @@ class Process(SoftDeleteModel):
     )
     current_step = models.PositiveSmallIntegerField(default=1)
     lawyer_notes = models.TextField(blank=True)
-    # Set when a duplicate warning fired; blocks advancing past Step 1 until an admin overrides.
+    # Set only by a PID collision — the same person, so it blocks Step 1 until an admin overrides.
     duplicate_flagged = models.BooleanField(default=False)
+    # A similar mother name: advisory only, never blocks. Identity is the government PID; this
+    # just flags a pair worth a human glance in case one of the two PIDs was mistyped.
+    similar_name_flagged = models.BooleanField(default=False)
 
     class Meta:
         db_table = "process"

@@ -13,6 +13,7 @@ export interface ProcessListItem {
   overall_status: OverallStatus;
   current_step: number;
   duplicate_flagged: boolean;
+  similar_name_flagged: boolean;
   assigned_lawyer: number;
   assigned_lawyer_username: string;
   created_at: string;

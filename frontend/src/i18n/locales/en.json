@@ -205,6 +205,7 @@
     "saveClient": "Save beneficiary details",
     "spouseSection": "Spouse",
     "saveLand": "Save land details",
+    "similarNameNote": "A mother's name here closely matches another record. This is usually a sibling and does not block anything \u2014 worth a quick look if the ID may have been mistyped.",
     "flaggedNote": "Possible duplicate — an admin must override before this case can be completed.",
     "step1": "Step 1 — Client & documents",
     "step2": "Step 2 — Institute submissions",
