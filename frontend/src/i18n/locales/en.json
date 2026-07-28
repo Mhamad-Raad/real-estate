@@ -370,6 +370,7 @@
       "generate": "Generated",
       "login": "Signed in",
       "logout": "Signed out"
-    }
+    },
+    "viewDetail": "View details"
   }
 }

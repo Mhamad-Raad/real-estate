@@ -1,16 +1,8 @@
 import { PROCESS_LIST_TAG } from "@/features/processes/processesApi";
 import { baseApi } from "@/services/baseApi";
+import { cleanParams } from "@/services/params";
 
 import type { ProcessReport, ReportFilters, UserReportRow } from "./types";
-
-/** Drop empty filter values so they never reach the server as `?category=`. */
-function cleanParams(filters: ReportFilters): Record<string, string> {
-  return Object.fromEntries(
-    Object.entries(filters)
-      .filter(([, value]) => value !== "" && value !== undefined && value !== null)
-      .map(([key, value]) => [key, String(value)]),
-  );
-}
 
 export const reportsApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({

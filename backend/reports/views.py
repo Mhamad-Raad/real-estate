@@ -9,22 +9,20 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from common.permissions import IsAdmin
+from common.serializers import DateRangeFilterSerializer
 
 from .selectors import dashboard_stats, process_report, user_report
 
 
-class ReportFilterSerializer(serializers.Serializer):
+class ReportFilterSerializer(DateRangeFilterSerializer):
     """Query-string validation, so a malformed date is a 400 and never a 500."""
+
+    start_field = "date_from"
+    end_field = "date_to"
 
     date_from = serializers.DateField(required=False)
     date_to = serializers.DateField(required=False)
     category = serializers.IntegerField(required=False)
-
-    def validate(self, attrs):
-        date_from, date_to = attrs.get("date_from"), attrs.get("date_to")
-        if date_from and date_to and date_from > date_to:
-            raise serializers.ValidationError("date_from must not be after date_to.")
-        return attrs
 
 
 FORMULA_TRIGGERS = ("=", "+", "-", "@", "\t", "\r")

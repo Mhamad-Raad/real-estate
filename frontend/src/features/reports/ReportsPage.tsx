@@ -1,5 +1,5 @@
 import { Download } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
@@ -21,6 +21,7 @@ import { useListCategoriesQuery } from "@/features/categories/categoriesApi";
 import { PageHeader } from "@/features/common/PageHeader";
 import { TableStateRows } from "@/features/common/TableStateRows";
 import { downloadFile } from "@/features/documents/download";
+import { useDebounced } from "@/hooks/useDebounced";
 import { formatNumber } from "@/lib/format";
 
 import { reportCsvUrl, useGetProcessReportQuery, useGetUserReportQuery } from "./reportsApi";
@@ -30,14 +31,8 @@ export function ReportsPage() {
   const { t, i18n } = useTranslation();
   const token = useAppSelector((s) => s.auth.access);
   const [filters, setFilters] = useState<ReportFilters>({});
-  const [applied, setApplied] = useState<ReportFilters>({});
-
-  // Debounced like the other filtered lists: a date input emits a change per segment typed,
-  // and a half-entered year would otherwise fire a request the server rejects.
-  useEffect(() => {
-    const id = setTimeout(() => setApplied(filters), 300);
-    return () => clearTimeout(id);
-  }, [filters]);
+  // A date input emits a change per segment typed; debounce so one entry is one request.
+  const applied = useDebounced(filters);
 
   const processReport = useGetProcessReportQuery(applied);
   const userReport = useGetUserReportQuery(applied);

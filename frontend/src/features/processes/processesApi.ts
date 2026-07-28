@@ -1,4 +1,5 @@
 import { baseApi } from "@/services/baseApi";
+import { cleanParams } from "@/services/params";
 import type { Paginated } from "@/services/types";
 
 import type {
@@ -10,13 +11,6 @@ import type {
   ProcessListItem,
   ProcessStep,
 } from "./types";
-
-// Strip empty filter values so we don't send `?category=` etc.
-function cleanFilters(filters: ProcessFilters): Record<string, string | number> {
-  return Object.fromEntries(
-    Object.entries(filters).filter(([, v]) => v !== "" && v !== undefined && v !== null),
-  ) as Record<string, string | number>;
-}
 
 /**
  * The tag every process write invalidates, and the one any process-derived query must provide.
@@ -33,7 +27,7 @@ const touch = (id: number) => [{ type: "Process" as const, id }, PROCESS_LIST_TA
 export const processesApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
     listProcesses: builder.query<Paginated<ProcessListItem>, ProcessFilters>({
-      query: (filters) => ({ url: "processes/", params: cleanFilters(filters) }),
+      query: (filters) => ({ url: "processes/", params: cleanParams(filters) }),
       providesTags: [PROCESS_LIST_TAG],
     }),
     getProcess: builder.query<ProcessDetail, number>({

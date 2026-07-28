@@ -94,6 +94,23 @@ class ActivitiesFilterTests(ActivitiesTestBase):
         today = timezone.localtime().date().isoformat()
         self.assertEqual(self._ids(created_after=today), [self.deleted.id])
 
+    def test_malformed_filters_are_400_not_500(self):
+        """Query strings are raw user input; reaching `filter()` unvalidated raises a 500."""
+        for params in (
+            {"actor": "notanumber"},
+            {"created_after": "garbage"},
+            {"action": "nonsense"},
+            {"created_after": "2026-05-02", "created_before": "2026-05-01"},
+        ):
+            response = self.client.get(reverse("activity-list"), params)
+            self.assertEqual(response.status_code, 400, params)
+
+    def test_valid_but_unmatched_filters_return_an_empty_page(self):
+        """A well-formed filter that matches nothing is a 200, not an error."""
+        response = self.client.get(reverse("activity-list"), {"actor": 999999})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["count"], 0)
+
     def test_newest_first(self):
         self.assertEqual(self._ids(), [self.deleted.id, self.created.id])
 

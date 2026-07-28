@@ -15,6 +15,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { PageHeader } from "@/features/common/PageHeader";
+import { useDebounced } from "@/hooks/useDebounced";
 import { Pagination } from "@/features/common/Pagination";
 import { TableStateRows } from "@/features/common/TableStateRows";
 import { formatDate } from "@/lib/format";
@@ -42,14 +43,16 @@ export function ActivitiesPage() {
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<Activity | null>(null);
 
-  const { data, isLoading, isError, refetch } = useListActivitiesQuery({ ...filters, page });
+  // Debounced like every other filtered list: a date input emits a change per segment typed.
+  const applied = useDebounced(filters);
+  const { data, isLoading, isError, refetch } = useListActivitiesQuery({ ...applied, page });
   const { data: vocabulary } = useGetActivityVocabularyQuery();
 
   // Any filter change invalidates the current page number — page 4 of the old result set is
   // meaningless against the new one, and can land the user on an empty page.
   useEffect(() => {
     setPage(1);
-  }, [filters]);
+  }, [applied]);
 
   const set = (key: keyof ActivityFilters, value: string) =>
     setFilters((prev) => ({ ...prev, [key]: value }));
@@ -148,10 +151,21 @@ export function ActivitiesPage() {
                 onRetry={refetch}
               />
               {(data?.results ?? []).map((activity) => (
+                // Keyboard-operable: the detail dialog is the point of this page, so it must
+                // not be mouse-only.
                 <TableRow
                   key={activity.id}
-                  className="cursor-pointer"
+                  role="button"
+                  tabIndex={0}
+                  aria-label={t("activities.viewDetail")}
+                  className="cursor-pointer focus-visible:bg-muted focus-visible:outline-none"
                   onClick={() => setSelected(activity)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      setSelected(activity);
+                    }
+                  }}
                 >
                   <TableCell className="text-muted-foreground">
                     {formatDate(activity.created_at, i18n.language, {
