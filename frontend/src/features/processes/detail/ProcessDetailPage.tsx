@@ -11,6 +11,7 @@ import { PageHeader } from "@/features/common/PageHeader";
 
 import { useGetProcessQuery } from "../processesApi";
 import type { OverallStatus, StepStatus } from "../types";
+import { CompiledCasePanel } from "./CompiledCasePanel";
 import { InstituteStepPanel } from "./InstituteStepPanel";
 import { LawyerNotes } from "./LawyerNotes";
 import { Step1Panel } from "./Step1Panel";
@@ -112,7 +113,16 @@ export function ProcessDetailPage() {
               {(n === 2 || n === 3 || n === 4) && (
                 <InstituteStepPanel process={process} step={n} canEdit={canEdit} />
               )}
-              {n === 5 && <Step5Panel process={process} canEdit={canEdit} isAdmin={isAdmin} />}
+              {n === 5 && (
+                <div className="space-y-4">
+                  <Step5Panel process={process} canEdit={canEdit} isAdmin={isAdmin} />
+                  <CompiledCasePanel
+                    processId={process.id}
+                    documents={process.documents}
+                    canGenerate={canEdit}
+                  />
+                </div>
+              )}
               {n === process.current_step && n < 5 && canEdit && (
                 <StepProceedBar process={process} step={n} missing={missingFor(n)} />
               )}

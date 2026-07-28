@@ -33,6 +33,9 @@ export const generationApi = baseApi.injectEndpoints({
     generateProcessList: builder.mutation<GenerationJob, { process_ids: number[] }>({
       query: (body) => ({ url: "processes/generate-document/", method: "POST", body }),
     }),
+    compileCase: builder.mutation<GenerationJob, { process: number }>({
+      query: ({ process }) => ({ url: `processes/${process}/compile/`, method: "POST", body: {} }),
+    }),
     getGenerationJob: builder.query<GenerationJob, number>({
       query: (id) => `generation-jobs/${id}/`,
     }),
@@ -40,6 +43,7 @@ export const generationApi = baseApi.injectEndpoints({
 });
 
 export const {
+  useCompileCaseMutation,
   useGenerateEligibilityMutation,
   useGenerateProcessListMutation,
   useGetGenerationJobQuery,

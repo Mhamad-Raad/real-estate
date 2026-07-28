@@ -64,13 +64,25 @@
     "loadError": "تعذّر تحميل البيانات.",
     "prev": "السابق",
     "next": "التالي",
-    "pageOf": "صفحة {{page}} من {{pages}}"
+    "pageOf": "صفحة {{page}} من {{pages}}",
+    "noData": "لا توجد بيانات بعد"
   },
   "dashboard": {
     "title": "لوحة المعلومات",
     "welcome": "مرحبًا، {{name}}",
     "subtitle": "هذه هي الواجهة الأساسية للتطبيق. ستُضاف ميزات العمل في المراحل القادمة.",
-    "comingSoon": "قريبًا"
+    "comingSoon": "قريبًا",
+    "weekOf": "أسبوع {{date}}",
+    "clientsThisWeek": "عملاء جدد هذا الأسبوع",
+    "processesThisWeek": "معاملات جديدة هذا الأسبوع",
+    "ofTotal": "من أصل {{total}}",
+    "casesMissingFiles": "معاملات ناقصة المستندات",
+    "acrossSteps": "عبر {{steps}} خطوة",
+    "duplicateFlagged": "مُعلَّم كتكرار",
+    "similarNames": "{{names}} اسم مشابه، للعلم فقط",
+    "byStatus": "المعاملات حسب الحالة",
+    "byStep": "المعاملات حسب الخطوة",
+    "byLawyer": "المعاملات المفتوحة هذا الأسبوع، حسب المحامي"
   },
   "categories": {
     "title": "الفئات",
@@ -205,6 +217,7 @@
     "saveClient": "حفظ بيانات المستفيد",
     "spouseSection": "الزوج/الزوجة",
     "saveLand": "حفظ بيانات الأرض",
+    "similarNameNote": "اسم الأم هنا يشبه سجلاً آخر. غالباً ما يكون أخاً أو أختاً ولا يمنع شيئاً — يستحق نظرة سريعة إذا احتمل خطأ في رقم الهوية.",
     "flaggedNote": "تكرار محتمل — يجب على مدير أن يتجاوزه قبل إتمام هذه المعاملة.",
     "step1": "الخطوة 1 — المراجع والمستندات",
     "step2": "الخطوة 2 — تقديمات الجهات",
@@ -223,7 +236,8 @@
       "RealEstate": "أوراق العقار",
       "SignedAgreement": "الاتفاقية الموقّعة",
       "InstituteDoc": "مستند الجهة",
-      "EligibilityLetter": "كتاب الاستحقاق"
+      "EligibilityLetter": "كتاب الاستحقاق",
+      "CompiledCase": "ملف المعاملة المجمّع"
     },
     "import": "استيراد PDF",
     "upload": "رفع",
@@ -279,7 +293,16 @@
     "noLetterYet": "لم يتم إنشاء أي كتاب بعد.",
     "preview": "معاينة",
     "print": "طباعة",
-    "previewError": "تعذّر تحميل المعاينة."
+    "previewError": "تعذّر تحميل المعاينة.",
+    "compiledSection": "ملف المعاملة المجمّع",
+    "compiledHint": "صفحة ملخّص يليها كل مستندات هذه المعاملة، مدمجة في ملف PDF واحد.",
+    "compile": "تجميع المعاملة",
+    "recompile": "إعادة التجميع",
+    "compiling": "جارٍ التجميع…",
+    "compileStarted": "بدأ تجميع ملف المعاملة…",
+    "compileFailed": "تعذّر تجميع ملف المعاملة.",
+    "compileLocked": "أضف مستنداً واحداً على الأقل قبل التجميع.",
+    "noCompiledYet": "لم يُجمّع بعد."
   },
   "institute": {
     "s2_a": "الجهة S2-A",
@@ -316,5 +339,48 @@
       "process_list": "كتاب قائمة المستفيدين"
     },
     "deleteActiveConfirm": "حذف القالب «{{name}}»؟ إنه القالب الفعّال — لا يمكن إنشاء الكتب حتى يتم تفعيل قالب آخر."
+  },
+  "reports": {
+    "subtitle": "الإنتاجية وحجم العمل ضمن نطاق زمني.",
+    "dateFrom": "من",
+    "dateTo": "إلى",
+    "processesTitle": "المعاملات",
+    "usersTitle": "المحامون",
+    "exportCsv": "تصدير CSV",
+    "exportError": "تعذّر تصدير الملف.",
+    "count": "العدد",
+    "lawyer": "المحامي",
+    "assigned": "مُسند",
+    "totalCases": "(الإجمالي {{total}})"
+  },
+  "activities": {
+    "subtitle": "من فعل ماذا ومتى. هذا السجل لا يمكن تعديله أو حذفه.",
+    "actor": "المستخدم",
+    "actionLabel": "الإجراء",
+    "entity": "السجل",
+    "when": "الوقت",
+    "ip": "IP",
+    "allActors": "كل المستخدمين",
+    "allActions": "كل الإجراءات",
+    "allEntities": "كل السجلات",
+    "empty": "لا يوجد نشاط مطابق",
+    "systemActor": "النظام",
+    "changes": "التغييرات",
+    "field": "الحقل",
+    "before": "قبل",
+    "after": "بعد",
+    "noFieldData": "لا يسجّل هذا القيد أي تغييرات في الحقول.",
+    "action": {
+      "create": "أُنشئ",
+      "update": "حُدّث",
+      "delete": "حُذف",
+      "restore": "استُعيد",
+      "verify": "تم التحقق",
+      "override": "تم التجاوز",
+      "generate": "أُنشئ آلياً",
+      "login": "تسجيل دخول",
+      "logout": "تسجيل خروج"
+    },
+    "viewDetail": "عرض التفاصيل"
   }
 }

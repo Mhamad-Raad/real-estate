@@ -1,0 +1,27 @@
+/** All three come straight from form inputs, so they are strings — `cleanParams` drops blanks. */
+export interface ReportFilters {
+  date_from?: string;
+  date_to?: string;
+  category?: string;
+}
+
+export interface CategoryCount {
+  category_id: number | null;
+  name: string;
+  count: number;
+}
+
+export interface ProcessReport {
+  total: number;
+  by_status: Record<string, number>;
+  by_step: Record<string, number>;
+  by_category: CategoryCount[];
+}
+
+export interface UserReportRow {
+  lawyer_id: number;
+  username: string;
+  assigned: number;
+  in_progress: number;
+  completed: number;
+}

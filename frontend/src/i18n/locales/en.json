@@ -64,13 +64,25 @@
     "loadError": "Could not load data.",
     "prev": "Previous",
     "next": "Next",
-    "pageOf": "Page {{page}} of {{pages}}"
+    "pageOf": "Page {{page}} of {{pages}}",
+    "noData": "No data yet"
   },
   "dashboard": {
     "title": "Dashboard",
     "welcome": "Welcome, {{name}}",
     "subtitle": "This is the application shell. Domain features arrive in the next iterations.",
-    "comingSoon": "Coming soon"
+    "comingSoon": "Coming soon",
+    "weekOf": "Week of {{date}}",
+    "clientsThisWeek": "New clients this week",
+    "processesThisWeek": "New cases this week",
+    "ofTotal": "of {{total}} in total",
+    "casesMissingFiles": "Cases missing files",
+    "acrossSteps": "across {{steps}} step(s)",
+    "duplicateFlagged": "Duplicate flagged",
+    "similarNames": "{{names}} similar name(s), advisory only",
+    "byStatus": "Cases by status",
+    "byStep": "Cases by step",
+    "byLawyer": "Cases opened this week, by lawyer"
   },
   "categories": {
     "title": "Categories",
@@ -205,6 +217,7 @@
     "saveClient": "Save beneficiary details",
     "spouseSection": "Spouse",
     "saveLand": "Save land details",
+    "similarNameNote": "A mother's name here closely matches another record. This is usually a sibling and does not block anything — worth a quick look if the ID may have been mistyped.",
     "flaggedNote": "Possible duplicate — an admin must override before this case can be completed.",
     "step1": "Step 1 — Client & documents",
     "step2": "Step 2 — Institute submissions",
@@ -223,7 +236,8 @@
       "RealEstate": "Real-estate papers",
       "SignedAgreement": "Signed agreement",
       "InstituteDoc": "Institute document",
-      "EligibilityLetter": "Eligibility letter"
+      "EligibilityLetter": "Eligibility letter",
+      "CompiledCase": "Compiled case file"
     },
     "import": "Import PDF",
     "upload": "Upload",
@@ -279,7 +293,16 @@
     "noLetterYet": "No letter has been generated yet.",
     "preview": "Preview",
     "print": "Print",
-    "previewError": "Could not load the preview."
+    "previewError": "Could not load the preview.",
+    "compiledSection": "Compiled case file",
+    "compiledHint": "A summary cover sheet followed by every document on this case, merged into one PDF.",
+    "compile": "Compile case",
+    "recompile": "Recompile",
+    "compiling": "Compiling…",
+    "compileStarted": "Compiling the case file…",
+    "compileFailed": "Could not compile the case file.",
+    "compileLocked": "Attach at least one document before compiling.",
+    "noCompiledYet": "Not compiled yet."
   },
   "institute": {
     "s2_a": "Institute S2-A",
@@ -316,5 +339,48 @@
       "process_list": "Beneficiary list letter"
     },
     "deleteActiveConfirm": "Delete template “{{name}}”? It is the ACTIVE template — letters cannot be generated until another one is activated."
+  },
+  "reports": {
+    "subtitle": "Throughput and workload over a date range.",
+    "dateFrom": "From",
+    "dateTo": "To",
+    "processesTitle": "Cases",
+    "usersTitle": "Lawyers",
+    "exportCsv": "Export CSV",
+    "exportError": "Could not export the file.",
+    "count": "Count",
+    "lawyer": "Lawyer",
+    "assigned": "Assigned",
+    "totalCases": "({{total}} total)"
+  },
+  "activities": {
+    "subtitle": "Who did what, and when. This record cannot be edited or deleted.",
+    "actor": "User",
+    "actionLabel": "Action",
+    "entity": "Record",
+    "when": "When",
+    "ip": "IP",
+    "allActors": "All users",
+    "allActions": "All actions",
+    "allEntities": "All records",
+    "empty": "No matching activity",
+    "systemActor": "System",
+    "changes": "Changes",
+    "field": "Field",
+    "before": "Before",
+    "after": "After",
+    "noFieldData": "This entry records no field changes.",
+    "action": {
+      "create": "Created",
+      "update": "Updated",
+      "delete": "Deleted",
+      "restore": "Restored",
+      "verify": "Verified",
+      "override": "Overridden",
+      "generate": "Generated",
+      "login": "Signed in",
+      "logout": "Signed out"
+    },
+    "viewDetail": "View details"
   }
 }

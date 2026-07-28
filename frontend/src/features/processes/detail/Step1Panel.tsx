@@ -1,4 +1,4 @@
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Info } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -77,6 +77,14 @@ export function Step1Panel({
         <div className="flex items-center gap-2 rounded-md bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-400">
           <AlertTriangle className="size-4 shrink-0" />
           {t("workflow.flaggedNote")}
+        </div>
+      )}
+
+      {/* Advisory only — deliberately muted, since this never blocks the step (§5.7). */}
+      {process.similar_name_flagged && !process.duplicate_flagged && (
+        <div className="flex items-center gap-2 rounded-md bg-muted px-3 py-2 text-sm text-muted-foreground">
+          <Info className="size-4 shrink-0" />
+          {t("workflow.similarNameNote")}
         </div>
       )}
 

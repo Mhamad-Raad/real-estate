@@ -65,6 +65,12 @@ class DuplicateDetectionTests(TestCase):
         self.assertEqual(pid_matches, [])
         self.assertEqual(mother_matches, [])
 
+    def test_partial_overlap_stays_below_the_threshold(self):
+        # Sharing one common given name is not a duplicate signal. Postgres' 0.3 default let
+        # pairs like this through constantly on Kurdish/Arabic names; 0.5 does not.
+        _, mother_matches = duplicate_matches(pid="333", mother_full_name="Nasrin Omar Salih")
+        self.assertEqual(mother_matches, [])
+
 
 class ClientServiceTests(TestCase):
     def test_create_client_writes_audit(self):

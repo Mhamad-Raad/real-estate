@@ -35,7 +35,12 @@ def create_document(
 ) -> Document:
     """Validate a PDF (magic bytes + size), write it under the deterministic path, and create the
     audited row. The file is written first; if the DB row fails, the orphan file is removed."""
-    if len(content) > settings.MAX_UPLOAD_BYTES:
+    # The upload cap bounds what a *user* may send. A system-generated file (the compiled case,
+    # §10.3) merges documents that were each already accepted, so holding it to the same limit
+    # would reject a legitimate export of a large case; it gets the runaway-merge bound instead.
+    generated = input_source == Document.InputSource.SYSTEM_GENERATED
+    limit = settings.MAX_GENERATED_BYTES if generated else settings.MAX_UPLOAD_BYTES
+    if len(content) > limit:
         raise PayloadTooLarge()
     if not filestore.looks_like_pdf(content):
         raise ValidationError({"file": "File is not a valid PDF."})

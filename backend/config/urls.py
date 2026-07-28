@@ -7,9 +7,11 @@ from rest_framework.routers import DefaultRouter
 
 from accounts.views import AssignableLawyersView, UserViewSet
 from catalog.views import CategoryViewSet, DocumentTypesView, InstitutesView
+from common.views import ActivityLogViewSet, ActivityVocabularyView
 from clients.views import ClientViewSet
 from documents.views import DocumentTemplateViewSet, DocumentViewSet, GenerationJobViewSet
 from processes.views import InstituteEntryViewSet, ProcessViewSet
+from reports.views import DashboardView, ProcessReportView, UserReportView
 
 
 def health(_request):
@@ -25,6 +27,7 @@ router.register("institute-entries", InstituteEntryViewSet, basename="institute-
 router.register("documents", DocumentViewSet, basename="document")
 router.register("document-templates", DocumentTemplateViewSet, basename="document-template")
 router.register("generation-jobs", GenerationJobViewSet, basename="generation-job")
+router.register("activities", ActivityLogViewSet, basename="activity")
 
 urlpatterns = [
     path("admin/", admin.site.urls),
@@ -33,5 +36,9 @@ urlpatterns = [
     path("api/v1/institutes/", InstitutesView.as_view(), name="institutes"),
     path("api/v1/document-types/", DocumentTypesView.as_view(), name="document-types"),
     path("api/v1/lawyers/", AssignableLawyersView.as_view(), name="lawyers"),
+    path("api/v1/activity-vocabulary/", ActivityVocabularyView.as_view(), name="activity-vocabulary"),
+    path("api/v1/dashboard/", DashboardView.as_view(), name="dashboard"),
+    path("api/v1/reports/processes/", ProcessReportView.as_view(), name="report-processes"),
+    path("api/v1/reports/users/", UserReportView.as_view(), name="report-users"),
     path("api/v1/", include(router.urls)),
 ]
