@@ -38,11 +38,14 @@ def resplit(apps, schema_editor):
         # would otherwise leave the badge reading "incomplete" until the next unrelated save.
         # The real model and service are used deliberately — the status rules live there, and a
         # historical model carries none of them. Safe because on a fresh DB this loop never runs.
+        # `all_objects`, not `objects`: the default manager is ActiveManager and hides
+        # soft-deleted rows, so a flagged case that was later soft-deleted would raise
+        # DoesNotExist here — the historical queryset above can see it, this one could not.
         from processes.models import Process as LiveProcess
         from processes.services import recompute_step
 
-        for pk in affected:
-            recompute_step(LiveProcess.objects.get(pk=pk), 1)
+        for process in LiveProcess.all_objects.filter(pk__in=affected):
+            recompute_step(process, 1)
 
 
 def noop_reverse(apps, schema_editor):

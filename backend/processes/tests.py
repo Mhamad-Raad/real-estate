@@ -15,7 +15,7 @@ from clients.models import Client
 from common.models import ActivityLog
 
 from .models import DuplicateOverride, Process, ProcessStep
-from .services import create_process, override_duplicate
+from .services import create_process, override_duplicate, recompute_step
 from .status import missing_requirements
 from clients.factories import make_client
 
@@ -79,6 +79,19 @@ class NoLandTwiceTests(TestCase):
         process = self._new_process()
         step = process.steps.get(step_number=1)
         self.assertNotIn("duplicate_flag", missing_requirements(process, 1, step))
+
+    def test_recompute_reaches_a_soft_deleted_process(self):
+        """Guards the trap that broke migration 0006: `objects` is ActiveManager.
+
+        Anything sweeping over historical rows must use `all_objects`, or a soft-deleted row
+        that the sweep selected raises DoesNotExist when it is re-fetched.
+        """
+        process = self._new_process()
+        Process.all_objects.filter(pk=process.pk).update(is_deleted=True)
+
+        self.assertFalse(Process.objects.filter(pk=process.pk).exists())
+        found = Process.all_objects.get(pk=process.pk)
+        self.assertEqual(recompute_step(found, 1).step_number, 1)
 
     def test_no_flags_for_a_clean_client(self):
         clean = _make_client(pid="555")

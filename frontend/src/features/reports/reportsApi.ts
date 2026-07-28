@@ -1,3 +1,4 @@
+import { PROCESS_LIST_TAG } from "@/features/processes/processesApi";
 import { baseApi } from "@/services/baseApi";
 
 import type { ProcessReport, ReportFilters, UserReportRow } from "./types";
@@ -15,11 +16,11 @@ export const reportsApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
     getProcessReport: builder.query<ProcessReport, ReportFilters>({
       query: (filters) => ({ url: "reports/processes/", params: cleanParams(filters) }),
-      providesTags: ["Process"],
+      providesTags: [PROCESS_LIST_TAG],
     }),
     getUserReport: builder.query<UserReportRow[], ReportFilters>({
       query: (filters) => ({ url: "reports/users/", params: cleanParams(filters) }),
-      providesTags: ["Process"],
+      providesTags: [PROCESS_LIST_TAG],
     }),
   }),
 });

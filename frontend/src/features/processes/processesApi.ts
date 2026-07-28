@@ -18,17 +18,23 @@ function cleanFilters(filters: ProcessFilters): Record<string, string | number> 
   ) as Record<string, string | number>;
 }
 
+/**
+ * The tag every process write invalidates, and the one any process-derived query must provide.
+ *
+ * Exported because RTK Query does NOT match a bare `"Process"` tag against this id-scoped one:
+ * a query tagged `["Process"]` never refetches after a case changes. The dashboard and reports
+ * import this constant so the two sides cannot drift apart.
+ */
+export const PROCESS_LIST_TAG = { type: "Process" as const, id: "LIST" };
+
 // A change to any step/entry/document re-fetches that process's detail AND the list (badges).
-const touch = (id: number) => [
-  { type: "Process" as const, id },
-  { type: "Process" as const, id: "LIST" },
-];
+const touch = (id: number) => [{ type: "Process" as const, id }, PROCESS_LIST_TAG];
 
 export const processesApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
     listProcesses: builder.query<Paginated<ProcessListItem>, ProcessFilters>({
       query: (filters) => ({ url: "processes/", params: cleanFilters(filters) }),
-      providesTags: [{ type: "Process", id: "LIST" }],
+      providesTags: [PROCESS_LIST_TAG],
     }),
     getProcess: builder.query<ProcessDetail, number>({
       query: (id) => `processes/${id}/`,
@@ -36,11 +42,11 @@ export const processesApi = baseApi.injectEndpoints({
     }),
     createProcess: builder.mutation<ProcessListItem, ProcessCreateInput>({
       query: (body) => ({ url: "processes/", method: "POST", body }),
-      invalidatesTags: [{ type: "Process", id: "LIST" }],
+      invalidatesTags: [PROCESS_LIST_TAG],
     }),
     deleteProcess: builder.mutation<void, number>({
       query: (id) => ({ url: `processes/${id}/`, method: "DELETE" }),
-      invalidatesTags: [{ type: "Process", id: "LIST" }],
+      invalidatesTags: [PROCESS_LIST_TAG],
     }),
     updateProcess: builder.mutation<
       ProcessDetail,

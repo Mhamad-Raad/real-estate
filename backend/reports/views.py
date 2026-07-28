@@ -27,6 +27,20 @@ class ReportFilterSerializer(serializers.Serializer):
         return attrs
 
 
+FORMULA_TRIGGERS = ("=", "+", "-", "@", "\t", "\r")
+
+
+def _defuse(value):
+    """Neutralise CSV formula injection before Excel evaluates it.
+
+    A category or username the office typed — `=1+1`, or `=cmd|'/C calc'!A0` — is a formula to
+    Excel the moment the export is opened, not text. Django's validators allow `+`/`-` in a
+    username, so this reaches real data. Prefixing with an apostrophe forces a literal string.
+    """
+    text = str(value)
+    return f"'{text}" if text.startswith(FORMULA_TRIGGERS) else text
+
+
 def _csv_response(filename: str, header: list[str], rows) -> HttpResponse:
     response = HttpResponse(content_type="text/csv; charset=utf-8")
     response["Content-Disposition"] = f'attachment; filename="{filename}"'
@@ -34,7 +48,7 @@ def _csv_response(filename: str, header: list[str], rows) -> HttpResponse:
     response.write("﻿")
     writer = csv.writer(response)
     writer.writerow(header)
-    writer.writerows(rows)
+    writer.writerows([_defuse(cell) for cell in row] for row in rows)
     return response
 
 

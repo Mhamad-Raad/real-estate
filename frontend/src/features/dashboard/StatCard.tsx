@@ -1,7 +1,9 @@
 import type { LucideIcon } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { formatNumber } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 interface StatCardProps {
@@ -12,18 +14,11 @@ interface StatCardProps {
   loading?: boolean;
   /** Muted by default; `attention` marks a backlog figure worth acting on. */
   tone?: "default" | "attention";
-  formatNumber: (n: number) => string;
 }
 
-export function StatCard({
-  label,
-  value,
-  hint,
-  icon: Icon,
-  loading,
-  tone = "default",
-  formatNumber,
-}: StatCardProps) {
+export function StatCard({ label, value, hint, icon: Icon, loading, tone = "default" }: StatCardProps) {
+  const { i18n } = useTranslation();
+
   return (
     <Card>
       <CardContent className="flex items-start gap-3 p-4">
@@ -42,7 +37,7 @@ export function StatCard({
           {loading ? (
             <Skeleton className="h-7 w-14" />
           ) : (
-            <p className="text-2xl font-semibold tabular-nums">{formatNumber(value ?? 0)}</p>
+            <p className="text-2xl font-semibold tabular-nums">{formatNumber(value ?? 0, i18n.language)}</p>
           )}
           {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
         </div>

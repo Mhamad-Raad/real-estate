@@ -1,7 +1,8 @@
+/** All three come straight from form inputs, so they are strings — `cleanParams` drops blanks. */
 export interface ReportFilters {
   date_from?: string;
   date_to?: string;
-  category?: number | "";
+  category?: string;
 }
 
 export interface CategoryCount {

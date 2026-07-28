@@ -1,3 +1,4 @@
+import { PROCESS_LIST_TAG } from "@/features/processes/processesApi";
 import { baseApi } from "@/services/baseApi";
 
 import type { DashboardStats } from "./types";
@@ -6,8 +7,8 @@ export const dashboardApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
     getDashboard: builder.query<DashboardStats, void>({
       query: () => ({ url: "dashboard/" }),
-      // Every figure is derived from processes, so any process write makes these stale.
-      providesTags: ["Process"],
+      // Shares the tag processesApi invalidates; a bare "Process" would never match it.
+      providesTags: [PROCESS_LIST_TAG],
     }),
   }),
 });

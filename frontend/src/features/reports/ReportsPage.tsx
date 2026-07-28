@@ -1,5 +1,5 @@
 import { Download } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
@@ -30,9 +30,17 @@ export function ReportsPage() {
   const { t, i18n } = useTranslation();
   const token = useAppSelector((s) => s.auth.access);
   const [filters, setFilters] = useState<ReportFilters>({});
+  const [applied, setApplied] = useState<ReportFilters>({});
 
-  const processReport = useGetProcessReportQuery(filters);
-  const userReport = useGetUserReportQuery(filters);
+  // Debounced like the other filtered lists: a date input emits a change per segment typed,
+  // and a half-entered year would otherwise fire a request the server rejects.
+  useEffect(() => {
+    const id = setTimeout(() => setApplied(filters), 300);
+    return () => clearTimeout(id);
+  }, [filters]);
+
+  const processReport = useGetProcessReportQuery(applied);
+  const userReport = useGetUserReportQuery(applied);
   const { data: categories } = useListCategoriesQuery({});
 
   const num = (n: number) => formatNumber(n, i18n.language);
@@ -41,7 +49,7 @@ export function ReportsPage() {
 
   const exportCsv = async (kind: "processes" | "users") => {
     try {
-      await downloadFile(reportCsvUrl(kind, filters), `${kind}-report.csv`, token);
+      await downloadFile(reportCsvUrl(kind, applied), `${kind}-report.csv`, token);
     } catch {
       toast.error(t("reports.exportError"));
     }
@@ -77,7 +85,7 @@ export function ReportsPage() {
             <Label htmlFor="rp-cat">{t("processes.category")}</Label>
             <Select
               id="rp-cat"
-              value={String(filters.category ?? "")}
+              value={filters.category ?? ""}
               onChange={(e) => set("category", e.target.value)}
             >
               <option value="">{t("processes.filters.allCategories")}</option>
@@ -97,7 +105,7 @@ export function ReportsPage() {
             {t("reports.processesTitle")}
             {processReport.data && (
               <span className="ms-2 text-muted-foreground">
-                {t("reports.totalCases", { count: processReport.data.total })}
+                {t("reports.totalCases", { total: num(processReport.data.total) })}
               </span>
             )}
           </CardTitle>

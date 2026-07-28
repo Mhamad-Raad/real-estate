@@ -132,6 +132,26 @@ class ReportFilterTests(ReportsTestBase):
         self.assertEqual(len(rows), 1)
         self.assertEqual((rows[0]["assigned"], rows[0]["completed"]), (2, 1))
 
+    def test_csv_neutralises_formula_injection(self):
+        """A name Excel would execute must be exported as text (§12 input safety)."""
+        self.category.name = "=1+1"
+        self.category.save(update_fields=["name"])
+        self._process("601")
+        self.client.force_authenticate(self.admin)
+
+        body = self.client.get(reverse("report-processes"), {"export": "csv"}).content.decode()
+        self.assertIn("'=1+1", body)
+        self.assertNotIn(",=1+1", body)
+
+    def test_csv_neutralises_a_formula_username(self):
+        # Django's username validator permits `+` and `-`, so this reaches the users report.
+        lawyer = User.objects.create_user(username="+1+1", password="pw12345678")
+        self._process("602", lawyer=lawyer)
+        self.client.force_authenticate(self.admin)
+
+        body = self.client.get(reverse("report-users"), {"export": "csv"}).content.decode()
+        self.assertIn("'+1+1", body)
+
     def test_csv_export_is_utf8_with_bom(self):
         self._process("501")
         self.client.force_authenticate(self.admin)

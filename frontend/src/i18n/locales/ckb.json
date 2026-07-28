@@ -77,9 +77,9 @@
     "processesThisWeek": "کەیسی نوێی ئەم هەفتەیە",
     "ofTotal": "لە کۆی {{total}}",
     "casesMissingFiles": "کەیسی کەم‌بەڵگە",
-    "acrossSteps": "بەسەر {{count}} هەنگاودا",
+    "acrossSteps": "بەسەر {{steps}} هەنگاودا",
     "duplicateFlagged": "نیشانەکراوی دووبارە",
-    "similarNames": "{{count}} ناوی هاوشێوە، تەنها ئاگادارکردنەوە",
+    "similarNames": "{{names}} ناوی هاوشێوە، تەنها ئاگادارکردنەوە",
     "byStatus": "کەیسەکان بەپێی دۆخ",
     "byStep": "کەیسەکان بەپێی هەنگاو",
     "byLawyer": "کەیسە کراوەکانی ئەم هەفتەیە، بەپێی پارێزەر"
@@ -341,6 +341,6 @@
     "count": "ژمارە",
     "lawyer": "پارێزەر",
     "assigned": "دیاریکراو",
-    "totalCases": "({{count}} بە گشتی)"
+    "totalCases": "({{total}} بە گشتی)"
   }
 }

@@ -76,7 +76,6 @@ export function DashboardPage() {
           value={data?.clients_this_week}
           icon={UserPlus}
           loading={isLoading}
-          formatNumber={num}
         />
         <StatCard
           label={t("dashboard.processesThisWeek")}
@@ -84,25 +83,22 @@ export function DashboardPage() {
           hint={t("dashboard.ofTotal", { total: num(data?.processes_total ?? 0) })}
           icon={FolderKanban}
           loading={isLoading}
-          formatNumber={num}
         />
         <StatCard
           label={t("dashboard.casesMissingFiles")}
           value={data?.processes_missing_files}
-          hint={t("dashboard.acrossSteps", { count: data?.steps_missing_files ?? 0 })}
+          hint={t("dashboard.acrossSteps", { steps: num(data?.steps_missing_files ?? 0) })}
           icon={FileWarning}
           loading={isLoading}
           tone="attention"
-          formatNumber={num}
         />
         <StatCard
           label={t("dashboard.duplicateFlagged")}
           value={data?.duplicate_flagged}
-          hint={t("dashboard.similarNames", { count: data?.similar_name_flagged ?? 0 })}
+          hint={t("dashboard.similarNames", { names: num(data?.similar_name_flagged ?? 0) })}
           icon={data?.duplicate_flagged ? AlertTriangle : Info}
           loading={isLoading}
           tone={data?.duplicate_flagged ? "attention" : "default"}
-          formatNumber={num}
         />
       </div>
 

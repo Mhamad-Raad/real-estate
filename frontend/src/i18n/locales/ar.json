@@ -77,9 +77,9 @@
     "processesThisWeek": "معاملات جديدة هذا الأسبوع",
     "ofTotal": "من أصل {{total}}",
     "casesMissingFiles": "معاملات ناقصة المستندات",
-    "acrossSteps": "عبر {{count}} خطوة",
+    "acrossSteps": "عبر {{steps}} خطوة",
     "duplicateFlagged": "مُعلَّم كتكرار",
-    "similarNames": "{{count}} اسم مشابه، للعلم فقط",
+    "similarNames": "{{names}} اسم مشابه، للعلم فقط",
     "byStatus": "المعاملات حسب الحالة",
     "byStep": "المعاملات حسب الخطوة",
     "byLawyer": "المعاملات المفتوحة هذا الأسبوع، حسب المحامي"
@@ -341,6 +341,6 @@
     "count": "العدد",
     "lawyer": "المحامي",
     "assigned": "مُسند",
-    "totalCases": "(الإجمالي {{count}})"
+    "totalCases": "(الإجمالي {{total}})"
   }
 }
