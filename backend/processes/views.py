@@ -10,6 +10,7 @@ from rest_framework.viewsets import ModelViewSet
 
 from common.permissions import IsAdmin, IsProcessAssigneeOrAdmin
 from common.viewsets import AuditedSoftDeleteViewSet
+from documents.compile import start_compile_case_job
 from documents.generation import start_eligibility_job, start_process_list_job
 from documents.serializers import GenerationJobSerializer
 
@@ -156,6 +157,18 @@ class ProcessViewSet(AuditedSoftDeleteViewSet, ModelViewSet):
         never a requirement of it — requiring it would deadlock the step it depends on (§0)."""
         process = self.get_object()  # write action: assignee or admin only
         job = start_eligibility_job(
+            process=process,
+            actor=request.user,
+            template_id=request.data.get("template"),
+            request=request,
+        )
+        return Response(GenerationJobSerializer(job).data, status=status.HTTP_202_ACCEPTED)
+
+    @action(detail=True, methods=["post"], url_path="compile")
+    def compile_case(self, request, pk=None):
+        """Queue the Step-5 compiled export: summary cover sheet + every document (§10.3)."""
+        process = self.get_object()  # write action: assignee or admin only
+        job = start_compile_case_job(
             process=process,
             actor=request.user,
             template_id=request.data.get("template"),

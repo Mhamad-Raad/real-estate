@@ -236,7 +236,8 @@
       "RealEstate": "Real-estate papers",
       "SignedAgreement": "Signed agreement",
       "InstituteDoc": "Institute document",
-      "EligibilityLetter": "Eligibility letter"
+      "EligibilityLetter": "Eligibility letter",
+      "CompiledCase": "Compiled case file"
     },
     "import": "Import PDF",
     "upload": "Upload",
@@ -292,7 +293,16 @@
     "noLetterYet": "No letter has been generated yet.",
     "preview": "Preview",
     "print": "Print",
-    "previewError": "Could not load the preview."
+    "previewError": "Could not load the preview.",
+    "compiledSection": "Compiled case file",
+    "compiledHint": "A summary cover sheet followed by every document on this case, merged into one PDF.",
+    "compile": "Compile case",
+    "recompile": "Recompile",
+    "compiling": "Compiling…",
+    "compileStarted": "Compiling the case file…",
+    "compileFailed": "Could not compile the case file.",
+    "compileLocked": "Attach at least one document before compiling.",
+    "noCompiledYet": "Not compiled yet."
   },
   "institute": {
     "s2_a": "Institute S2-A",

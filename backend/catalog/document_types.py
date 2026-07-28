@@ -35,6 +35,8 @@ DOCUMENT_TYPES: list[DocumentType] = [
     ),
     # Steps 2–4 attach one generic document per institute entry, not a fixed named set.
     DocumentType("InstituteDoc", "workflow.docType.InstituteDoc", None, False),
+    # The Step-5 compiled export: system output, never an upload slot (§10.3).
+    DocumentType("CompiledCase", "workflow.docType.CompiledCase", 5, False, generated=True),
 ]
 
 DOCUMENT_TYPE_CODES = frozenset(dt.code for dt in DOCUMENT_TYPES)

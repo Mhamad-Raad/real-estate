@@ -236,7 +236,8 @@
       "RealEstate": "أوراق العقار",
       "SignedAgreement": "الاتفاقية الموقّعة",
       "InstituteDoc": "مستند الجهة",
-      "EligibilityLetter": "كتاب الاستحقاق"
+      "EligibilityLetter": "كتاب الاستحقاق",
+      "CompiledCase": "ملف المعاملة المجمّع"
     },
     "import": "استيراد PDF",
     "upload": "رفع",
@@ -292,7 +293,16 @@
     "noLetterYet": "لم يتم إنشاء أي كتاب بعد.",
     "preview": "معاينة",
     "print": "طباعة",
-    "previewError": "تعذّر تحميل المعاينة."
+    "previewError": "تعذّر تحميل المعاينة.",
+    "compiledSection": "ملف المعاملة المجمّع",
+    "compiledHint": "صفحة ملخّص يليها كل مستندات هذه المعاملة، مدمجة في ملف PDF واحد.",
+    "compile": "تجميع المعاملة",
+    "recompile": "إعادة التجميع",
+    "compiling": "جارٍ التجميع…",
+    "compileStarted": "بدأ تجميع ملف المعاملة…",
+    "compileFailed": "تعذّر تجميع ملف المعاملة.",
+    "compileLocked": "أضف مستنداً واحداً على الأقل قبل التجميع.",
+    "noCompiledYet": "لم يُجمّع بعد."
   },
   "institute": {
     "s2_a": "الجهة S2-A",
