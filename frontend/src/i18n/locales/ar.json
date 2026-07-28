@@ -342,5 +342,34 @@
     "lawyer": "المحامي",
     "assigned": "مُسند",
     "totalCases": "(الإجمالي {{total}})"
+  },
+  "activities": {
+    "subtitle": "من فعل ماذا ومتى. هذا السجل لا يمكن تعديله أو حذفه.",
+    "actor": "المستخدم",
+    "actionLabel": "الإجراء",
+    "entity": "السجل",
+    "when": "الوقت",
+    "ip": "IP",
+    "allActors": "كل المستخدمين",
+    "allActions": "كل الإجراءات",
+    "allEntities": "كل السجلات",
+    "empty": "لا يوجد نشاط مطابق",
+    "systemActor": "النظام",
+    "changes": "التغييرات",
+    "field": "الحقل",
+    "before": "قبل",
+    "after": "بعد",
+    "noFieldData": "لا يسجّل هذا القيد أي تغييرات في الحقول.",
+    "action": {
+      "create": "أُنشئ",
+      "update": "حُدّث",
+      "delete": "حُذف",
+      "restore": "استُعيد",
+      "verify": "تم التحقق",
+      "override": "تم التجاوز",
+      "generate": "أُنشئ آلياً",
+      "login": "تسجيل دخول",
+      "logout": "تسجيل خروج"
+    }
   }
 }

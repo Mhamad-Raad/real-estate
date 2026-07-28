@@ -342,5 +342,34 @@
     "lawyer": "Lawyer",
     "assigned": "Assigned",
     "totalCases": "({{total}} total)"
+  },
+  "activities": {
+    "subtitle": "Who did what, and when. This record cannot be edited or deleted.",
+    "actor": "User",
+    "actionLabel": "Action",
+    "entity": "Record",
+    "when": "When",
+    "ip": "IP",
+    "allActors": "All users",
+    "allActions": "All actions",
+    "allEntities": "All records",
+    "empty": "No matching activity",
+    "systemActor": "System",
+    "changes": "Changes",
+    "field": "Field",
+    "before": "Before",
+    "after": "After",
+    "noFieldData": "This entry records no field changes.",
+    "action": {
+      "create": "Created",
+      "update": "Updated",
+      "delete": "Deleted",
+      "restore": "Restored",
+      "verify": "Verified",
+      "override": "Overridden",
+      "generate": "Generated",
+      "login": "Signed in",
+      "logout": "Signed out"
+    }
   }
 }

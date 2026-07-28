@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 
 import { Toaster } from "@/components/ui/toaster";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { ActivitiesPage } from "@/features/activities/ActivitiesPage";
 import { AdminRoute } from "@/features/auth/AdminRoute";
 import { LoginPage } from "@/features/auth/LoginPage";
 import { ProtectedRoute } from "@/features/auth/ProtectedRoute";
@@ -28,10 +29,10 @@ export default function App() {
             <Route path="clients" element={<ClientsPage />} />
             <Route path="processes" element={<ProcessesPage />} />
             <Route path="processes/:id" element={<ProcessDetailPage />} />
-            <Route path="activities" element={<PlaceholderPage titleKey="nav.activities" />} />
             {/* Admin-only management screens (server enforces RBAC too). */}
             <Route element={<AdminRoute />}>
               <Route path="reports" element={<ReportsPage />} />
+              <Route path="activities" element={<ActivitiesPage />} />
               <Route path="categories" element={<CategoriesPage />} />
               <Route path="templates" element={<TemplatesPage />} />
               <Route path="users" element={<UsersPage />} />
