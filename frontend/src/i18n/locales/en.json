@@ -12,7 +12,8 @@
     "categories": "Categories",
     "users": "Users",
     "settings": "Settings",
-    "templates": "Templates"
+    "templates": "Templates",
+    "scanCard": "Scan a card"
   },
   "auth": {
     "title": "Sign in",
@@ -382,5 +383,48 @@
       "logout": "Signed out"
     },
     "viewDetail": "View details"
+  },
+  "cardScan": {
+    "title": "Scan an ID card",
+    "subtitle": "Photograph the card and the beneficiary's record is created from what it says.",
+    "backToClients": "Back to beneficiaries",
+    "front": "Front of the card",
+    "frontHint": "Names and card number",
+    "back": "Back of the card",
+    "backHint": "Machine-readable zone — gives the dates",
+    "noImage": "No image yet",
+    "useCamera": "Use camera",
+    "chooseFile": "Choose a file",
+    "shoot": "Take the photo",
+    "retake": "Retake",
+    "cameraDenied": "Could not open the camera. Choose a file instead.",
+    "read": "Read the card",
+    "reading": "Reading the card…",
+    "noBackNote": "Without the back, the dates cannot be checked automatically.",
+    "uploadError": "Could not send the card. Please try again.",
+    "readingDone": "The card has been read — please check every field.",
+    "readingFailed": "The card could not be read. Enter the details by hand.",
+    "readingFailedTitle": "The card could not be read",
+    "readingFailedBody": "The scan has been kept. Type the details from the card and confirm them as usual.",
+    "scannedCard": "The scanned card",
+    "previewError": "Could not show the scan.",
+    "field": {
+      "full_name": "Full name",
+      "pid": "Card number (national ID)",
+      "mother_full_name": "Mother's full name",
+      "date_of_birth": "Date of birth"
+    },
+    "fromOcr": "From OCR ({{confidence}}%) — please confirm",
+    "crossChecked": "Cross-checked",
+    "corrected": "You corrected this",
+    "lowConfidence": "The reading was uncertain here — check it against the card.",
+    "matchWarning": "I have checked these details against the card and they match.",
+    "confirmAndSave": "Confirm and create the beneficiary",
+    "fillEveryField": "Every field is needed before the record can be created.",
+    "confirmed": "The beneficiary, the case and the card have been saved.",
+    "confirmError": "Could not save. Please check the details and try again.",
+    "selectLawyer": "Select a lawyer…",
+    "pickLawyer": "Choose the lawyer who will handle this case.",
+    "startOver": "Start over with a new card"
   }
 }

@@ -2,7 +2,7 @@
 
 import tempfile
 from datetime import date, timedelta
-from io import StringIO
+from io import BytesIO, StringIO
 from pathlib import Path
 from unittest import mock
 
@@ -63,9 +63,8 @@ class ScanTestBase(APITestCase):
 
     def _scan(self, **kwargs):
         """A staged scan with its file actually on disk, as staging leaves it."""
-        content = kwargs.pop("content", make_pdf())
         return stage_scan(
-            content=content,
+            content=kwargs.pop("content", make_pdf()),
             document_type=kwargs.pop("document_type", "ClientID"),
             actor=kwargs.pop("actor", self.lawyer),
             **kwargs,
@@ -104,6 +103,42 @@ class StagingTests(ScanTestBase):
 
         stored = (settings.DOCUMENTS_ROOT / scan.file_path).read_bytes()
         self.assertTrue(filestore.is_readable_pdf(stored))
+
+    def test_both_sides_become_one_two_page_pdf(self):
+        """A card is one document with two sides — one row, one file, and the reader sees both
+        sides together, which is what makes the front↔MRZ cross-check possible."""
+        from pypdf import PdfReader
+
+        scan = self._scan(content=make_pdf(), back=make_pdf())
+        stored = (settings.DOCUMENTS_ROOT / scan.file_path).read_bytes()
+
+        self.assertEqual(len(PdfReader(BytesIO(stored)).pages), 2)
+        self.assertEqual(CardScan.objects.count(), 1)
+
+    def test_two_photographs_merge_into_one_pdf(self):
+        from PIL import Image
+        from pypdf import PdfReader
+
+        def jpeg(colour):
+            buffer = BytesIO()
+            Image.new("RGB", (60, 40), colour).save(buffer, format="JPEG")
+            return buffer.getvalue()
+
+        scan = self._scan(content=jpeg((255, 0, 0)), back=jpeg((0, 0, 255)))
+        stored = (settings.DOCUMENTS_ROOT / scan.file_path).read_bytes()
+        self.assertEqual(len(PdfReader(BytesIO(stored)).pages), 2)
+
+    def test_the_back_is_optional(self):
+        from pypdf import PdfReader
+
+        scan = self._scan(content=make_pdf())
+        stored = (settings.DOCUMENTS_ROOT / scan.file_path).read_bytes()
+        self.assertEqual(len(PdfReader(BytesIO(stored)).pages), 1)
+
+    def test_a_malformed_back_is_refused(self):
+        with self.assertRaises(ValidationError) as caught:
+            self._scan(content=make_pdf(), back=b"\xff\xd8\xff" + b"garbage" * 50)
+        self.assertIn("back", caught.exception.detail)
 
     def test_only_identity_cards_can_be_staged(self):
         with self.assertRaises(ValidationError):

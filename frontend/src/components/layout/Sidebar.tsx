@@ -5,6 +5,7 @@ import {
   FolderKanban,
   UserCog,
   FileBarChart,
+  ScanLine,
   ScrollText,
   Settings,
   Tags,
@@ -27,6 +28,7 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { to: "/", labelKey: "nav.dashboard", icon: LayoutDashboard },
   { to: "/clients", labelKey: "nav.clients", icon: Users },
+  { to: "/scan-card", labelKey: "nav.scanCard", icon: ScanLine },
   { to: "/processes", labelKey: "nav.processes", icon: FolderKanban },
   { to: "/reports", labelKey: "nav.reports", icon: FileBarChart, adminOnly: true },
   { to: "/activities", labelKey: "nav.activities", icon: ScrollText, adminOnly: true },

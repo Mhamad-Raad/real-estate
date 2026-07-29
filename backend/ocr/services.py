@@ -40,8 +40,29 @@ SPOUSE_FIELD_MAP = {
 IDENTITY_STEP = 1
 
 
-def stage_scan(*, content: bytes, document_type: str, actor, original_filename="", request=None):
+def _to_pdf(content: bytes, *, label: str) -> bytes:
+    """One uploaded side, validated and normalised to PDF."""
+    # A photographed ID arrives as a JPEG; convert on arrival so the store holds PDFs only and
+    # every downstream reader (review pane, OCR, compile) has exactly one format to handle.
+    if filestore.looks_like_image(content):
+        try:
+            return filestore.image_to_pdf(content)
+        except Exception as exc:
+            # Truncated, mislabelled or hostile image data is a bad upload, not a server fault.
+            raise ValidationError({label: "File is not a readable image."}) from exc
+    if not filestore.is_readable_pdf(content):
+        raise ValidationError({label: "File is not a readable PDF."})
+    return content
+
+
+def stage_scan(
+    *, content: bytes, document_type: str, actor, back=None, original_filename="", request=None
+):
     """Accept a photographed card, write it to staging, and queue the reading.
+
+    Both sides become **one** PDF — front on page 1, back on page 2. A card is a single document,
+    so it gets a single row and a single file in the case folder; it also gives the reader both
+    sides together, which is what makes the front↔MRZ cross-check possible (§6.2).
 
     The file is written to disk before anything else: a photograph that exists only in a browser
     tab is one closed window away from making the lawyer fetch the citizen back (§2.5).
@@ -50,19 +71,12 @@ def stage_scan(*, content: bytes, document_type: str, actor, original_filename="
 
     if document_type not in IDENTITY_TYPE_CODES:
         raise ValidationError({"document_type": "Only identity cards can be read."})
-    if len(content) > settings.MAX_UPLOAD_BYTES:
+    if len(content) + len(back or b"") > settings.MAX_UPLOAD_BYTES:
         raise PayloadTooLarge()
 
-    # A photographed ID arrives as a JPEG; convert on arrival so the store holds PDFs only and
-    # every downstream reader (review pane, OCR, compile) has exactly one format to handle.
-    if filestore.looks_like_image(content):
-        try:
-            content = filestore.image_to_pdf(content)
-        except Exception as exc:
-            # Truncated, mislabelled or hostile image data is a bad upload, not a server fault.
-            raise ValidationError({"file": "File is not a readable image."}) from exc
-    if not filestore.is_readable_pdf(content):
-        raise ValidationError({"file": "File is not a readable PDF."})
+    content = _to_pdf(content, label="front")
+    if back:
+        content = filestore.merge_pdfs([content, _to_pdf(back, label="back")])
 
     rel = filestore.staging_path(filestore.short_id())
     filestore.write_pdf(rel, content)

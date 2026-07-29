@@ -64,6 +64,24 @@ def image_to_pdf(content: bytes) -> bytes:
     return buffer.getvalue()
 
 
+def merge_pdfs(parts: list[bytes]) -> bytes:
+    """Join already-validated PDFs into one, in order.
+
+    An ID card is one document with two sides, so the front and back belong in a single file:
+    one row, one entry in the case folder, and a reader that sees page 1 and page 2 of the same
+    card rather than two loose scans it has to pair up.
+    """
+    from pypdf import PdfWriter
+
+    writer = PdfWriter()
+    for part in parts:
+        for page in PdfReader(BytesIO(part)).pages:
+            writer.add_page(page)
+    buffer = BytesIO()
+    writer.write(buffer)
+    return buffer.getvalue()
+
+
 def is_readable_pdf(content: bytes) -> bool:
     """Parse the file rather than trusting its first five bytes.
 

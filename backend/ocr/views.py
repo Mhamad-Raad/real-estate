@@ -36,7 +36,11 @@ class CardScanSerializer(serializers.ModelSerializer):
 
 
 class StageScanSerializer(serializers.Serializer):
+    """Both sides of one card. The back is optional — a lawyer may photograph only the front,
+    which costs the MRZ (and so the check-digit-verified dates), and the draft says so."""
+
     file = serializers.FileField()
+    back = serializers.FileField(required=False, allow_null=True)
     document_type = serializers.CharField(max_length=60)
 
 
@@ -97,8 +101,10 @@ class CardScanViewSet(RetrieveModelMixin, GenericViewSet):
         payload = StageScanSerializer(data=request.data)
         payload.is_valid(raise_exception=True)
         upload = payload.validated_data["file"]
+        back = payload.validated_data.get("back")
         scan = stage_scan(
             content=upload.read(),
+            back=back.read() if back else None,
             document_type=payload.validated_data["document_type"],
             actor=request.user,
             original_filename=getattr(upload, "name", ""),
