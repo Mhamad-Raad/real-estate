@@ -17,18 +17,10 @@ from processes.services import create_process
 from .compile import COMPILED_DOC_TYPE, documents_in_step_order, merge_pdfs, run_compile_case_job
 from .models import Document, DocumentTemplate, GenerationJob
 from .rendering import RenderError
+from .factories import make_pdf
 from .letters import to_arabic_indic
 from .services import PayloadTooLarge, create_document
 from .summary import case_summary_context
-
-
-def one_page_pdf() -> bytes:
-    """A real, minimal PDF — `create_document` validates magic bytes, so a stub won't do."""
-    writer = PdfWriter()
-    writer.add_blank_page(width=200, height=200)
-    buffer = BytesIO()
-    writer.write(buffer)
-    return buffer.getvalue()
 
 
 class CompileTestBase(TestCase):
@@ -47,7 +39,7 @@ class CompileTestBase(TestCase):
             step_number=step,
             document_type=doc_type,
             input_source=Document.InputSource.IMPORTED,
-            content=one_page_pdf(),
+            content=make_pdf(),
             actor=self.admin,
         )
 
@@ -69,7 +61,7 @@ class OrderingTests(CompileTestBase):
             step_number=5,
             document_type=COMPILED_DOC_TYPE,
             input_source=Document.InputSource.SYSTEM_GENERATED,
-            content=one_page_pdf(),
+            content=make_pdf(),
             actor=self.admin,
         )
         types = [d.document_type for d in documents_in_step_order(self.process)]
@@ -79,7 +71,7 @@ class OrderingTests(CompileTestBase):
 class MergeTests(CompileTestBase):
     def test_summary_first_then_every_attachment(self):
         docs = [self._document(1, "ClientID"), self._document(2)]
-        merged = merge_pdfs(one_page_pdf(), docs)
+        merged = merge_pdfs(make_pdf(), docs)
         # 1 summary page + 1 page per attachment.
         self.assertEqual(len(PdfReader(BytesIO(merged)).pages), 3)
 
@@ -89,7 +81,7 @@ class MergeTests(CompileTestBase):
         (Path(settings.DOCUMENTS_ROOT) / document.file_path).unlink()
 
         with self.assertRaises(RenderError) as caught:
-            merge_pdfs(one_page_pdf(), [document])
+            merge_pdfs(make_pdf(), [document])
         self.assertIn(str(document.id), str(caught.exception))
 
     def test_an_unreadable_file_fails_loudly(self):
@@ -97,7 +89,7 @@ class MergeTests(CompileTestBase):
         (Path(settings.DOCUMENTS_ROOT) / document.file_path).write_bytes(b"%PDF-1.4 truncated")
 
         with self.assertRaises(RenderError):
-            merge_pdfs(one_page_pdf(), [document])
+            merge_pdfs(make_pdf(), [document])
 
 
 class CompileJobTests(CompileTestBase):
@@ -155,7 +147,7 @@ class SummaryContextTests(CompileTestBase):
             step_number=5,
             document_type=COMPILED_DOC_TYPE,
             input_source=Document.InputSource.SYSTEM_GENERATED,
-            content=one_page_pdf(),
+            content=make_pdf(),
             actor=self.admin,
         )
         attachments = documents_in_step_order(self.process)
@@ -169,7 +161,7 @@ class GeneratedSizeTests(CompileTestBase):
     def test_a_large_generated_file_is_not_held_to_the_upload_cap(self):
         """The compiled case merges files each already accepted; the upload cap must not
         reject a legitimate export of a large case (§10.3)."""
-        oversized = one_page_pdf() + b"\n%" + b"x" * (settings.MAX_UPLOAD_BYTES + 1024)
+        oversized = make_pdf() + b"\n%" + b"x" * (settings.MAX_UPLOAD_BYTES + 1024)
 
         document = create_document(
             process=self.process,
@@ -182,7 +174,7 @@ class GeneratedSizeTests(CompileTestBase):
         self.assertGreater(document.size_bytes, settings.MAX_UPLOAD_BYTES)
 
     def test_an_upload_is_still_capped(self):
-        oversized = one_page_pdf() + b"\n%" + b"x" * (settings.MAX_UPLOAD_BYTES + 1024)
+        oversized = make_pdf() + b"\n%" + b"x" * (settings.MAX_UPLOAD_BYTES + 1024)
 
         with self.assertRaises(PayloadTooLarge):
             create_document(

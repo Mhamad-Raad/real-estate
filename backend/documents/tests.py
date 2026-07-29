@@ -18,11 +18,13 @@ from processes.models import ProcessStep
 from processes.services import create_process
 
 from . import filestore
+from .factories import make_pdf
 from .models import Document
 from clients.factories import make_client
 
 
-def pdf_file(name="id.pdf", body=b"%PDF-1.4 minimal test pdf"):
+def pdf_file(name="id.pdf", body=None):
+    body = make_pdf() if body is None else body
     return SimpleUploadedFile(name, body, content_type="application/pdf")
 
 
@@ -116,6 +118,9 @@ class FileStoreUnitTests(APITestCase):
 
     def test_looks_like_pdf(self):
         self.assertTrue(filestore.looks_like_pdf(b"%PDF-1.7 ..."))
+        # Magic bytes alone are not enough — a truncated scan passes that and is unreadable.
+        self.assertFalse(filestore.is_readable_pdf(b"%PDF-1.7 truncated"))
+        self.assertTrue(filestore.is_readable_pdf(make_pdf()))
         self.assertFalse(filestore.looks_like_pdf(b"GIF89a"))
 
 
@@ -140,7 +145,7 @@ class DocumentTypeVocabularyTests(APITestCase):
                 "step_number": 1,
                 "document_type": document_type,
                 "file": SimpleUploadedFile(
-                    "f.pdf", b"%PDF-1.4 x", content_type="application/pdf"
+                    "f.pdf", make_pdf(), content_type="application/pdf"
                 ),
             },
             format="multipart",

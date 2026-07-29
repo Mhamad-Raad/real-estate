@@ -42,8 +42,8 @@ def create_document(
     limit = settings.MAX_GENERATED_BYTES if generated else settings.MAX_UPLOAD_BYTES
     if len(content) > limit:
         raise PayloadTooLarge()
-    if not filestore.looks_like_pdf(content):
-        raise ValidationError({"file": "File is not a valid PDF."})
+    if not filestore.is_readable_pdf(content):
+        raise ValidationError({"file": "File is not a readable PDF."})
 
     client = process.client
     category_code = process.category.code if process.category_id else "NA"

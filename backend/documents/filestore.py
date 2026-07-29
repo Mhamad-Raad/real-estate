@@ -6,6 +6,9 @@ Sorani/Arabic names survive on NTFS/APFS. Layout: <CATEGORY>/<client_id>_<pid>/<
 """
 
 import hashlib
+from io import BytesIO
+
+from pypdf import PdfReader
 import re
 import unicodedata
 import uuid
@@ -19,7 +22,24 @@ _ILLEGAL = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 
 
 def looks_like_pdf(content: bytes) -> bool:
+    """Magic-byte check only — cheap, and says nothing about whether the file is readable."""
     return content[:5] == PDF_MAGIC
+
+
+def is_readable_pdf(content: bytes) -> bool:
+    """Parse the file rather than trusting its first five bytes.
+
+    A truncated or corrupt scan starts with `%PDF-` and passes the magic-byte check, so it used
+    to enter the store and only fail much later — when the case was compiled (§10.3) or, from
+    It.5, when OCR tried to read it. Rejecting it at upload keeps unreadable files out of the
+    document store entirely, which is where the damage is cheapest to prevent.
+    """
+    if not looks_like_pdf(content):
+        return False
+    try:
+        return len(PdfReader(BytesIO(content)).pages) > 0
+    except Exception:
+        return False
 
 
 def sha256_hex(content: bytes) -> str:
