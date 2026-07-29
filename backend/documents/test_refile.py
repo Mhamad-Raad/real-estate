@@ -14,7 +14,7 @@ from clients.factories import make_client
 from common.models import ActivityLog
 from documents.factories import make_pdf
 from documents.models import Document
-from documents.refile import prune_empty_person_dirs, refile_client_documents
+from documents.refile import refile_client_documents
 from documents.services import create_document
 from processes.services import create_process
 
@@ -121,14 +121,53 @@ class RefileTests(APITestCase):
         self.assertEqual(len(self._refile()), 1)
         self.assertEqual(self._refile(), [])
 
-    def test_the_emptied_person_folder_is_pruned(self):
+    def test_the_emptied_person_folder_is_removed_with_the_move(self):
         old_dir = (settings.DOCUMENTS_ROOT / self.document.file_path).parent
         self.client_row.pid = "PID-5"
         self.client_row.save(update_fields=["pid"])
         self._refile()
 
-        self.assertEqual(prune_empty_person_dirs(), 1)
         self.assertFalse(old_dir.exists())
+        # The category folder above it is fixed and must survive.
+        self.assertTrue(old_dir.parent.exists())
+
+    def test_a_folder_still_holding_a_soft_deleted_file_is_kept(self):
+        """That row still points at it — restoring the document must not find a hole."""
+        second = create_document(
+            process=self.process,
+            step_number=1,
+            document_type="RealEstate",
+            input_source=Document.InputSource.IMPORTED,
+            content=make_pdf(),
+            actor=self.lawyer,
+        )
+        second.is_deleted = True
+        second.save(update_fields=["is_deleted"])
+        old_dir = (settings.DOCUMENTS_ROOT / self.document.file_path).parent
+
+        self.client_row.pid = "PID-6"
+        self.client_row.save(update_fields=["pid"])
+        self._refile()
+
+        self.assertTrue(old_dir.exists())
+        self.assertTrue((settings.DOCUMENTS_ROOT / second.file_path).exists())
+
+    def test_a_path_without_a_short_id_is_not_mangled(self):
+        """A hand-placed file has no `__<shortid>`; splicing the old path in as one would write
+        outside the folder the rename was aiming at."""
+        self.document.file_path = "A/PID-1/legacy-name.pdf"
+        self.document.save(update_fields=["file_path"])
+        (settings.DOCUMENTS_ROOT / "A" / "PID-1").mkdir(parents=True, exist_ok=True)
+        (settings.DOCUMENTS_ROOT / self.document.file_path).write_bytes(make_pdf())
+
+        self.client_row.pid = "PID-7"
+        self.client_row.save(update_fields=["pid"])
+        self._refile()
+
+        self.document.refresh_from_db()
+        self.assertNotIn("legacy-name", self.document.file_path)
+        self.assertEqual(self.document.file_path.count("/"), 2)
+        self.assertTrue((settings.DOCUMENTS_ROOT / self.document.file_path).exists())
 
     def test_correcting_a_pid_through_the_api_re_files_automatically(self):
         self.client.force_authenticate(self.admin)

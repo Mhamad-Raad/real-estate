@@ -46,6 +46,14 @@ export type ConfirmPayload = {
   client_version?: number;
   assigned_lawyer?: number | null;
   category?: number | null;
+  // Not on the card. Marital status decides whether Step 1 owes a spouse ID and whether the
+  // letter prints a spouse row, and the letter needs the spouse's three printed fields together;
+  // `spouse_pid` is never printed and exists only for the household duplicate rule (§5.7, §6.6).
+  marital_status?: "single" | "married" | "divorced" | "widowed";
+  spouse_name?: string;
+  spouse_date_of_birth?: string | null;
+  spouse_mother_full_name?: string;
+  spouse_pid?: string;
 };
 
 export const isSettled = (status: ScanStatus) => status === "done" || status === "failed";
