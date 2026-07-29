@@ -33,8 +33,9 @@ def create_document(
     original_filename: str = "",
     request=None,
 ) -> Document:
-    """Validate a PDF (magic bytes + size), write it under the deterministic path, and create the
-    audited row. The file is written first; if the DB row fails, the orphan file is removed."""
+    """Validate the upload (size, then a real parse — converting an image to PDF first), write it
+    under the deterministic path, and create the audited row. The file is written first; if the DB
+    row fails, the orphan file is removed."""
     # The upload cap bounds what a *user* may send. A system-generated file (the compiled case,
     # §10.3) merges documents that were each already accepted, so holding it to the same limit
     # would reject a legitimate export of a large case; it gets the runaway-merge bound instead.
@@ -46,7 +47,12 @@ def create_document(
     # A photographed ID arrives as a JPEG; convert here so the store holds PDFs only and every
     # downstream reader (compile, OCR, preview) has exactly one format to handle.
     if filestore.looks_like_image(content):
-        content = filestore.image_to_pdf(content)
+        try:
+            content = filestore.image_to_pdf(content)
+        except Exception as exc:
+            # Truncated, mislabelled or hostile image data (a decompression bomb raises here too)
+            # is a bad upload, not a server fault — it must read as 400, like every other upload.
+            raise ValidationError({"file": "File is not a readable image."}) from exc
     if not filestore.is_readable_pdf(content):
         raise ValidationError({"file": "File is not a readable PDF."})
 

@@ -32,7 +32,7 @@ def verify(sequence: str, expected: str) -> bool:
     return expected.isdigit() and check_digit(sequence) == expected
 
 
-def parse_yymmdd(value: str, *, century_pivot: int = 30) -> date | None:
+def parse_yymmdd(value: str, *, century_pivot: int = 30, in_the_past: bool = True) -> date | None:
     """`010812` → 2001-08-12.
 
     The MRZ stores a two-digit year, so the century has to be inferred. Birth dates on a national
@@ -43,9 +43,14 @@ def parse_yymmdd(value: str, *, century_pivot: int = 30) -> date | None:
     yy, mm, dd = int(value[0:2]), int(value[2:4]), int(value[4:6])
     year = 1900 + yy if yy > century_pivot else 2000 + yy
     try:
-        return date(year, mm, dd)
+        parsed = date(year, mm, dd)
     except ValueError:  # OCR can produce month 00 or day 32
         return None
+    # A fixed pivot alone lets a birth year just below it land in the future (28 → 2028); the
+    # direction of the field is the reliable rule, so it decides the century in that case.
+    if in_the_past and parsed > date.today():
+        parsed = parsed.replace(year=parsed.year - 100)
+    return parsed
 
 
 @dataclass
@@ -120,7 +125,7 @@ def parse_td1(lines: list[str]) -> MrzResult:
 
         exp_raw, exp_cd = second[8:14], second[14:15]
         # An expiry date is in the future, so its century pivot is the opposite of a birth date's.
-        result.expiry_date = parse_yymmdd(exp_raw, century_pivot=70)
+        result.expiry_date = parse_yymmdd(exp_raw, century_pivot=70, in_the_past=False)
         if result.expiry_date and verify(exp_raw, exp_cd):
             result.verified.add("expiry_date")
 
@@ -136,5 +141,10 @@ def parse_td1(lines: list[str]) -> MrzResult:
 
 
 def parse(text: str) -> MrzResult:
-    """Find and parse the MRZ in a page of OCR text."""
-    return parse_td1(find_mrz_lines(text))
+    """Find and parse the MRZ in a page of OCR text.
+
+    The last three candidates are the zone: it sits at the bottom of the card, so anything else
+    dense enough to look like MRZ (a printed serial, Arabic bleed) is above it. Taking the first
+    three instead let one stray line shift every field and lose the whole read.
+    """
+    return parse_td1(find_mrz_lines(text)[-3:])

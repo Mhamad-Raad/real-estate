@@ -14,8 +14,8 @@ Nothing here writes to the database. Extraction produces a *draft* that a human 
 and confirming never freezes the data: every field stays editable afterwards.
 """
 
+import re
 from dataclasses import dataclass, field
-from datetime import date
 
 from . import mrz
 
@@ -151,11 +151,18 @@ def compose_mother_full_name(parts: dict[str, str]) -> str:
     return " ".join(parts[key] for key in ordered if parts.get(key))
 
 
-def find_pid(text: str) -> str:
-    import re
+def find_pid(text: str, *, prefer: str = "") -> str:
+    """The card number, 12 digits.
 
-    match = re.search(PID_PATTERN, text)
-    return match.group(1) if match else ""
+    The front also carries a family number of the same shape, so page order alone can pick the
+    wrong one. When the MRZ has been read, its value decides which candidate is the card number.
+    """
+    matches = re.findall(PID_PATTERN, text)
+    if prefer:
+        for candidate in matches:
+            if candidate in prefer:
+                return candidate
+    return matches[0] if matches else ""
 
 
 def build_draft(
@@ -176,11 +183,11 @@ def build_draft(
     draft = IdCardDraft()
     zone = mrz.parse(back_text)
 
-    # The card number is Latin digits, which the Arabic model garbles (`240M 01`); look for it
-    # in the Latin pass first and fall back to the Arabic one.
-    front_pid = find_pid(front_latin_text) or find_pid(front_text)
     # The national ID sits in the MRZ optional-data field; `document_number` is the card serial.
     mrz_pid = zone.national_id
+    # The card number is Latin digits, which the Arabic model garbles (`240M 01`); look for it
+    # in the Latin pass first and fall back to the Arabic one.
+    front_pid = find_pid(front_latin_text, prefer=mrz_pid) or find_pid(front_text, prefer=mrz_pid)
 
     if front_pid and mrz_pid and front_pid in mrz_pid:
         draft.pid = Field(front_pid, max(pid_confidence, 95), "mrz+front", verified=True)

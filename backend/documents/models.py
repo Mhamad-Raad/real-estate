@@ -3,7 +3,7 @@
 from django.conf import settings
 from django.db import models
 
-from common.models import SoftDeleteModel, TimeStampedModel, TimeStampedModel
+from common.models import JobStatus, SoftDeleteModel, TimeStampedModel
 
 
 class Document(SoftDeleteModel):
@@ -105,22 +105,15 @@ class DocumentTemplate(SoftDeleteModel):
 
 
 class GenerationJob(TimeStampedModel):
-    """One template→PDF run (§6.6, §6.8).
-
-    Status lives in the database rather than in Celery's result backend: it survives a broker
-    restart, it is what the UI polls, and a failure keeps its reason instead of vanishing.
-    """
+    """One template→PDF run (§6.6, §6.8). Lifecycle rules live on `JobStatus`."""
 
     class Kind(models.TextChoices):
         ELIGIBILITY = "eligibility", "Eligibility letter"
         PROCESS_LIST = "process_list", "Beneficiary list"
         COMPILED_CASE = "compiled_case", "Compiled case export"
 
-    class Status(models.TextChoices):
-        PENDING = "pending", "Pending"
-        RUNNING = "running", "Running"
-        DONE = "done", "Done"
-        FAILED = "failed", "Failed"
+    # Aliased so every existing `GenerationJob.Status.*` caller keeps working.
+    Status = JobStatus
 
     kind = models.CharField(max_length=20, choices=Kind.choices)
     status = models.CharField(max_length=12, choices=Status.choices, default=Status.PENDING)

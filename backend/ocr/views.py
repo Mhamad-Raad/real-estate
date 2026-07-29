@@ -2,6 +2,7 @@
 
 from rest_framework import serializers, status
 from rest_framework.decorators import action
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.mixins import RetrieveModelMixin
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -40,6 +41,9 @@ class VerifySerializer(serializers.Serializer):
     full_name = serializers.CharField(required=False, allow_blank=True, max_length=200)
     mother_full_name = serializers.CharField(required=False, allow_blank=True, max_length=200)
     date_of_birth = serializers.DateField(required=False, allow_null=True)
+    # The client's version as the screen loaded it — this writes to the same columns the client
+    # details panel does, so the optimistic lock is mandatory here too (§4.1).
+    client_version = serializers.IntegerField()
 
     def validate(self, attrs):
         if not any(name in attrs for name in CLIENT_FIELDS):
@@ -61,8 +65,6 @@ class OcrRunViewSet(RetrieveModelMixin, GenericViewSet):
         return OcrRun.objects.select_related("document__process")
 
     def _assert_may_write(self, document):
-        from rest_framework.exceptions import PermissionDenied
-
         user = self.request.user
         if not (user.is_admin or document.process.assigned_lawyer_id == user.id):
             raise PermissionDenied("Only the assigned lawyer or an admin can do this.")
@@ -81,7 +83,13 @@ class OcrRunViewSet(RetrieveModelMixin, GenericViewSet):
         self._assert_may_write(run.document)
         payload = VerifySerializer(data=request.data)
         payload.is_valid(raise_exception=True)
+        values = dict(payload.validated_data)
+        client_version = values.pop("client_version")
         run = verify_ocr(
-            run=run, values=payload.validated_data, actor=request.user, request=request
+            run=run,
+            values=values,
+            client_version=client_version,
+            actor=request.user,
+            request=request,
         )
         return Response(OcrRunSerializer(run).data)

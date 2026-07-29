@@ -51,7 +51,16 @@ class DateParsingTests(TestCase):
         self.assertEqual(mrz.parse_yymmdd("850101"), date(1985, 1, 1))
 
     def test_expiry_uses_a_later_pivot_so_it_lands_in_the_future(self):
-        self.assertEqual(mrz.parse_yymmdd("350615", century_pivot=70), date(2035, 6, 15))
+        self.assertEqual(
+            mrz.parse_yymmdd("350615", century_pivot=70, in_the_past=False), date(2035, 6, 15)
+        )
+
+    def test_a_birth_year_just_under_the_pivot_does_not_land_in_the_future(self):
+        """`28` is below the pivot, so the pivot alone would read it as 2028 — a birth date
+        cannot be in the future, and that direction is the more reliable rule."""
+        parsed = mrz.parse_yymmdd("280315")
+        self.assertEqual(parsed, date(1928, 3, 15))
+        self.assertLess(parsed, date.today())
 
     def test_an_impossible_date_is_rejected_not_guessed(self):
         # OCR readily produces month 00 or day 32; inventing a date would be worse than none.
@@ -93,6 +102,15 @@ class MrzParsingTests(TestCase):
         result = mrz.parse("no machine readable zone here")
         self.assertFalse(result.is_usable)
         self.assertIsNone(result.date_of_birth)
+
+    def test_a_dense_line_above_the_zone_does_not_shift_every_field(self):
+        """The zone is the bottom of the card; anything else MRZ-shaped is above it. Reading the
+        first three candidates instead of the last three lost the whole back of the card."""
+        page = "SERIAL<<<NO<<<12345<<<ABCDEFGHIJKLM\n" + BACK_TEXT
+        result = mrz.parse(page)
+        self.assertEqual(result.date_of_birth, date(2001, 8, 12))
+        self.assertEqual(result.national_id, "200103487811")
+        self.assertTrue(result.is_usable)
 
 
 class FrontParsingTests(TestCase):
@@ -143,6 +161,18 @@ class DraftTests(TestCase):
         front = FRONT_TEXT.replace("الجد ١ بيز : على\n", "")
         draft = extraction.build_draft(front_text=front, back_text=BACK_TEXT)
         self.assertTrue(any("mother's father" in w for w in draft.warnings))
+
+    def test_the_family_number_is_not_mistaken_for_the_card_number(self):
+        """The front carries a second 12-digit number. Page order alone picks the wrong one, so
+        the MRZ decides which candidate is the card number."""
+        front = "ژمارەی خێزان 987654321012\n" + FRONT_TEXT
+        draft = extraction.build_draft(front_text=front, back_text=BACK_TEXT)
+        self.assertEqual(draft.pid.value, "200103487811")
+        self.assertTrue(draft.pid.verified)
+
+    def test_without_an_mrz_the_first_number_is_still_offered(self):
+        """No cross-check available — propose something and let the human check it."""
+        self.assertEqual(extraction.find_pid("987654321012 and 200103487811"), "987654321012")
 
     def test_draft_serialises_for_the_verify_screen(self):
         payload = extraction.build_draft(

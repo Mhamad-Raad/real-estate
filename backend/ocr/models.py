@@ -1,8 +1,5 @@
 """The OCR draft that sits between a scan and a saved client record (§6.5).
 
-Status lives in the database, not Celery's result backend: it survives a broker restart, it is
-what the verify screen polls, and a failure keeps its reason instead of vanishing.
-
 The draft is deliberately *not* the client record. OCR proposes; a human confirms; only then is
 anything written to `Client` — and confirming does not freeze the data, since every field stays
 editable afterwards through the normal audited edit path.
@@ -11,17 +8,13 @@ editable afterwards through the normal audited edit path.
 from django.conf import settings
 from django.db import models
 
-from common.models import TimeStampedModel
+from common.models import JobStatus, TimeStampedModel
 
 
 class OcrRun(TimeStampedModel):
-    """One reading of one document."""
+    """One reading of one document. Lifecycle rules live on `JobStatus`."""
 
-    class Status(models.TextChoices):
-        PENDING = "pending", "Pending"
-        RUNNING = "running", "Running"
-        DONE = "done", "Done"
-        FAILED = "failed", "Failed"
+    Status = JobStatus
 
     document = models.ForeignKey(
         "documents.Document", on_delete=models.PROTECT, related_name="ocr_runs"

@@ -1,12 +1,15 @@
 """OCR run lifecycle, verification, and RBAC (§6.5, §7, §11)."""
 
 from datetime import date
+from unittest import mock
 
+from django.conf import settings
 from django.urls import reverse
 from rest_framework.test import APITestCase
 
 from accounts.models import User
 from clients.factories import make_client
+from clients.models import Client
 from common.models import ActivityLog
 from documents.factories import make_pdf
 from documents.models import Document
@@ -14,7 +17,7 @@ from documents.services import create_document
 from processes.services import create_process
 
 from .models import OcrRun
-from .services import verify_ocr
+from .services import execute_ocr, verify_ocr
 
 DRAFT = {
     "fields": {
@@ -207,3 +210,127 @@ class VerifyTests(OcrTestBase):
             reverse("ocr-run-verify", args=[run.id]), {"full_name": "X"}
         )
         self.assertEqual(response.status_code, 403)
+
+    def test_a_card_number_another_client_holds_is_refused_not_a_server_error(self):
+        """A misread digit lands on the "no land twice" key (§3.7). The unique index would raise
+        an IntegrityError — a 500 that tells the lawyer nothing — so it is caught first."""
+        from rest_framework.exceptions import ValidationError
+
+        make_client(full_name="Someone Else", pid="200103487811", mother_full_name="M")
+        run = self._run()
+        with self.assertRaises(ValidationError) as caught:
+            verify_ocr(run=run, values={"pid": "200103487811"}, actor=self.lawyer)
+
+        self.assertIn("Someone Else", str(caught.exception.detail["pid"]))
+        self.client_row.refresh_from_db()
+        self.assertEqual(self.client_row.pid, "OLD-1")
+
+    def test_the_same_card_number_on_the_same_client_is_not_a_conflict(self):
+        self.client_row.pid = "200103487811"
+        self.client_row.save(update_fields=["pid"])
+        run = self._run()
+        verify_ocr(
+            run=run, values={"pid": "200103487811", "full_name": "New"}, actor=self.lawyer
+        )
+        self.client_row.refresh_from_db()
+        self.assertEqual(self.client_row.full_name, "New")
+
+    def test_a_stale_client_version_is_rejected(self):
+        """The verify screen writes the same columns as the client details panel (§4.1)."""
+        from common.locking import StaleVersion
+
+        run = self._run()
+        with self.assertRaises(StaleVersion):
+            verify_ocr(
+                run=run,
+                values={"full_name": "X"},
+                actor=self.lawyer,
+                client_version=self.client_row.version + 5,
+            )
+
+    def test_only_the_confirmed_columns_are_written(self):
+        """A full save() would write back every column, including stale copies of fields the
+        verify screen never loaded — silently undoing a concurrent edit on the same record."""
+        run = self._run()
+        written = {}
+        original = Client.save
+
+        def spy(instance, *args, **kwargs):
+            written.update(kwargs)
+            return original(instance, *args, **kwargs)
+
+        with mock.patch.object(Client, "save", spy):
+            verify_ocr(run=run, values={"mother_full_name": "New Mother"}, actor=self.lawyer)
+
+        self.assertEqual(
+            set(written["update_fields"]), {"mother_full_name", "version", "updated_at"}
+        )
+        self.client_row.refresh_from_db()
+        self.assertEqual(self.client_row.mother_full_name, "New Mother")
+
+    def test_the_api_requires_the_client_version(self):
+        run = self._run()
+        self.client.force_authenticate(self.lawyer)
+        response = self.client.post(
+            reverse("ocr-run-verify", args=[run.id]), {"full_name": "X"}
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("client_version", response.data)
+
+    def test_a_verify_through_the_api_writes_the_client(self):
+        run = self._run()
+        self.client.force_authenticate(self.lawyer)
+        response = self.client.post(
+            reverse("ocr-run-verify", args=[run.id]),
+            {"full_name": "Through The API", "client_version": self.client_row.version},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.client_row.refresh_from_db()
+        self.assertEqual(self.client_row.full_name, "Through The API")
+
+
+class ExecuteOcrTests(OcrTestBase):
+    def test_a_failed_read_is_recorded_as_failed_not_as_an_empty_draft(self):
+        """The whole point of the status column: a failure keeps its reason and the UI falls back
+        to manual entry, instead of showing a confident-looking empty form."""
+        run = self._run(status=OcrRun.Status.PENDING, draft={})
+        with mock.patch(
+            "ocr.reader.read_document", side_effect=OSError("cannot read the file")
+        ):
+            with self.assertRaises(OSError):
+                execute_ocr(run.id)
+
+        run.refresh_from_db()
+        self.document.refresh_from_db()
+        self.assertEqual(run.status, OcrRun.Status.FAILED)
+        self.assertIn("cannot read the file", run.error)
+        self.assertEqual(run.draft, {})
+        self.assertEqual(self.document.ocr_status, Document.OcrStatus.FAILED)
+
+    def test_the_stored_failure_reason_does_not_leak_the_store_path(self):
+        """`error` is served straight to the browser."""
+        path = f"{settings.DOCUMENTS_ROOT}/A_General/x.pdf"
+        run = self._run(status=OcrRun.Status.PENDING, draft={})
+        with mock.patch("ocr.reader.read_document", side_effect=OSError(f"missing {path}")):
+            with self.assertRaises(OSError):
+                execute_ocr(run.id)
+
+        run.refresh_from_db()
+        self.assertNotIn(str(settings.DOCUMENTS_ROOT), run.error)
+        self.assertIn("<documents>", run.error)
+
+    def test_a_successful_read_stores_the_draft_and_awaits_a_human(self):
+        run = self._run(status=OcrRun.Status.PENDING, draft={})
+        with mock.patch("ocr.reader.read_document") as read:
+            read.return_value.as_dict.return_value = DRAFT
+            execute_ocr(run.id)
+
+        run.refresh_from_db()
+        self.document.refresh_from_db()
+        self.assertEqual(run.status, OcrRun.Status.DONE)
+        self.assertEqual(run.draft, DRAFT)
+        self.assertEqual(self.document.ocr_status, Document.OcrStatus.DONE)
+        # "done" means the engine finished, not that the data is trusted (§6.5).
+        self.assertEqual(
+            self.document.verification_status, Document.VerificationStatus.PENDING
+        )

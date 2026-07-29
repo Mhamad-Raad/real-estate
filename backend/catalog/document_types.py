@@ -25,9 +25,15 @@ class DocumentType(NamedTuple):
     generated: bool = False
 
 
+# The two identity papers. Named because OCR reads these into client fields and files the rest
+# (§6.5) — the codes belong here with the rest of the vocabulary, not as literals in the ocr app.
+CLIENT_ID = "ClientID"
+SPOUSE_ID = "SpouseID"
+IDENTITY_TYPE_CODES = (CLIENT_ID, SPOUSE_ID)
+
 DOCUMENT_TYPES: list[DocumentType] = [
-    DocumentType("ClientID", "workflow.docType.ClientID", 1, True),
-    DocumentType("SpouseID", "workflow.docType.SpouseID", 1, True, only_when_married=True),
+    DocumentType(CLIENT_ID, "workflow.docType.ClientID", 1, True),
+    DocumentType(SPOUSE_ID, "workflow.docType.SpouseID", 1, True, only_when_married=True),
     DocumentType("RealEstate", "workflow.docType.RealEstate", 1, True),
     DocumentType("SignedAgreement", "workflow.docType.SignedAgreement", 1, True),
     DocumentType(

@@ -75,6 +75,21 @@ class DocumentApiTests(APITestCase):
         self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertFalse(Document.objects.exists())
 
+    def test_rejects_a_malformed_image_without_a_server_error(self):
+        """Image bytes are converted on arrival (§6.7); a corrupt or hostile file is a bad upload,
+        so it must read as 400 like any other, not as a 500 from deep inside the decoder."""
+        self.client.force_authenticate(self.lawyer)
+        resp = self.client.post(
+            reverse("document-list"),
+            {"process": self.process.id, "step_number": 1, "document_type": "ClientID",
+             "file": SimpleUploadedFile(
+                 "id.jpg", b"\xff\xd8\xff" + b"garbage" * 50, content_type="image/jpeg"
+             )},
+            format="multipart",
+        )
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(Document.objects.exists())
+
     def test_oversize_rejected(self):
         self.client.force_authenticate(self.lawyer)
         with override_settings(MAX_UPLOAD_BYTES=10):
