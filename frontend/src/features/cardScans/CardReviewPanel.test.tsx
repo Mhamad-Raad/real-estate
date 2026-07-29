@@ -50,6 +50,8 @@ const scan = (over: Partial<CardScan> = {}): CardScan => ({
   },
   error: "",
   document: null,
+  client: null,
+  client_version: null,
   confirmed_at: null,
   confirmed_by: null,
   created_at: "2026-07-29T10:00:00Z",

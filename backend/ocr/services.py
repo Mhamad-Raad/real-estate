@@ -249,9 +249,10 @@ def _create_from_card(*, values: dict, actor, assigned_lawyer, category, request
             {name: "Required to create a client from a card." for name in missing}
         )
     _assert_pid_is_free(None, {"pid": values["pid"]})
-    client = create_client(
-        data={name: values[name] for name in CLIENT_FIELDS}, actor=actor, request=request
-    )
+
+    data = {name: values[name] for name in CLIENT_FIELDS}
+    data.update(_marital_details(values))
+    client = create_client(data=data, actor=actor, request=request)
     process = create_process(
         client=client,
         assigned_lawyer=assigned_lawyer,
@@ -260,6 +261,33 @@ def _create_from_card(*, values: dict, actor, assigned_lawyer, category, request
         request=request,
     )
     return client, process
+
+
+# The letter prints a spouse row of name / birth date / mother's name, and the DB check
+# constraint demands all three together — the same set `ClientSerializer` enforces (§6.6).
+SPOUSE_REQUIRED = ("spouse_name", "spouse_date_of_birth", "spouse_mother_full_name")
+
+
+def _marital_details(values: dict) -> dict:
+    """Marital status and, when married, the spouse block that must accompany it.
+
+    Not on the card — the person creating the record says. Validated here rather than left to the
+    DB constraint, which would surface as an unexplained 500 (§3.6, §6.6).
+    """
+    status = values.get("marital_status") or Client.MaritalStatus.SINGLE
+    if status != Client.MaritalStatus.MARRIED:
+        return {"marital_status": status}
+
+    absent = [name for name in SPOUSE_REQUIRED if not values.get(name)]
+    if absent:
+        raise ValidationError(
+            {name: "Required for a married beneficiary — the letter prints it." for name in absent}
+        )
+    details = {"marital_status": status, **{name: values[name] for name in SPOUSE_REQUIRED}}
+    # Optional: the letter never prints it, it only feeds the household duplicate rule (§5.7).
+    if values.get("spouse_pid"):
+        details["spouse_pid"] = values["spouse_pid"]
+    return details
 
 
 def active_process_for(client):

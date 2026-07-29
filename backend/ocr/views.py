@@ -19,6 +19,12 @@ from .services import CLIENT_FIELDS, active_process_for, confirm_scan, stage_sca
 
 
 class CardScanSerializer(serializers.ModelSerializer):
+    # Who the confirmation created or updated. A married beneficiary is two cards confirmed one
+    # after the other, and the second call needs the client's id *and* its current version for
+    # the optimistic lock — without these the caller would have to go looking for them.
+    client = serializers.SerializerMethodField()
+    client_version = serializers.SerializerMethodField()
+
     class Meta:
         model = CardScan
         fields = (
@@ -28,11 +34,24 @@ class CardScanSerializer(serializers.ModelSerializer):
             "draft",
             "error",
             "document",
+            "client",
+            "client_version",
             "confirmed_at",
             "confirmed_by",
             "created_at",
         )
         read_only_fields = fields
+
+    def _client(self, scan):
+        return scan.document.process.client if scan.document_id else None
+
+    def get_client(self, scan):
+        client = self._client(scan)
+        return client.id if client else None
+
+    def get_client_version(self, scan):
+        client = self._client(scan)
+        return client.version if client else None
 
 
 class StageScanSerializer(serializers.Serializer):
@@ -55,6 +74,20 @@ class ConfirmSerializer(serializers.Serializer):
     full_name = serializers.CharField(required=False, allow_blank=True, max_length=200)
     mother_full_name = serializers.CharField(required=False, allow_blank=True, max_length=200)
     date_of_birth = serializers.DateField(required=False, allow_null=True)
+
+    # Not on the card, but it decides whether Step 1 owes a spouse ID and whether the eligibility
+    # letter prints a spouse row (§6.6), so the person creating the record has to say (§3.6).
+    marital_status = serializers.ChoiceField(
+        choices=Client.MaritalStatus.choices, required=False
+    )
+    # The letter prints the spouse's name / birth date / mother's name, and the DB constraint
+    # demands all three together when married. `spouse_pid` is the household dedup key (§5.7).
+    spouse_name = serializers.CharField(required=False, allow_blank=True, max_length=200)
+    spouse_date_of_birth = serializers.DateField(required=False, allow_null=True)
+    spouse_mother_full_name = serializers.CharField(
+        required=False, allow_blank=True, max_length=200
+    )
+    spouse_pid = serializers.CharField(required=False, allow_blank=True, max_length=50)
 
     # Absent → the card creates the person; present → it updates someone already on file (a
     # spouse card, or a replacement scan), and then the optimistic lock applies.

@@ -27,6 +27,9 @@ export type CardScan = {
   draft: CardDraft;
   error: string;
   document: number | null;
+  /** Who the confirmation created or updated — with the version the next call's lock needs. */
+  client: number | null;
+  client_version: number | null;
   confirmed_at: string | null;
   confirmed_by: number | null;
   created_at: string;

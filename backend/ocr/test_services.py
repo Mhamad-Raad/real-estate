@@ -270,6 +270,88 @@ class ConfirmCreatesTheClientTests(ScanTestBase):
         self.assertEqual((settings.DOCUMENTS_ROOT / document.file_path).read_bytes(), content)
         self.assertEqual(document.sha256, scan.sha256)
 
+    def test_a_married_beneficiary_is_created_with_the_spouse_block(self):
+        """Marital status is not on the card, so the person creating the record says — and a
+        married beneficiary's letter prints a spouse row, so the block must arrive with it."""
+        scan = self._read(self._scan())
+        self._confirm(
+            scan=scan,
+            values={
+                **CONFIRMED,
+                "marital_status": "married",
+                "spouse_name": "Shirin Omar",
+                "spouse_mother_full_name": "Bahar Ahmad",
+                "spouse_date_of_birth": date(1992, 4, 1),
+                "spouse_pid": "SP-77",
+            },
+            actor=self.lawyer,
+            assigned_lawyer=self.lawyer,
+        )
+        client = Client.objects.get()
+        self.assertTrue(client.is_married)
+        self.assertEqual(client.spouse_name, "Shirin Omar")
+        self.assertEqual(client.spouse_date_of_birth, date(1992, 4, 1))
+        self.assertEqual(client.spouse_pid, "SP-77")
+        # Married means Step 1 now also owes a spouse ID (§3.6).
+        step1 = client.processes.get().steps.get(step_number=1)
+        self.assertIn("doc:SpouseID", step_status.missing_requirements(client.processes.get(), 1, step1))
+
+    def test_married_without_the_spouse_block_is_refused_clearly(self):
+        """The DB check constraint would raise an unexplained 500; this names the fields."""
+        scan = self._read(self._scan())
+        with self.assertRaises(ValidationError) as caught:
+            self._confirm(
+                scan=scan,
+                values={**CONFIRMED, "marital_status": "married"},
+                actor=self.lawyer,
+                assigned_lawyer=self.lawyer,
+            )
+        for field in ("spouse_name", "spouse_mother_full_name", "spouse_date_of_birth"):
+            self.assertIn(field, caught.exception.detail)
+        self.assertFalse(Client.objects.exists())
+
+    def test_the_spouses_pid_is_carried_into_the_household_rule_at_creation(self):
+        other = make_client(full_name="Already Allocated", pid="SP-77", mother_full_name="M")
+        create_process(client=other, assigned_lawyer=self.lawyer, actor=self.admin)
+
+        scan = self._read(self._scan())
+        self._confirm(
+            scan=scan,
+            values={
+                **CONFIRMED,
+                "marital_status": "married",
+                "spouse_name": "Shirin Omar",
+                "spouse_mother_full_name": "Bahar Ahmad",
+                "spouse_date_of_birth": date(1992, 4, 1),
+                "spouse_pid": "SP-77",
+            },
+            actor=self.lawyer,
+            assigned_lawyer=self.lawyer,
+        )
+        process = Client.objects.get(pid=CONFIRMED["pid"]).processes.get()
+        self.assertTrue(process.duplicate_flagged)
+
+    def test_the_confirm_response_carries_the_client_and_its_version(self):
+        """A married beneficiary is two cards confirmed in turn, and the second call needs both
+        for the optimistic lock — without them the caller would have to go hunting."""
+        scan = self._read(self._scan())
+        self.client.force_authenticate(self.lawyer)
+        response = self.client.post(
+            reverse("card-scan-confirm", args=[scan.id]),
+            {
+                "pid": "200103487811",
+                "full_name": "محمد رعد",
+                "mother_full_name": "دلسوز على",
+                "date_of_birth": "2001-08-12",
+                "assigned_lawyer": self.lawyer.id,
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        client = Client.objects.get()
+        self.assertEqual(response.data["client"], client.id)
+        self.assertEqual(response.data["client_version"], client.version)
+
     def test_a_correction_is_recorded_so_ocr_quality_can_be_judged(self):
         scan = self._read(self._scan())
         self._confirm(

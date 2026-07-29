@@ -5,6 +5,7 @@ from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
 from common.viewsets import AuditedSoftDeleteViewSet
+from documents.refile import refile_client_documents
 from processes.services import recompute_client_state
 
 from .permissions import IsClientEditorOrAdmin
@@ -36,6 +37,11 @@ class ClientViewSet(AuditedSoftDeleteViewSet, ModelViewSet):
         # to be re-derived here or the badge keeps claiming complete (§3.6). Editing `spouse_pid`
         # (or clearing it on a divorce) likewise changes the household duplicate rule (§5.7).
         recompute_client_state(serializer.instance)
+        # The store path is composed from the category and PID, and the download name from the
+        # person's name — correcting any of them makes the stored path a lie (§6.7).
+        refile_client_documents(
+            serializer.instance, actor=self.request.user, request=self.request
+        )
 
     @action(detail=False, methods=["post"], url_path="duplicate-check")
     def duplicate_check(self, request):
