@@ -42,6 +42,11 @@ def create_document(
     limit = settings.MAX_GENERATED_BYTES if generated else settings.MAX_UPLOAD_BYTES
     if len(content) > limit:
         raise PayloadTooLarge()
+
+    # A photographed ID arrives as a JPEG; convert here so the store holds PDFs only and every
+    # downstream reader (compile, OCR, preview) has exactly one format to handle.
+    if filestore.looks_like_image(content):
+        content = filestore.image_to_pdf(content)
     if not filestore.is_readable_pdf(content):
         raise ValidationError({"file": "File is not a readable PDF."})
 

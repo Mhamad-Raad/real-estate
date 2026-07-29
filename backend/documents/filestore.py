@@ -26,6 +26,44 @@ def looks_like_pdf(content: bytes) -> bool:
     return content[:5] == PDF_MAGIC
 
 
+# Formats a phone camera or scanner produces. Converted to PDF on arrival so the document store
+# stays PDF-only (§6.7) — client-side conversion arrives with scan capture in It.6, but a lawyer
+# can already photograph an ID today.
+IMAGE_MAGIC = {
+    b"\xff\xd8\xff": "JPEG",
+    b"\x89PNG\r\n\x1a\n": "PNG",
+    b"II*\x00": "TIFF",
+    b"MM\x00*": "TIFF",
+}
+
+
+def looks_like_image(content: bytes) -> bool:
+    return any(content.startswith(magic) for magic in IMAGE_MAGIC)
+
+
+def image_to_pdf(content: bytes) -> bytes:
+    """Wrap an image in a single-page PDF, preserving its pixels.
+
+    No resampling: OCR accuracy depends on the original resolution, and a scan the office cannot
+    read is worse than a large file.
+    """
+    from PIL import Image
+
+    image = Image.open(BytesIO(content))
+    # PDF has no alpha channel; flattening onto white avoids a black background where it was.
+    if image.mode in ("RGBA", "LA", "P"):
+        image = image.convert("RGBA")
+        backdrop = Image.new("RGB", image.size, (255, 255, 255))
+        backdrop.paste(image, mask=image.split()[-1])
+        image = backdrop
+    elif image.mode != "RGB":
+        image = image.convert("RGB")
+
+    buffer = BytesIO()
+    image.save(buffer, format="PDF", resolution=300.0)
+    return buffer.getvalue()
+
+
 def is_readable_pdf(content: bytes) -> bool:
     """Parse the file rather than trusting its first five bytes.
 

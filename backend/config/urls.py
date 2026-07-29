@@ -10,6 +10,7 @@ from catalog.views import CategoryViewSet, DocumentTypesView, InstitutesView
 from common.views import ActivityLogViewSet, ActivityVocabularyView
 from clients.views import ClientViewSet
 from documents.views import DocumentTemplateViewSet, DocumentViewSet, GenerationJobViewSet
+from ocr.views import OcrRunViewSet
 from processes.views import InstituteEntryViewSet, ProcessViewSet
 from reports.views import DashboardView, ProcessReportView, UserReportView
 
@@ -28,6 +29,7 @@ router.register("documents", DocumentViewSet, basename="document")
 router.register("document-templates", DocumentTemplateViewSet, basename="document-template")
 router.register("generation-jobs", GenerationJobViewSet, basename="generation-job")
 router.register("activities", ActivityLogViewSet, basename="activity")
+router.register("ocr-runs", OcrRunViewSet, basename="ocr-run")
 
 urlpatterns = [
     path("admin/", admin.site.urls),

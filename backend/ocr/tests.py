@@ -150,3 +150,36 @@ class DraftTests(TestCase):
         ).as_dict()
         self.assertEqual(payload["fields"]["pid"]["value"], "200103487811")
         self.assertIn("confidence", payload["fields"]["full_name"])
+
+
+class ImageUploadTests(TestCase):
+    """A photographed ID must reach the store as a PDF (§6.7)."""
+
+    def test_a_jpeg_is_converted_on_upload(self):
+        from io import BytesIO
+
+        from PIL import Image
+
+        from documents import filestore
+
+        buffer = BytesIO()
+        Image.new("RGB", (60, 40), (255, 0, 0)).save(buffer, format="JPEG")
+        jpeg = buffer.getvalue()
+
+        self.assertTrue(filestore.looks_like_image(jpeg))
+        self.assertFalse(filestore.looks_like_pdf(jpeg))
+
+        converted = filestore.image_to_pdf(jpeg)
+        self.assertTrue(filestore.is_readable_pdf(converted))
+
+    def test_transparency_is_flattened_onto_white(self):
+        """A PNG with alpha would otherwise render on a black background."""
+        from io import BytesIO
+
+        from PIL import Image
+
+        from documents import filestore
+
+        buffer = BytesIO()
+        Image.new("RGBA", (40, 40), (0, 0, 0, 0)).save(buffer, format="PNG")
+        self.assertTrue(filestore.is_readable_pdf(filestore.image_to_pdf(buffer.getvalue())))
