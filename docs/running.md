@@ -102,7 +102,7 @@ serves the API on **http://localhost:8000**. Four services come up:
 | `db` | Postgres 16 (published on host **5433**) |
 | `redis` | Celery broker — queue only, no persistence |
 | `backend` | migrations + the API on **8000** |
-| `worker` | Celery worker: renders `.docx` letters to PDF via headless LibreOffice |
+| `worker` | Celery worker: renders `.docx` letters to PDF via headless LibreOffice, and reads ID cards with Tesseract |
 
 `backend` and `worker` are the same image with different commands, and share the
 `documents_data` volume so the API can serve what the worker writes.
@@ -110,6 +110,35 @@ serves the API on **http://localhost:8000**. Four services come up:
 > **Celery does not hot-reload.** Editing task code needs
 > `docker compose -f deploy/docker-compose.dev.yml restart worker` — unlike the API, which
 > reloads from the bind mount.
+
+> **A dependency change needs a rebuild, not a restart:** `... up -d --build worker`. A plain
+> `restart` re-runs the *old* image, so a task importing a newly added package fails with
+> `ModuleNotFoundError` while `requirements.txt` looks correct.
+
+### OCR toolchain (in the image, nothing to install)
+
+Card reading needs Tesseract and Poppler, both installed by `backend/Dockerfile.dev`:
+`tesseract-ocr`, `tesseract-ocr-eng`, and — **the one that matters** — **`tesseract-ocr-script-arab`**,
+which provides `Arabic.traineddata`. Sorani is read with that *script* model; **`tesseract-ocr-ckb`
+does not exist**, so do not go looking for it (§6.2). Verify inside the container:
+
+```bash
+docker compose -f deploy/docker-compose.dev.yml exec worker tesseract --list-langs
+# expect: Arabic  ara  eng  osd
+```
+
+### Housekeeping command
+
+Staged card scans need a periodic sweep (§6.3) — in production this runs from the host scheduler
+beside the backup job; run it by hand in dev:
+
+```bash
+docker compose -f deploy/docker-compose.dev.yml exec backend python manage.py sweep_card_scans --dry-run
+docker compose -f deploy/docker-compose.dev.yml exec backend python manage.py sweep_card_scans
+```
+
+It re-enqueues readings whose Celery task was lost (e.g. the host rebooted mid-job) and deletes
+the staged file of any scan left unconfirmed for 14 days, keeping the row for the audit trail.
 
 > **Editing code vs. changing models.** Your `backend/` folder is bind-mounted, so ordinary code
 > edits hot-reload with no rebuild — `--build` is only needed when `requirements.txt` changes.
@@ -184,9 +213,11 @@ python3.14 -m venv .venv          # first run only (any Python 3.12–3.14)
 .venv/bin/python manage.py runserver                  # -> http://localhost:8000
 ```
 
-### 3. Background jobs (only if you need document generation)
+### 3. Background jobs (only if you need document generation or card reading)
 
-Generating letters natively needs a broker and LibreOffice; the rest of the app runs without them.
+Generating letters natively needs a broker and LibreOffice; **card reading also needs Tesseract
+with the Arabic script model plus Poppler** (`brew install tesseract tesseract-lang poppler`).
+The rest of the app runs without any of them.
 
 ```bash
 brew services start redis                             # broker on 6379
@@ -259,6 +290,9 @@ cd frontend && npm test
 | Frontend loads but API calls fail | Backend not up on `:8000`, or you started the frontend before the backend finished migrating. |
 | Changed backend code isn't reflected | Docker: source is bind-mounted and auto-reloads; if stuck, `... restart backend`. |
 | Changed **task** code isn't reflected | Celery has no autoreload: `... restart worker`. |
+| Task fails with `ModuleNotFoundError` after adding a dependency | A `restart` reuses the old image — rebuild: `... up -d --build worker`. |
 | A generated document never appears | Check the worker: `... logs -f worker`. If it is down or cannot reach Redis, jobs queue forever. |
+| A card scan sits on `pending` forever | The worker is down, or its task was lost (host reboot). Check `... logs -f worker`, then `... exec backend python manage.py sweep_card_scans` to re-enqueue it. |
+| Card reading fails with a language error | The Arabic *script* model is missing — rebuild the image (`... up -d --build worker`) and confirm `tesseract --list-langs` shows `Arabic`. `ckb` does not exist and is never the fix. |
 | `LibreOffice binary not found` | Native run without LibreOffice — set `LIBREOFFICE_BIN` in `backend/.env`, or use Method A. |
 | Backend container exits on boot | A settings/import error kills it (the dev server does not retry). Read the cause: `... logs backend`. |
