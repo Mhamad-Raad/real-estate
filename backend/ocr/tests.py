@@ -157,6 +157,29 @@ class DraftTests(TestCase):
         self.assertTrue(draft.date_of_birth.is_empty)
         self.assertTrue(any("machine-readable zone" in w for w in draft.warnings))
 
+    def test_a_field_that_could_not_be_read_says_so(self):
+        """Partial failure is the normal photocopy case: one copier pass breaks the birth date's
+        check digit while the document number still verifies, so the MRZ warning stays silent.
+        Without this the lawyer got an empty required field and no reason for it."""
+        broken_dob = ["IDIRQG761033550200103487811<<<", "9999994M3506156IRQ<<<<<<<<<<<5"]
+        draft = extraction.build_draft(front_text=FRONT_TEXT, back_text="\n".join(broken_dob))
+
+        self.assertTrue(draft.date_of_birth.is_empty)
+        self.assertTrue(any("date of birth" in w for w in draft.warnings))
+        # The rest of the card read fine, so it must not claim those failed too.
+        self.assertFalse(any("card number" in w for w in draft.warnings))
+
+    def test_several_unread_fields_are_named_in_one_warning(self):
+        draft = extraction.build_draft(front_text="", back_text="")
+        unread = [w for w in draft.warnings if "Could not read" in w and "by hand" in w]
+        self.assertEqual(len(unread), 1, "one combined warning, not one per field")
+        for label in ("the card number", "the full name", "the date of birth"):
+            self.assertIn(label, unread[0])
+
+    def test_a_fully_read_card_carries_no_unread_warning(self):
+        draft = extraction.build_draft(front_text=FRONT_TEXT, back_text=BACK_TEXT)
+        self.assertFalse(any("please enter" in w for w in draft.warnings))
+
     def test_a_missing_mother_grandfather_is_flagged(self):
         front = FRONT_TEXT.replace("الجد ١ بيز : على\n", "")
         draft = extraction.build_draft(front_text=front, back_text=BACK_TEXT)

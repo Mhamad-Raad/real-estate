@@ -232,4 +232,37 @@ def build_draft(
             "The machine-readable zone on the back of the card could not be read or did not "
             "pass its check digits. Dates and the card number need checking by eye."
         )
+    _warn_about_empty_fields(draft)
     return draft
+
+
+# What each field is called when the reader has to admit it could not get one.
+FIELD_LABELS = {
+    "pid": "the card number",
+    "full_name": "the full name",
+    "mother_full_name": "the mother's full name",
+    "date_of_birth": "the date of birth",
+}
+
+
+def _warn_about_empty_fields(draft: IdCardDraft) -> None:
+    """Say so when a field could not be read, instead of leaving a silent blank box.
+
+    Partial failure is the normal case on a photocopy and it used to pass unremarked: a single
+    copier pass breaks the birth date's check digit while the document number still verifies, so
+    `is_usable` stayed true, the MRZ warning never fired, and the lawyer was shown an empty
+    required field with no reason for it. An unexplained blank invites the assumption that the
+    card simply did not carry the value (§6.2, §6.5).
+    """
+    unread = [
+        FIELD_LABELS[name]
+        for name in ("pid", "full_name", "mother_full_name", "date_of_birth")
+        if getattr(draft, name).is_empty
+    ]
+    if not unread:
+        return
+    fields = unread[0] if len(unread) == 1 else ", ".join(unread[:-1]) + f" and {unread[-1]}"
+    draft.warnings.append(
+        f"Could not read {fields} from the card — please enter {'it' if len(unread) == 1 else 'them'} "
+        f"by hand. This usually means the scan is a photocopy or is too low in quality."
+    )
