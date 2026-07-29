@@ -192,6 +192,17 @@ def recompute_client_steps(client) -> None:
         recompute_step(process, 1)
 
 
+def recompute_client_state(client) -> None:
+    """Everything the server derives from a client's own data, **in dependency order**.
+
+    The duplicate flags feed Step 1's `missing` list (§3.6, §5.7), so they have to be refreshed
+    before the step status is re-derived. One entry point rather than two calls at each site, so
+    that ordering cannot be got wrong — and so a future derived value has one obvious home.
+    """
+    recompute_duplicate_flags(client)
+    recompute_client_steps(client)
+
+
 @transaction.atomic
 def save_step(*, process, step_number, data, actor, expected_version=None, request=None) -> ProcessStep:
     """Partial per-step save (§5.2). Validates only present fields, recomputes status, audits."""

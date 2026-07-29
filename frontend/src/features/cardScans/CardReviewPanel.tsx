@@ -1,5 +1,5 @@
 import { AlertTriangle } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { useAppSelector } from "@/app/hooks";
@@ -36,7 +36,6 @@ export function CardReviewPanel({
   const [values, setValues] = useState<Values>(EMPTY);
   const [acknowledged, setAcknowledged] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const frame = useRef<HTMLIFrameElement>(null);
 
   const fields = scan.draft?.fields ?? {};
   const warnings = scan.draft?.warnings ?? [];
@@ -109,7 +108,6 @@ export function CardReviewPanel({
         <p className="text-xs text-muted-foreground">{t("cardScan.scannedCard")}</p>
         {previewUrl ? (
           <iframe
-            ref={frame}
             src={previewUrl}
             title={t("cardScan.scannedCard")}
             className="h-[32rem] w-full rounded-md border border-border bg-white"

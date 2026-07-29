@@ -75,38 +75,43 @@ def file_staged_document(
 
     The bytes were validated when they were staged, so this only relocates them — the file is
     moved, not rewritten, so the recorded sha256 keeps describing exactly what was uploaded.
+
+    **The move happens on commit, not now.** A filesystem move cannot be rolled back with the
+    transaction, and this one relocates the *only* copy of a citizen's ID: moving it inline meant
+    that any later failure in the caller left the file in the person's folder while the database
+    forgot it ever moved — the scan then pointed at a path that no longer existed and could
+    neither be previewed nor re-confirmed. Deferring to `on_commit` makes the failure mode
+    "nothing happened" instead of "the scan is gone".
     """
     display, rel = compose_location(process=process, document_type=document_type)
-    dest = filestore.move_into_place(source=Path(staged_path), rel_path=rel)
-    try:
-        with transaction.atomic():
-            document = Document.objects.create(
-                process=process,
-                step_number=step_number,
-                document_type=document_type,
-                input_source=Document.InputSource.SCANNED,
-                file_path=str(rel),
-                display_filename=display,
-                sha256=sha256,
-                original_filename=original_filename[:255],
-                size_bytes=size_bytes,
-                uploaded_by=actor,
-                ocr_status=Document.OcrStatus.DONE,
-                # Filed only because a human confirmed the reading — that is what this row is.
-                verification_status=Document.VerificationStatus.VERIFIED,
-            )
-            record_activity(
-                actor=actor,
-                action=ActivityLog.Action.CREATE,
-                entity_type="Document",
-                entity_id=document.id,
-                after={"display_filename": display, "process_id": process.id, "step": step_number},
-                request=request,
-            )
-    except Exception:
-        # Put it back in staging so a failed confirmation never loses the scan.
-        filestore.move_into_place(source=rel, rel_path=Path(staged_path))
-        raise
+    with transaction.atomic():
+        document = Document.objects.create(
+            process=process,
+            step_number=step_number,
+            document_type=document_type,
+            input_source=Document.InputSource.SCANNED,
+            file_path=str(rel),
+            display_filename=display,
+            sha256=sha256,
+            original_filename=original_filename[:255],
+            size_bytes=size_bytes,
+            uploaded_by=actor,
+            ocr_status=Document.OcrStatus.DONE,
+            # Filed only because a human confirmed the reading — that is what this row is.
+            verification_status=Document.VerificationStatus.VERIFIED,
+        )
+        record_activity(
+            actor=actor,
+            action=ActivityLog.Action.CREATE,
+            entity_type="Document",
+            entity_id=document.id,
+            after={"display_filename": display, "process_id": process.id, "step": step_number},
+            request=request,
+        )
+        # Only once every row is safely committed does the file actually move.
+        transaction.on_commit(
+            lambda: filestore.move_into_place(source=Path(staged_path), rel_path=rel)
+        )
     return document
 
 

@@ -23,11 +23,7 @@ from common.models import ActivityLog
 from common.services import record_activity
 from documents import filestore
 from documents.services import PayloadTooLarge, file_staged_document
-from processes.services import (
-    create_process,
-    recompute_client_steps,
-    recompute_duplicate_flags,
-)
+from processes.services import create_process, recompute_client_state
 
 from .models import CardScan
 
@@ -86,23 +82,29 @@ def stage_scan(
         content = filestore.merge_pdfs([content, _to_pdf(back, label="back")])
 
     rel = filestore.staging_path(filestore.short_id())
-    filestore.write_pdf(rel, content)
-    scan = CardScan.objects.create(
-        document_type=document_type,
-        file_path=str(rel),
-        original_filename=original_filename[:255],
-        sha256=filestore.sha256_hex(content),
-        size_bytes=len(content),
-        uploaded_by=actor,
-    )
-    record_activity(
-        actor=actor,
-        action=ActivityLog.Action.CREATE,
-        entity_type="CardScan",
-        entity_id=scan.id,
-        after={"document_type": document_type, "size_bytes": scan.size_bytes},
-        request=request,
-    )
+    dest = filestore.write_pdf(rel, content)
+    try:
+        with transaction.atomic():
+            scan = CardScan.objects.create(
+                document_type=document_type,
+                file_path=str(rel),
+                original_filename=original_filename[:255],
+                sha256=filestore.sha256_hex(content),
+                size_bytes=len(content),
+                uploaded_by=actor,
+            )
+            record_activity(
+                actor=actor,
+                action=ActivityLog.Action.CREATE,
+                entity_type="CardScan",
+                entity_id=scan.id,
+                after={"document_type": document_type, "size_bytes": scan.size_bytes},
+                request=request,
+            )
+    except Exception:
+        # No row means no sweep can ever find this file again — remove it now (§6.3).
+        dest.unlink(missing_ok=True)
+        raise
     # on_commit: the worker must never look up a scan row this transaction has not committed yet.
     transaction.on_commit(lambda: read_card_scan.delay(scan.id))
     return scan
@@ -158,7 +160,7 @@ def confirm_scan(
 
     Either the card creates the person — client, case and filed document together — or it updates
     someone already on file (a spouse card, or a replacement scan). Only here does the document
-    reach `<CATEGORY>/<client_id>_<pid>/`: the folder is keyed by the PID and the name by the
+    reach `<CATEGORY>/<pid>/`: the folder is keyed by the PID and the download name by the
     person, and both are what the lawyer has just confirmed.
 
     `values` is what the human confirmed on screen, not what the engine proposed — the two differ
@@ -188,7 +190,7 @@ def confirm_scan(
         # Same optimistic lock as every other write to this record (§4.1) — the review screen and
         # the client details panel edit the same columns, so the loser of a race gets a 409.
         check_version(client, client_version)
-        process = _active_process(client)
+        process = active_process_for(client)
         before, after = _apply_to_client(client, values, is_spouse=is_spouse)
         if after:
             _assert_pid_is_free(client, after)
@@ -231,10 +233,9 @@ def confirm_scan(
         },
         request=request,
     )
-    # A confirmed identity paper can complete Step 1, so the stored status must be re-derived —
-    # and a spouse card has just supplied the key the household duplicate rule reads (§5.7).
-    recompute_duplicate_flags(client)
-    recompute_client_steps(client)
+    # A confirmed identity paper can complete Step 1, and a spouse card has just supplied the key
+    # the household duplicate rule reads — both are server-derived and must be refreshed (§5.7).
+    recompute_client_state(client)
     return scan
 
 
@@ -261,9 +262,16 @@ def _create_from_card(*, values: dict, actor, assigned_lawyer, category, request
     return client, process
 
 
-def _active_process(client):
+def active_process_for(client):
+    """The live case a card is filed onto. Public because the permission check needs the *same*
+    case the write will target — testing "is this lawyer on any of their cases" would let someone
+    assigned only to a rejected case file onto the live one (§4.2)."""
+    from processes.models import Process
+
     process = (
-        client.processes.exclude(overall_status="rejected").order_by("-created_at").first()
+        client.processes.exclude(overall_status=Process.OverallStatus.REJECTED)
+        .order_by("-created_at")
+        .first()
     )
     if process is None:
         raise ValidationError({"client": "This client has no active case to file the card on."})

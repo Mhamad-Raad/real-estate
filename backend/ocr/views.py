@@ -15,7 +15,7 @@ from catalog.models import Category
 from clients.models import Client
 
 from .models import CardScan
-from .services import CLIENT_FIELDS, confirm_scan, stage_scan
+from .services import CLIENT_FIELDS, active_process_for, confirm_scan, stage_scan
 
 
 class CardScanSerializer(serializers.ModelSerializer):
@@ -143,9 +143,13 @@ class CardScanViewSet(RetrieveModelMixin, GenericViewSet):
         return Response(CardScanSerializer(scan).data)
 
     def _assert_may_write(self, client):
-        """Filing onto an existing case follows that case's assignment, like any other upload."""
+        """Filing onto an existing case follows that case's assignment, like any other upload.
+
+        Checked against the *same* case the write will target, not "any case of this client":
+        someone assigned only to a rejected case would otherwise be let through to the live one.
+        """
         user = self.request.user
         if user.is_admin:
             return
-        if not client.processes.filter(assigned_lawyer=user).exists():
+        if active_process_for(client).assigned_lawyer_id != user.id:
             raise PermissionDenied("Only the assigned lawyer or an admin can do this.")

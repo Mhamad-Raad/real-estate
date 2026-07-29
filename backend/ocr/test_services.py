@@ -71,6 +71,16 @@ class ScanTestBase(APITestCase):
             **kwargs,
         )
 
+    def _confirm(self, **kwargs):
+        """Confirm, then run the on-commit callbacks.
+
+        The staged file is moved on commit, not inline (§6.7) — a `TestCase` wraps everything in a
+        transaction that is rolled back, so without this the move never happens and any assertion
+        about where the file ended up would be testing nothing.
+        """
+        with self.captureOnCommitCallbacks(execute=True):
+            return confirm_scan(**kwargs)
+
     def _read(self, scan, draft=DRAFT):
         scan.status = CardScan.Status.DONE
         scan.draft = draft
@@ -149,6 +159,18 @@ class StagingTests(ScanTestBase):
         with self.assertRaises(ValidationError):
             self._scan(content=b"\xff\xd8\xff" + b"garbage" * 50)
 
+    def test_a_failed_row_insert_does_not_orphan_the_staged_file(self):
+        """With no row, no sweep can ever find the file again — so it must not be left behind."""
+        staging = settings.DOCUMENTS_ROOT / "_staging"
+        before = set(staging.glob("*.pdf")) if staging.exists() else set()
+        with mock.patch.object(
+            CardScan.objects, "create", side_effect=RuntimeError("insert failed")
+        ):
+            with self.assertRaises(RuntimeError):
+                self._scan()
+        after = set(staging.glob("*.pdf")) if staging.exists() else set()
+        self.assertEqual(after - before, set())
+
     def test_staging_is_audited(self):
         scan = self._scan()
         self.assertTrue(
@@ -200,7 +222,7 @@ class ReadingTests(ScanTestBase):
 class ConfirmCreatesTheClientTests(ScanTestBase):
     def test_confirming_creates_the_client_the_case_and_the_filed_document(self):
         scan = self._read(self._scan())
-        confirm_scan(
+        self._confirm(
             scan=scan, values=dict(CONFIRMED), actor=self.lawyer, assigned_lawyer=self.lawyer
         )
 
@@ -220,7 +242,7 @@ class ConfirmCreatesTheClientTests(ScanTestBase):
         what supplies, so filing can only happen once the reading is confirmed (§6.7)."""
         scan = self._read(self._scan())
         staged = scan.file_path
-        confirm_scan(
+        self._confirm(
             scan=scan, values=dict(CONFIRMED), actor=self.lawyer, assigned_lawyer=self.lawyer
         )
 
@@ -241,7 +263,7 @@ class ConfirmCreatesTheClientTests(ScanTestBase):
     def test_the_moved_file_is_the_same_bytes(self):
         content = make_pdf(2)
         scan = self._read(self._scan(content=content))
-        confirm_scan(
+        self._confirm(
             scan=scan, values=dict(CONFIRMED), actor=self.lawyer, assigned_lawyer=self.lawyer
         )
         document = Document.objects.get()
@@ -250,7 +272,7 @@ class ConfirmCreatesTheClientTests(ScanTestBase):
 
     def test_a_correction_is_recorded_so_ocr_quality_can_be_judged(self):
         scan = self._read(self._scan())
-        confirm_scan(
+        self._confirm(
             scan=scan,
             values={**CONFIRMED, "full_name": "محمد رعد رضا"},
             actor=self.lawyer,
@@ -269,7 +291,7 @@ class ConfirmCreatesTheClientTests(ScanTestBase):
         scan.error = "unreadable"
         scan.save(update_fields=["status", "error"])
 
-        confirm_scan(
+        self._confirm(
             scan=scan,
             values={**CONFIRMED, "full_name": "Typed By Hand"},
             actor=self.lawyer,
@@ -284,7 +306,7 @@ class ConfirmCreatesTheClientTests(ScanTestBase):
         make_client(full_name="Someone Else", pid="200103487811", mother_full_name="M")
         scan = self._read(self._scan())
         with self.assertRaises(ValidationError) as caught:
-            confirm_scan(
+            self._confirm(
                 scan=scan, values=dict(CONFIRMED), actor=self.lawyer, assigned_lawyer=self.lawyer
             )
 
@@ -299,7 +321,7 @@ class ConfirmCreatesTheClientTests(ScanTestBase):
     def test_creating_a_client_needs_the_identity_fields(self):
         scan = self._read(self._scan())
         with self.assertRaises(ValidationError) as caught:
-            confirm_scan(
+            self._confirm(
                 scan=scan,
                 values={"full_name": "Only A Name"},
                 actor=self.lawyer,
@@ -312,13 +334,45 @@ class ConfirmCreatesTheClientTests(ScanTestBase):
         with self.assertRaises(ValidationError):
             confirm_scan(scan=scan, values=dict(CONFIRMED), actor=self.lawyer)
 
+    def test_a_late_failure_leaves_the_scan_intact_and_retryable(self):
+        """The move relocates the *only* copy of a citizen's ID and cannot be rolled back with the
+        transaction. Doing it inline meant a late failure filed the card while the database forgot
+        it ever moved — the scan then pointed at a path that no longer existed and could neither
+        be previewed nor re-confirmed. Deferring to `on_commit` makes failure mean 'nothing
+        happened' (§6.7)."""
+        scan = self._read(self._scan())
+        staged = settings.DOCUMENTS_ROOT / scan.file_path
+
+        with mock.patch(
+            "ocr.services.recompute_client_state", side_effect=RuntimeError("late failure")
+        ):
+            with self.assertRaises(RuntimeError):
+                self._confirm(
+                    scan=scan,
+                    values=dict(CONFIRMED),
+                    actor=self.lawyer,
+                    assigned_lawyer=self.lawyer,
+                )
+
+        scan.refresh_from_db()
+        self.assertFalse(scan.is_confirmed)
+        self.assertTrue(staged.exists(), "the staged scan must still be where the row says it is")
+        self.assertFalse(Client.objects.filter(pid=CONFIRMED["pid"]).exists())
+        self.assertFalse(Document.objects.exists())
+
+        # And the lawyer can simply try again.
+        self._confirm(
+            scan=scan, values=dict(CONFIRMED), actor=self.lawyer, assigned_lawyer=self.lawyer
+        )
+        self.assertTrue(Document.objects.exists())
+
     def test_a_card_cannot_be_confirmed_twice(self):
         scan = self._read(self._scan())
-        confirm_scan(
+        self._confirm(
             scan=scan, values=dict(CONFIRMED), actor=self.lawyer, assigned_lawyer=self.lawyer
         )
         with self.assertRaises(ValidationError):
-            confirm_scan(
+            self._confirm(
                 scan=scan, values=dict(CONFIRMED), actor=self.lawyer, assigned_lawyer=self.lawyer
             )
         self.assertEqual(Document.objects.count(), 1)
@@ -337,7 +391,7 @@ class ConfirmOntoAnExistingClientTests(ScanTestBase):
 
     def test_a_replacement_scan_updates_the_client_it_is_confirmed_onto(self):
         scan = self._read(self._scan())
-        confirm_scan(
+        self._confirm(
             scan=scan,
             values=dict(CONFIRMED),
             client=self.client_row,
@@ -352,7 +406,7 @@ class ConfirmOntoAnExistingClientTests(ScanTestBase):
         """It lives in the beneficiary's folder — it is their case — but the document *is* the
         spouse's paper, so naming it after the beneficiary would misdescribe it (§6.7)."""
         scan = self._read(self._scan(document_type="SpouseID"))
-        confirm_scan(
+        self._confirm(
             scan=scan,
             values={"full_name": "Spouse Name", "pid": "SPOUSE-9"},
             client=self.client_row,
@@ -366,7 +420,7 @@ class ConfirmOntoAnExistingClientTests(ScanTestBase):
 
     def test_a_spouse_card_stores_the_spouses_own_pid_for_the_household_rule(self):
         scan = self._read(self._scan(document_type="SpouseID"))
-        confirm_scan(
+        self._confirm(
             scan=scan,
             values={"full_name": "Spouse Name", "pid": "SPOUSE-9"},
             client=self.client_row,
@@ -386,7 +440,7 @@ class ConfirmOntoAnExistingClientTests(ScanTestBase):
         self.assertFalse(self.process.duplicate_flagged)
 
         scan = self._read(self._scan(document_type="SpouseID"))
-        confirm_scan(
+        self._confirm(
             scan=scan,
             values={"full_name": "Spouse Name", "pid": "SPOUSE-9"},
             client=self.client_row,
@@ -403,7 +457,7 @@ class ConfirmOntoAnExistingClientTests(ScanTestBase):
 
     def test_a_spouse_card_fills_the_spouse_columns(self):
         scan = self._read(self._scan(document_type="SpouseID"))
-        confirm_scan(
+        self._confirm(
             scan=scan,
             values={
                 "full_name": "Spouse Name",
@@ -424,14 +478,14 @@ class ConfirmOntoAnExistingClientTests(ScanTestBase):
     def test_a_spouse_card_cannot_create_a_client(self):
         scan = self._read(self._scan(document_type="SpouseID"))
         with self.assertRaises(ValidationError):
-            confirm_scan(
+            self._confirm(
                 scan=scan, values=dict(CONFIRMED), actor=self.lawyer, assigned_lawyer=self.lawyer
             )
 
     def test_a_stale_client_version_is_rejected(self):
         scan = self._read(self._scan())
         with self.assertRaises(StaleVersion):
-            confirm_scan(
+            self._confirm(
                 scan=scan,
                 values=dict(CONFIRMED),
                 client=self.client_row,
@@ -451,7 +505,7 @@ class ConfirmOntoAnExistingClientTests(ScanTestBase):
             return original(instance, *args, **kwargs)
 
         with mock.patch.object(Client, "save", spy):
-            confirm_scan(
+            self._confirm(
                 scan=scan,
                 values={"mother_full_name": "New Mother"},
                 client=self.client_row,
@@ -465,7 +519,7 @@ class ConfirmOntoAnExistingClientTests(ScanTestBase):
     def test_confirming_does_not_lock_the_fields(self):
         """Confirming records that a human checked it; the data stays editable afterwards."""
         scan = self._read(self._scan())
-        confirm_scan(
+        self._confirm(
             scan=scan,
             values={"full_name": "First Value"},
             client=self.client_row,
@@ -537,7 +591,7 @@ class SweepTests(ScanTestBase):
 
     def test_a_confirmed_scan_is_never_touched(self):
         scan = self._read(self._scan())
-        confirm_scan(
+        self._confirm(
             scan=scan, values=dict(CONFIRMED), actor=self.lawyer, assigned_lawyer=self.lawyer
         )
         self._age(scan, days=90)
@@ -615,6 +669,25 @@ class ScanApiTests(ScanTestBase):
         )
         self.assertEqual(response.status_code, 400)
         self.assertIn("client_version", response.data)
+
+    def test_being_assigned_to_a_rejected_case_grants_nothing_on_the_live_one(self):
+        """The permission check has to name the *same* case the write will target (§4.2)."""
+        client_row = make_client(full_name="Two Cases", pid="TC-1", mother_full_name="M")
+        rejected = create_process(
+            client=client_row, assigned_lawyer=self.other, actor=self.admin
+        )
+        rejected.overall_status = Process.OverallStatus.REJECTED
+        rejected.save(update_fields=["overall_status"])
+        create_process(client=client_row, assigned_lawyer=self.lawyer, actor=self.admin)
+
+        scan = self._read(self._scan(actor=self.other))
+        self.client.force_authenticate(self.other)
+        response = self.client.post(
+            reverse("card-scan-confirm", args=[scan.id]),
+            {"full_name": "Y", "client": client_row.id, "client_version": client_row.version},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 403)
 
     def test_a_non_assignee_cannot_file_onto_someone_elses_case(self):
         client_row = make_client(full_name="X", pid="X-2", mother_full_name="M")

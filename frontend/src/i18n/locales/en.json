@@ -152,7 +152,8 @@
       "householdHeading": "Already allocated as a household",
       "householdNote": "A married couple may be allocated land once. This person and the beneficiary below are recorded as spouses."
     },
-    "spousePid": "Spouse's National ID"
+    "spousePid": "Spouse's National ID",
+    "spousePidHint": "Used only to stop a couple being allocated land twice. Leave blank if unknown."
   },
   "processes": {
     "title": "Processes",
@@ -415,8 +416,7 @@
       "full_name": "Full name",
       "pid": "Card number (national ID)",
       "mother_full_name": "Mother's full name",
-      "date_of_birth": "Date of birth",
-      "spouse_pid": "Spouse's National ID"
+      "date_of_birth": "Date of birth"
     },
     "fromOcr": "From OCR ({{confidence}}%) — please confirm",
     "crossChecked": "Cross-checked",
@@ -429,11 +429,6 @@
     "confirmError": "Could not save. Please check the details and try again.",
     "selectLawyer": "Select a lawyer…",
     "pickLawyer": "Choose the lawyer who will handle this case.",
-    "startOver": "Start over with a new card",
-    "spouseFront": "Front of the spouse's card",
-    "spouseBack": "Back of the spouse's card",
-    "married": "This beneficiary is married",
-    "marriedHint": "A married beneficiary's letter prints a spouse row, so the spouse's details are needed.",
-    "spouseSection": "The spouse's card"
+    "startOver": "Start over with a new card"
   }
 }
