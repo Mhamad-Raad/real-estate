@@ -6,15 +6,15 @@ Sorani/Arabic names survive on NTFS/APFS. Layout: <CATEGORY>/<client_id>_<pid>/<
 """
 
 import hashlib
-from io import BytesIO
-
-from pypdf import PdfReader
 import re
+import shutil
 import unicodedata
 import uuid
+from io import BytesIO
 from pathlib import Path
 
 from django.conf import settings
+from pypdf import PdfReader
 
 PDF_MAGIC = b"%PDF-"
 # Windows-illegal characters + control chars — stripped from every name component.
@@ -130,6 +130,37 @@ def write_pdf(rel_path: Path, content: bytes) -> Path:
     dest = settings.DOCUMENTS_ROOT / rel_path
     dest.parent.mkdir(parents=True, exist_ok=True)
     dest.write_bytes(content)
+    return dest
+
+
+# Scans wait here between upload and confirmation. Inside DOCUMENTS_ROOT so one backup covers it,
+# and underscore-prefixed so it can never collide with a category folder (A/B/C/G).
+STAGING_DIR = "_staging"
+
+
+def staging_path(sid: str) -> Path:
+    """Where a card scan lives before the client it describes exists (§6.7).
+
+    Named by short id alone: the friendly name is composed from the person's category, PID and
+    name, and none of those are known until the reading has been confirmed.
+    """
+    return Path(STAGING_DIR) / f"scan__{sanitize(sid, 'scan', 40)}.pdf"
+
+
+def move_into_place(*, source: Path, rel_path: Path) -> Path:
+    """Move a staged file to its final home, without rewriting the bytes.
+
+    A rename keeps the sha256 meaningful (it is the hash of what was uploaded) and cannot half-copy
+    a large scan. Falls back to copy+delete if the store ever spans two filesystems.
+    """
+    src = settings.DOCUMENTS_ROOT / source
+    dest = settings.DOCUMENTS_ROOT / rel_path
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        src.replace(dest)
+    except OSError:  # cross-device: same result, slower path
+        shutil.copy2(src, dest)
+        src.unlink(missing_ok=True)
     return dest
 
 

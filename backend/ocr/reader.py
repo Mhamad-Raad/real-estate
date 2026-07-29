@@ -15,8 +15,6 @@ install. Two deliberate choices, both measured during the accuracy spike:
 from dataclasses import dataclass
 from pathlib import Path
 
-from django.conf import settings
-
 from .extraction import ARABIC_MODEL, LATIN_MODEL, IdCardDraft, build_draft
 
 # Below this, a page is treated as unreadable rather than passed on as a confident draft.
@@ -106,8 +104,3 @@ def read_card(front_path: Path, back_path: Path | None = None) -> IdCardDraft:
     if not front.is_readable:
         draft.warnings.insert(0, "The front of the card could not be read. Enter the details by hand.")
     return draft
-
-
-def read_document(document) -> IdCardDraft:
-    """Read a stored `Document` — the entry point the OCR job uses."""
-    return read_card(Path(settings.DOCUMENTS_ROOT) / document.file_path)

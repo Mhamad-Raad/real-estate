@@ -1,95 +1,145 @@
-"""OCR endpoints — thin HTTP over `services` (§6.5, §14.2)."""
+"""Card-scan endpoints — thin HTTP over `services` (§6.5, §6.7, §14.2)."""
 
+from django.conf import settings
+from django.http import FileResponse
 from rest_framework import serializers, status
 from rest_framework.decorators import action
-from rest_framework.exceptions import PermissionDenied
+from rest_framework.exceptions import NotFound, PermissionDenied
 from rest_framework.mixins import RetrieveModelMixin
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
 
-from documents.models import Document
+from accounts.models import User
+from catalog.models import Category
+from clients.models import Client
 
-from .models import OcrRun
-from .services import CLIENT_FIELDS, start_ocr, verify_ocr
+from .models import CardScan
+from .services import CLIENT_FIELDS, confirm_scan, stage_scan
 
 
-class OcrRunSerializer(serializers.ModelSerializer):
+class CardScanSerializer(serializers.ModelSerializer):
     class Meta:
-        model = OcrRun
+        model = CardScan
         fields = (
             "id",
-            "document",
+            "document_type",
             "status",
             "draft",
             "error",
-            "verified_at",
-            "verified_by",
+            "document",
+            "confirmed_at",
+            "confirmed_by",
             "created_at",
         )
         read_only_fields = fields
 
 
-class StartOcrSerializer(serializers.Serializer):
-    document = serializers.PrimaryKeyRelatedField(queryset=Document.objects.all())
+class StageScanSerializer(serializers.Serializer):
+    file = serializers.FileField()
+    document_type = serializers.CharField(max_length=60)
 
 
-class VerifySerializer(serializers.Serializer):
-    """What the human confirmed on screen — every field optional and freely editable."""
+class ConfirmSerializer(serializers.Serializer):
+    """What the human confirmed on screen — every card field optional and freely editable.
+
+    Optional because a failed reading is still confirmable: the lawyer types the values in and
+    they arrive here exactly as a corrected reading would.
+    """
 
     pid = serializers.CharField(required=False, allow_blank=True, max_length=50)
     full_name = serializers.CharField(required=False, allow_blank=True, max_length=200)
     mother_full_name = serializers.CharField(required=False, allow_blank=True, max_length=200)
     date_of_birth = serializers.DateField(required=False, allow_null=True)
-    # The client's version as the screen loaded it — this writes to the same columns the client
-    # details panel does, so the optimistic lock is mandatory here too (§4.1).
-    client_version = serializers.IntegerField()
+
+    # Absent → the card creates the person; present → it updates someone already on file (a
+    # spouse card, or a replacement scan), and then the optimistic lock applies.
+    client = serializers.PrimaryKeyRelatedField(
+        queryset=Client.objects.all(), required=False, allow_null=True
+    )
+    client_version = serializers.IntegerField(required=False)
+    # Only used when creating: a new case needs an owner, and a category if one is known yet.
+    assigned_lawyer = serializers.PrimaryKeyRelatedField(
+        queryset=User.objects.filter(is_active=True), required=False, allow_null=True
+    )
+    category = serializers.PrimaryKeyRelatedField(
+        queryset=Category.objects.all(), required=False, allow_null=True
+    )
 
     def validate(self, attrs):
         if not any(name in attrs for name in CLIENT_FIELDS):
             raise serializers.ValidationError("No fields were submitted.")
+        if attrs.get("client") and attrs.get("client_version") is None:
+            raise serializers.ValidationError(
+                {"client_version": "This field is required when updating an existing client."}
+            )
         return attrs
 
 
-class OcrRunViewSet(RetrieveModelMixin, GenericViewSet):
-    """Start a reading, poll it, then verify it.
+class CardScanViewSet(RetrieveModelMixin, GenericViewSet):
+    """Stage a card, poll its reading, preview it, then confirm it into real records.
 
-    No list/update/delete: a run is an immutable record of one reading. Object permissions come
-    from the process the document belongs to — only its assignee or an admin may act on it.
+    No list/update/delete: a scan is a staging record, and once confirmed it is history. A lawyer
+    sees only their own scans — an unconfirmed scan carries a citizen's ID with nobody's name yet
+    attached to gate it, so it stays with the person who took it.
     """
 
-    serializer_class = OcrRunSerializer
+    serializer_class = CardScanSerializer
     permission_classes = (IsAuthenticated,)
 
     def get_queryset(self):
-        return OcrRun.objects.select_related("document__process")
-
-    def _assert_may_write(self, document):
-        user = self.request.user
-        if not (user.is_admin or document.process.assigned_lawyer_id == user.id):
-            raise PermissionDenied("Only the assigned lawyer or an admin can do this.")
+        scans = CardScan.objects.all()
+        if self.request.user.is_admin:
+            return scans
+        return scans.filter(uploaded_by=self.request.user)
 
     def create(self, request):
-        payload = StartOcrSerializer(data=request.data)
+        payload = StageScanSerializer(data=request.data)
         payload.is_valid(raise_exception=True)
-        document = payload.validated_data["document"]
-        self._assert_may_write(document)
-        run = start_ocr(document=document, actor=request.user, request=request)
-        return Response(OcrRunSerializer(run).data, status=status.HTTP_202_ACCEPTED)
+        upload = payload.validated_data["file"]
+        scan = stage_scan(
+            content=upload.read(),
+            document_type=payload.validated_data["document_type"],
+            actor=request.user,
+            original_filename=getattr(upload, "name", ""),
+            request=request,
+        )
+        return Response(CardScanSerializer(scan).data, status=status.HTTP_202_ACCEPTED)
+
+    @action(detail=True, methods=["get"])
+    def file(self, request, pk=None):
+        """The staged PDF, for the preview pane beside the fields."""
+        scan = self.get_object()
+        path = settings.DOCUMENTS_ROOT / scan.file_path if scan.file_path else None
+        if path is None or not path.exists():
+            raise NotFound("This scan has no staged file; it has already been filed.")
+        return FileResponse(path.open("rb"), content_type="application/pdf")
 
     @action(detail=True, methods=["post"])
-    def verify(self, request, pk=None):
-        run = self.get_object()
-        self._assert_may_write(run.document)
-        payload = VerifySerializer(data=request.data)
+    def confirm(self, request, pk=None):
+        scan = self.get_object()
+        payload = ConfirmSerializer(data=request.data)
         payload.is_valid(raise_exception=True)
-        values = dict(payload.validated_data)
-        client_version = values.pop("client_version")
-        run = verify_ocr(
-            run=run,
-            values=values,
-            client_version=client_version,
+        data = dict(payload.validated_data)
+        client = data.pop("client", None)
+        if client is not None:
+            self._assert_may_write(client)
+        scan = confirm_scan(
+            scan=scan,
+            client=client,
+            client_version=data.pop("client_version", None),
+            assigned_lawyer=data.pop("assigned_lawyer", None),
+            category=data.pop("category", None),
+            values=data,
             actor=request.user,
             request=request,
         )
-        return Response(OcrRunSerializer(run).data)
+        return Response(CardScanSerializer(scan).data)
+
+    def _assert_may_write(self, client):
+        """Filing onto an existing case follows that case's assignment, like any other upload."""
+        user = self.request.user
+        if user.is_admin:
+            return
+        if not client.processes.filter(assigned_lawyer=user).exists():
+            raise PermissionDenied("Only the assigned lawyer or an admin can do this.")

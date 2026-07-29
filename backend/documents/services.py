@@ -1,6 +1,7 @@
 """Write-side rules for documents — validate the PDF, write to the store, audit (§4.4, §6.7)."""
 
 import io
+from pathlib import Path
 
 from django.conf import settings
 from django.db import transaction
@@ -19,6 +20,82 @@ class PayloadTooLarge(APIException):
     status_code = status.HTTP_413_REQUEST_ENTITY_TOO_LARGE
     default_detail = "The uploaded file is too large."
     default_code = "file_too_large"
+
+
+def compose_location(*, process, document_type: str, institute_entry=None) -> tuple[str, "Path"]:
+    """The friendly name and the store path for a document on this process (§6.7).
+
+    Both are derived from the person: the category and PID key the folder, the name keys the file.
+    That is why a scanned ID is only filed once its reading has been confirmed — before that, the
+    very fields this composition needs are still what the card is proposing.
+    """
+    client = process.client
+    category_code = process.category.code if process.category_id else "NA"
+    display = filestore.compose_display_name(
+        category_code=category_code,
+        institute=filestore.institute_label(institute_entry),
+        person_name=client.full_name,
+        document_type=document_type,
+        sid=filestore.short_id(),
+    )
+    rel = filestore.relative_path(
+        category_code=category_code,
+        client_id=client.id,
+        pid=client.pid,
+        display_filename=display,
+    )
+    return display, rel
+
+
+def file_staged_document(
+    *,
+    staged_path: str,
+    process,
+    step_number: int,
+    document_type: str,
+    actor,
+    sha256: str,
+    size_bytes: int,
+    original_filename: str = "",
+    request=None,
+) -> Document:
+    """Move an already-staged scan into the person's folder and create its verified row (§6.7).
+
+    The bytes were validated when they were staged, so this only relocates them — the file is
+    moved, not rewritten, so the recorded sha256 keeps describing exactly what was uploaded.
+    """
+    display, rel = compose_location(process=process, document_type=document_type)
+    dest = filestore.move_into_place(source=Path(staged_path), rel_path=rel)
+    try:
+        with transaction.atomic():
+            document = Document.objects.create(
+                process=process,
+                step_number=step_number,
+                document_type=document_type,
+                input_source=Document.InputSource.SCANNED,
+                file_path=str(rel),
+                display_filename=display,
+                sha256=sha256,
+                original_filename=original_filename[:255],
+                size_bytes=size_bytes,
+                uploaded_by=actor,
+                ocr_status=Document.OcrStatus.DONE,
+                # Filed only because a human confirmed the reading — that is what this row is.
+                verification_status=Document.VerificationStatus.VERIFIED,
+            )
+            record_activity(
+                actor=actor,
+                action=ActivityLog.Action.CREATE,
+                entity_type="Document",
+                entity_id=document.id,
+                after={"display_filename": display, "process_id": process.id, "step": step_number},
+                request=request,
+            )
+    except Exception:
+        # Put it back in staging so a failed confirmation never loses the scan.
+        filestore.move_into_place(source=rel, rel_path=Path(staged_path))
+        raise
+    return document
 
 
 def create_document(
@@ -56,21 +133,8 @@ def create_document(
     if not filestore.is_readable_pdf(content):
         raise ValidationError({"file": "File is not a readable PDF."})
 
-    client = process.client
-    category_code = process.category.code if process.category_id else "NA"
-    sid = filestore.short_id()
-    display = filestore.compose_display_name(
-        category_code=category_code,
-        institute=filestore.institute_label(institute_entry),
-        person_name=client.full_name,
-        document_type=document_type,
-        sid=sid,
-    )
-    rel = filestore.relative_path(
-        category_code=category_code,
-        client_id=client.id,
-        pid=client.pid,
-        display_filename=display,
+    display, rel = compose_location(
+        process=process, document_type=document_type, institute_entry=institute_entry
     )
     dest = filestore.write_pdf(rel, content)
     try:
