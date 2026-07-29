@@ -32,11 +32,13 @@ def verify(sequence: str, expected: str) -> bool:
     return expected.isdigit() and check_digit(sequence) == expected
 
 
-def parse_yymmdd(value: str, *, century_pivot: int = 30, in_the_past: bool = True) -> date | None:
+def parse_yymmdd(value: str, *, century_pivot: int = 30) -> date | None:
     """`010812` → 2001-08-12.
 
-    The MRZ stores a two-digit year, so the century has to be inferred. Birth dates on a national
-    ID are always in the past: years above the pivot are 19xx, at or below are 20xx.
+    The MRZ stores a two-digit year, so the century has to be inferred. A birth date on a national
+    ID is always in the past: years above the pivot are 19xx, at or below are 20xx — and anything
+    the pivot still lands in the future is pulled back a century, since the direction of the field
+    is the more reliable rule.
     """
     if len(value) != 6 or not value.isdigit():
         return None
@@ -46,9 +48,7 @@ def parse_yymmdd(value: str, *, century_pivot: int = 30, in_the_past: bool = Tru
         parsed = date(year, mm, dd)
     except ValueError:  # OCR can produce month 00 or day 32
         return None
-    # A fixed pivot alone lets a birth year just below it land in the future (28 → 2028); the
-    # direction of the field is the reliable rule, so it decides the century in that case.
-    if in_the_past and parsed > date.today():
+    if parsed > date.today():
         parsed = parsed.replace(year=parsed.year - 100)
     return parsed
 
@@ -61,7 +61,6 @@ class MrzResult:
     # this is where the **national ID** lives — the number the office uses as `pid`.
     national_id: str = ""
     date_of_birth: date | None = None
-    expiry_date: date | None = None
     sex: str = ""
     nationality: str = ""
     surname: str = ""
@@ -114,6 +113,9 @@ def parse_td1(lines: list[str]) -> MrzResult:
         result.national_id = "".join(ch for ch in first[15:] if ch.isdigit())
 
     # Line 2: birth date (6) + check, sex (1), expiry (6) + check, nationality (3).
+    # The expiry date is read past, not parsed: the office cares who the holder is, not whether
+    # the card is still in date, and a national ID does not stop identifying its holder when it
+    # expires. Its offsets still matter, because nationality sits after it.
     if len(second) >= 15:
         dob_raw, dob_cd = second[0:6], second[6:7]
         result.date_of_birth = parse_yymmdd(dob_raw)
@@ -122,12 +124,6 @@ def parse_td1(lines: list[str]) -> MrzResult:
 
         sex = second[7:8]
         result.sex = sex if sex in ("M", "F") else ""
-
-        exp_raw, exp_cd = second[8:14], second[14:15]
-        # An expiry date is in the future, so its century pivot is the opposite of a birth date's.
-        result.expiry_date = parse_yymmdd(exp_raw, century_pivot=70, in_the_past=False)
-        if result.expiry_date and verify(exp_raw, exp_cd):
-            result.verified.add("expiry_date")
 
         result.nationality = second[15:18].replace(FILLER, "")
 

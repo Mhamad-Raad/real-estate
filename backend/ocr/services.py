@@ -23,18 +23,25 @@ from common.models import ActivityLog
 from common.services import record_activity
 from documents import filestore
 from documents.services import PayloadTooLarge, file_staged_document
-from processes.services import create_process, recompute_client_steps
+from processes.services import (
+    create_process,
+    recompute_client_steps,
+    recompute_duplicate_flags,
+)
 
 from .models import CardScan
 
 # The client fields a card can fill. Anything outside this set is ignored, so a future change to
 # the draft shape can never quietly start writing to a column nobody reviewed.
 CLIENT_FIELDS = ("pid", "full_name", "mother_full_name", "date_of_birth")
-# `SpouseID` fills the spouse columns instead of the client's own.
+# `SpouseID` fills the spouse columns instead of the client's own. The spouse's PID is stored
+# too — not for the letter, which never prints it, but because a household may hold only one
+# allocation and that rule needs the spouse to be identifiable (§3.7, §5.7).
 SPOUSE_FIELD_MAP = {
     "full_name": "spouse_name",
     "mother_full_name": "spouse_mother_full_name",
     "date_of_birth": "spouse_date_of_birth",
+    "pid": "spouse_pid",
 }
 # Identity papers belong to Step 1 (§3.6).
 IDENTITY_STEP = 1
@@ -132,7 +139,6 @@ def _safe_error(exc: Exception) -> str:
 def _target_field(source_field: str, *, is_spouse: bool) -> str | None:
     if not is_spouse:
         return source_field
-    # A spouse's own PID is not stored — the client's PID is the identity key (§3.7).
     return SPOUSE_FIELD_MAP.get(source_field)
 
 
@@ -225,7 +231,9 @@ def confirm_scan(
         },
         request=request,
     )
-    # A confirmed identity paper can complete Step 1, so the stored status must be re-derived.
+    # A confirmed identity paper can complete Step 1, so the stored status must be re-derived —
+    # and a spouse card has just supplied the key the household duplicate rule reads (§5.7).
+    recompute_duplicate_flags(client)
     recompute_client_steps(client)
     return scan
 

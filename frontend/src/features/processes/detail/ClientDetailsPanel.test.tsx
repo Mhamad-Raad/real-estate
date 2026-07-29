@@ -26,6 +26,7 @@ function client(over: Partial<Client> = {}): Client {
     spouse_name: "",
     spouse_date_of_birth: null,
     spouse_mother_full_name: "",
+  spouse_pid: "",
     is_married: false,
     date_of_birth: "1990-01-01",
     place_of_birth: "",

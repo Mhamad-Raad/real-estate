@@ -9,6 +9,7 @@ export interface Client {
   spouse_name: string;
   spouse_date_of_birth: string | null;
   spouse_mother_full_name: string;
+  spouse_pid: string;
   is_married: boolean;
   date_of_birth: string | null;
   place_of_birth: string;
@@ -28,6 +29,7 @@ export interface ClientInput {
   spouse_name: string;
   spouse_date_of_birth: string | null;
   spouse_mother_full_name: string;
+  spouse_pid: string;
   date_of_birth: string | null;
   place_of_birth: string;
   address: string;
@@ -37,5 +39,7 @@ export interface ClientInput {
 
 export interface DuplicateCheckResult {
   pid_matches: Client[];
+  /** Married to an existing beneficiary — a household may hold one allocation (§5.7). */
+  household_matches: Client[];
   mother_name_matches: Client[];
 }

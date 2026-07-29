@@ -37,5 +37,6 @@ export const cardScansApi = baseApi.injectEndpoints({
 export const {
   useStageCardScanMutation,
   useGetCardScanQuery,
+  useLazyGetCardScanQuery,
   useConfirmCardScanMutation,
 } = cardScansApi;

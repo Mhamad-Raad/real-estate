@@ -50,11 +50,6 @@ class DateParsingTests(TestCase):
         self.assertEqual(mrz.parse_yymmdd("010812"), date(2001, 8, 12))
         self.assertEqual(mrz.parse_yymmdd("850101"), date(1985, 1, 1))
 
-    def test_expiry_uses_a_later_pivot_so_it_lands_in_the_future(self):
-        self.assertEqual(
-            mrz.parse_yymmdd("350615", century_pivot=70, in_the_past=False), date(2035, 6, 15)
-        )
-
     def test_a_birth_year_just_under_the_pivot_does_not_land_in_the_future(self):
         """`28` is below the pivot, so the pivot alone would read it as 2028 — a birth date
         cannot be in the future, and that direction is the more reliable rule."""
@@ -80,12 +75,17 @@ class MrzParsingTests(TestCase):
     def test_parses_the_checked_fields(self):
         result = mrz.parse(BACK_TEXT)
         self.assertEqual(result.date_of_birth, date(2001, 8, 12))
-        self.assertEqual(result.expiry_date, date(2035, 6, 15))
         self.assertEqual(result.sex, "M")
         self.assertEqual(result.nationality, "IRQ")
         self.assertIn("date_of_birth", result.verified)
-        self.assertIn("expiry_date", result.verified)
         self.assertTrue(result.is_usable)
+
+    def test_the_expiry_date_is_skipped_but_its_offsets_still_hold(self):
+        """The office identifies the holder; whether the card is in date is not its business.
+        Nationality sits after the expiry field, so the offsets must still be right."""
+        result = mrz.parse(BACK_TEXT)
+        self.assertFalse(hasattr(result, "expiry_date"))
+        self.assertEqual(result.nationality, "IRQ")
 
     def test_parses_the_name_line(self):
         result = mrz.parse(BACK_TEXT)

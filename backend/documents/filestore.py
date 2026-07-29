@@ -129,6 +129,8 @@ def institute_label(entry) -> str:
 def compose_display_name(
     *, category_code: str, institute: str, person_name: str, document_type: str, sid: str
 ) -> str:
+    """The **download** name (§6.7). Fully self-describing, because a downloaded file lands in
+    someone's Downloads folder with no surrounding path to give it context."""
     parts = [
         sanitize(category_code, "NA", 10),
         sanitize(institute, "General"),
@@ -138,10 +140,27 @@ def compose_display_name(
     return "_".join(parts) + f"__{sid}.pdf"
 
 
-def relative_path(*, category_code: str, client_id: int, pid: str, display_filename: str) -> Path:
-    """Physical path relative to DOCUMENTS_ROOT — folder keyed by stable id (never moves on edit)."""
-    person_dir = f"{client_id:06d}_{sanitize(pid, 'NA', 30)}"
-    return Path(sanitize(category_code, "NA", 10)) / person_dir / display_filename
+def compose_stored_name(*, institute: str, document_type: str, sid: str) -> str:
+    """The **on-disk** name. Deliberately shorter than the download name: the two folders above
+    already say the category and the person, so repeating them buys nothing and makes a name
+    correction rewrite the filesystem. The institute stays — it is what tells apart the many
+    `InstituteDoc` files a case accumulates in steps 2–4."""
+    return f"{sanitize(institute, 'General')}_{sanitize(document_type, 'Document')}__{sid}.pdf"
+
+
+def person_dir(pid: str) -> str:
+    """One folder per **person**, keyed by the government PID (§3.7, §6.7).
+
+    Not by `client.id`: two client rows can be the same human (one soft-deleted and re-entered),
+    and keying on the row id would scatter one person's papers across two folders. The PID is the
+    identity the whole system already turns on.
+    """
+    return sanitize(pid, "NA", 40)
+
+
+def relative_path(*, category_code: str, pid: str, stored_filename: str) -> Path:
+    """`<CATEGORY>/<pid>/<institute>_<type>__<shortid>.pdf`, relative to DOCUMENTS_ROOT."""
+    return Path(sanitize(category_code, "NA", 10)) / person_dir(pid) / stored_filename
 
 
 def write_pdf(rel_path: Path, content: bytes) -> Path:

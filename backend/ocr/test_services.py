@@ -22,6 +22,7 @@ from common.locking import StaleVersion
 from common.models import ActivityLog
 from documents.factories import make_pdf
 from documents.models import Document
+from processes import status as step_status
 from processes.models import Process
 from processes.services import create_process
 
@@ -224,9 +225,13 @@ class ConfirmCreatesTheClientTests(ScanTestBase):
         )
 
         document = Document.objects.get()
-        client = Client.objects.get()
-        self.assertIn(f"{client.id:06d}_200103487811", document.file_path)
+        # `<CATEGORY>/<pid>/<institute>_<type>__<sid>.pdf` — one folder per person, and a short
+        # on-disk name because the folders already carry the category and the person (§6.7).
+        self.assertEqual(document.file_path, f"NA/200103487811/{Path(document.file_path).name}")
+        self.assertTrue(Path(document.file_path).name.startswith("General_ClientID__"))
+        # The download name stays long and self-describing.
         self.assertIn("ClientID", document.display_filename)
+        self.assertIn("محمد", document.display_filename)
         self.assertTrue((settings.DOCUMENTS_ROOT / document.file_path).exists())
         # Nothing left behind in staging.
         self.assertFalse((settings.DOCUMENTS_ROOT / staged).exists())
@@ -342,6 +347,59 @@ class ConfirmOntoAnExistingClientTests(ScanTestBase):
         self.client_row.refresh_from_db()
         self.assertEqual(self.client_row.pid, "200103487811")
         self.assertEqual(Client.objects.count(), 1)
+
+    def test_a_spouse_card_is_filed_under_the_spouses_own_name(self):
+        """It lives in the beneficiary's folder — it is their case — but the document *is* the
+        spouse's paper, so naming it after the beneficiary would misdescribe it (§6.7)."""
+        scan = self._read(self._scan(document_type="SpouseID"))
+        confirm_scan(
+            scan=scan,
+            values={"full_name": "Spouse Name", "pid": "SPOUSE-9"},
+            client=self.client_row,
+            client_version=self.client_row.version,
+            actor=self.lawyer,
+        )
+        document = Document.objects.latest("id")
+        self.assertIn("/OLD-1/", f"/{document.file_path}")  # the beneficiary's folder
+        self.assertIn("Spouse_Name", document.display_filename)
+        self.assertNotIn("Old_Name", document.display_filename)
+
+    def test_a_spouse_card_stores_the_spouses_own_pid_for_the_household_rule(self):
+        scan = self._read(self._scan(document_type="SpouseID"))
+        confirm_scan(
+            scan=scan,
+            values={"full_name": "Spouse Name", "pid": "SPOUSE-9"},
+            client=self.client_row,
+            client_version=self.client_row.version,
+            actor=self.lawyer,
+        )
+        self.client_row.refresh_from_db()
+        self.assertEqual(self.client_row.spouse_pid, "SPOUSE-9")
+        # The beneficiary's own identity key is untouched (§3.7).
+        self.assertEqual(self.client_row.pid, "OLD-1")
+
+    def test_confirming_a_spouse_card_re_derives_the_household_duplicate_flag(self):
+        """The spouse's PID arrives *after* the case exists, so the flag has to be recomputed —
+        `create_process` evaluated it before the fact that creates the conflict (§5.7)."""
+        other = make_client(full_name="Already Allocated", pid="SPOUSE-9", mother_full_name="M")
+        create_process(client=other, assigned_lawyer=self.lawyer, actor=self.admin)
+        self.assertFalse(self.process.duplicate_flagged)
+
+        scan = self._read(self._scan(document_type="SpouseID"))
+        confirm_scan(
+            scan=scan,
+            values={"full_name": "Spouse Name", "pid": "SPOUSE-9"},
+            client=self.client_row,
+            client_version=self.client_row.version,
+            actor=self.lawyer,
+        )
+        self.process.refresh_from_db()
+        self.assertTrue(self.process.duplicate_flagged)
+        # A flagged duplicate blocks Step 1 until an admin overrides it (§5.7).
+        step1 = self.process.steps.get(step_number=1)
+        self.assertIn(
+            "duplicate_flag", step_status.missing_requirements(self.process, 1, step1)
+        )
 
     def test_a_spouse_card_fills_the_spouse_columns(self):
         scan = self._read(self._scan(document_type="SpouseID"))

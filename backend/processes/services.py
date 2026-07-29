@@ -50,13 +50,18 @@ def create_process(
     ):
         raise DuplicateAllocation()
     # Server-owned warning flag — never trust the client; recompute from the identity dedup (§5.7).
-    pid_matches, mother_matches = duplicate_matches(
-        pid=client.pid, mother_full_name=client.mother_full_name, exclude_id=client.id
+    report = duplicate_matches(
+        pid=client.pid,
+        mother_full_name=client.mother_full_name,
+        spouse_pid=client.spouse_pid,
+        exclude_id=client.id,
     )
-    # Only a PID collision is a real duplicate. A similar mother name is almost always a sibling,
-    # so it is recorded as advisory and never gates the workflow (§5.7).
-    duplicate_flagged = bool(pid_matches)
-    similar_name_flagged = bool(mother_matches)
+    # A PID collision or a household already holding an allocation is a real duplicate. A similar
+    # mother name is almost always a sibling, so it stays advisory and never gates the workflow
+    # (§5.7). The household case is what gives this flag teeth again: `ix_client_pid_active`
+    # already makes a bare PID collision unreachable here, but it cannot see `spouse_pid`.
+    duplicate_flagged = report.is_duplicate
+    similar_name_flagged = bool(report.mother_name)
     try:
         # Savepoint so an IntegrityError here can't poison the surrounding transaction.
         with transaction.atomic():
@@ -140,6 +145,36 @@ def recompute_step(process, step_number: int) -> ProcessStep:
         step.save(update_fields=["status", "updated_at"])
     _advance_overall_status(process)
     return step
+
+
+def recompute_duplicate_flags(client) -> None:
+    """Re-derive the duplicate flags after a client's identity keys changed (§5.7).
+
+    `create_process` evaluates these once, which was enough while they depended only on `pid` —
+    a value the PID index pins at creation. The household rule reads `spouse_pid`, and that
+    routinely arrives *later*: a lawyer scans the beneficiary's card, opens the case, and only
+    then scans the spouse's. Without this the conflict would be computed before the fact that
+    creates it and would never fire.
+    """
+    report = duplicate_matches(
+        pid=client.pid,
+        mother_full_name=client.mother_full_name,
+        spouse_pid=client.spouse_pid,
+        exclude_id=client.id,
+    )
+    duplicate_flagged = report.is_duplicate
+    similar_name_flagged = bool(report.mother_name)
+    for process in Process.objects.filter(client=client):
+        if (process.duplicate_flagged, process.similar_name_flagged) == (
+            duplicate_flagged,
+            similar_name_flagged,
+        ):
+            continue
+        process.duplicate_flagged = duplicate_flagged
+        process.similar_name_flagged = similar_name_flagged
+        # Server-derived, so no `version` bump — only user edits move the optimistic lock.
+        process.save(update_fields=["duplicate_flagged", "similar_name_flagged", "updated_at"])
+        recompute_step(process, 1)  # `duplicate_flag` is part of Step 1's `missing` list
 
 
 def recompute_client_steps(client) -> None:

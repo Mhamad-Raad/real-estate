@@ -9,6 +9,7 @@ from rest_framework import status
 from docxtpl import DocxTemplate
 from rest_framework.exceptions import APIException, ValidationError
 
+from catalog.document_types import SPOUSE_ID
 from common.models import ActivityLog
 from common.services import record_activity
 
@@ -22,27 +23,38 @@ class PayloadTooLarge(APIException):
     default_code = "file_too_large"
 
 
-def compose_location(*, process, document_type: str, institute_entry=None) -> tuple[str, "Path"]:
-    """The friendly name and the store path for a document on this process (§6.7).
+def subject_name(client, document_type: str) -> str:
+    """Whose document this is. A spouse's ID card is the *spouse's* paper even though it lives in
+    the beneficiary's folder, so naming it after the beneficiary would misdescribe it (§6.7)."""
+    if document_type == SPOUSE_ID and client.spouse_name:
+        return client.spouse_name
+    return client.full_name
 
-    Both are derived from the person: the category and PID key the folder, the name keys the file.
+
+def compose_location(*, process, document_type: str, institute_entry=None) -> tuple[str, "Path"]:
+    """The download name and the store path for a document on this process (§6.7).
+
+    Both need the person: the category and PID key the folder, and the subject names the file.
     That is why a scanned ID is only filed once its reading has been confirmed — before that, the
     very fields this composition needs are still what the card is proposing.
     """
     client = process.client
     category_code = process.category.code if process.category_id else "NA"
+    sid = filestore.short_id()
+    institute = filestore.institute_label(institute_entry)
     display = filestore.compose_display_name(
         category_code=category_code,
-        institute=filestore.institute_label(institute_entry),
-        person_name=client.full_name,
+        institute=institute,
+        person_name=subject_name(client, document_type),
         document_type=document_type,
-        sid=filestore.short_id(),
+        sid=sid,
     )
     rel = filestore.relative_path(
         category_code=category_code,
-        client_id=client.id,
         pid=client.pid,
-        display_filename=display,
+        stored_filename=filestore.compose_stored_name(
+            institute=institute, document_type=document_type, sid=sid
+        ),
     )
     return display, rel
 
