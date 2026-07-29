@@ -4,6 +4,8 @@ import tempfile
 from pathlib import Path
 
 from django.core.files.uploadedfile import SimpleUploadedFile
+
+from documents.factories import make_pdf
 from django.db import connection
 from django.test import override_settings
 from django.test.utils import CaptureQueriesContext
@@ -38,7 +40,7 @@ class WorkflowApiTests(APITestCase):
 
     def _upload(self, step, doc_type, entry=None):
         body = {"process": self.process.id, "step_number": step, "document_type": doc_type,
-                "file": SimpleUploadedFile("f.pdf", b"%PDF-1.4 x", content_type="application/pdf")}
+                "file": SimpleUploadedFile("f.pdf", make_pdf(), content_type="application/pdf")}
         if entry:
             body["institute_entry"] = entry
         return self.client.post(reverse("document-list"), body, format="multipart")
@@ -338,7 +340,7 @@ class ClientChangeRecomputesStepTests(APITestCase):
                     "step_number": 1,
                     "document_type": doc_type,
                     "file": SimpleUploadedFile(
-                        "f.pdf", b"%PDF-1.4 x", content_type="application/pdf"
+                        "f.pdf", make_pdf(), content_type="application/pdf"
                     ),
                 },
                 format="multipart",

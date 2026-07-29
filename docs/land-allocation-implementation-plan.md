@@ -27,6 +27,7 @@ This plan front-loads the demo and defers **OCR** (Iteration 5) and the **offlin
 - The app is **fully usable with manual data entry + imported PDFs from Iteration 2**. OCR only *auto-fills* fields, so deferring it costs nothing functionally — it's an enhancement, not a dependency.
 - You still run a **minimal local dev environment** throughout (PostgreSQL + the Django and Vite dev servers). That is *not* "deployment" — the full offline Docker/LAN packaging, backups, and encryption are what's deferred to Iteration 7.
 - **One honest tradeoff:** the Sorani-OCR accuracy spike (the biggest technical unknown) now lands at Iteration 5 rather than up front. **Recommendation:** run that ~1-day spike *in parallel, in the background* whenever someone has spare capacity before Iteration 5, so there are no surprises when you reach it.
+  - **Outcome (2026-07-29): the spike ran at the start of It.5 and the deferral cost real rework.** Two of the plan's own assumptions were wrong — there is no `ckb` model, and pre-processing *lowered* accuracy — so §6.2 had to be rewritten and the tasks re-scoped mid-iteration. Nothing was lost, because OCR only auto-fills. **The lesson stands for the next unknown: a spike deferred is a plan written on a guess.**
 
 ### Cross-cutting concerns (apply to every iteration)
 
@@ -48,7 +49,7 @@ This plan front-loads the demo and defers **OCR** (Iteration 5) and the **offlin
 | 2 | Documents (import) + 5-step workflow | Full case lifecycle with imported PDFs — **flagship demo** | Workflow complexity | 1 |
 | 3 | Generated documents (template → PDF) | Eligibility + bulk list documents, print/save | Offline docx→PDF | 2 |
 | 4 | Reports, dashboard, activities, compiled export | Leadership outputs + admin views | RTL/multilingual print | 2, 3 |
-| 5 | OCR pipeline | Import → OCR draft → verify → verified | Sorani OCR accuracy | 2, 3 |
+| 5 | OCR pipeline | Photograph an ID → draft → review → **confirmation creates the client, case and filed document** | Sorani OCR accuracy — **retired, see §6.2** | 2, 3 |
 | 6 | Client-side scan capture | Scan with the camera into the pipeline | Offline browser scan-to-PDF | 5 |
 | 7 | Offline deployment, hardening & ops | Production-ready offline on the two computers | Data loss · at-rest · offline deploy | all |
 
@@ -170,21 +171,31 @@ This plan front-loads the demo and defers **OCR** (Iteration 5) and the **offlin
 
 ## Iteration 5 — OCR pipeline
 
-**Goal:** turn scanned/imported documents into verified structured data with a human in the loop. (The app already works via manual entry, so this is an enhancement.)
+**Goal:** read a photographed ID card into the record it creates, with a human in the loop. (The app already works via manual entry, so this is an enhancement.)
 
-> **Start with the Sorani OCR spike** (the de-risk from the sequencing note) — ideally already run in the background earlier: Tesseract `ckb`+`ara`+`eng` and PaddleOCR on ~15–25 real sample IDs; measure per-field accuracy; write a short findings note — *§6.5*.
+> **⚠️ Rewritten mid-iteration (2026-07-29).** The spike disproved two assumptions in the original plan and the user chose a **scan-first** flow, so the tasks below describe what was actually decided and built. See §6.2/§6.5 and the deviations table at the top of the architecture doc.
+
+**The flow, as built:** photograph the card **before any client exists** → staged PDF + reading → side-by-side review → **one confirmation creates client + case + filed document**. The store path is keyed by the PID and the person's name, both of which the card supplies — which is why a scan is staged and only filed on confirmation.
 
 **Tasks**
 
-- [ ] Celery OCR task: PDF→images (pdfium), OpenCV preprocessing, Tesseract `ckb`+`ara`+`eng` (+ PaddleOCR compare), field parsers → `parsed_fields` — *§6.2*.
-- [ ] `ocr_status` lifecycle + stuck-job sweep + retries — *§6.3*.
-- [ ] OCR-status endpoint + RTK Query polling; local "OCR finished" notifications.
-- [ ] Verify endpoint (`verification_status`, `verified_by`/`at`); keep original `parsed_fields` for the corrections dataset — *§6.4, §6.5*.
-- [ ] Frontend (clean + localized): side-by-side OCR-verify screen; auto-fill from `parsed_fields`; **match-warning** gate before save.
+- [x] **OCR spike** — Tesseract on a real KRG ID + a synthetic control. Findings: **no `ckb` model exists** (use the `Arabic` *script* model — 88% vs `ara`'s 68%); **pre-processing made it worse**; the **MRZ** (ICAO-9303, check-digit verified) is the reliable source — *§6.2, §6.5*.
+- [x] Celery reading task: PDF→images (pdf2image), **no** OpenCV pre-processing, each side read **twice** (`Arabic` for names, `eng` for digits/MRZ), MRZ parser + positional front parser + front↔MRZ PID cross-check → `draft` with per-field confidence/source/verified + warnings — *§6.2*.
+- [x] `CardScan` staging model + status lifecycle; **`manage.py sweep_card_scans`** re-enqueues readings whose task was lost and discards abandoned scans' files after 14 days (row kept) — *§6.3*.
+- [x] Reading-status endpoint (`GET /card-scans/{id}/`) + staged-PDF preview endpoint — *§6.3*.
+- [x] Confirm endpoint — creates client + case + filed document in one transaction, or updates an existing client under the optimistic lock (spouse card / re-scan); PID checked against the living population first so a misread is a **400 naming the conflict, not a 500**; audit records `corrected: [...]` — *§6.4, §6.5*.
+- [x] Accept photographed IDs (JPEG/PNG/TIFF → PDF server-side), merge a card's **two sides into one PDF**, and reject unreadable files by parsing, not sniffing — *§6.1, §6.7*.
+- [x] **Store layout revised** — `<CATEGORY>/<pid>/<institute>_<type>__<id>.pdf`: one folder per *person* (keyed by PID, not row id), and a short on-disk name because the folders already carry the category and the person. `display_filename` keeps the long download name. Data migration `documents/0004` moves existing files — *§6.7*.
+- [x] **Household duplicate rule** — `Client.spouse_pid` + `clients.selectors.household_matches`: a married couple may hold one allocation, checked in both directions, re-derived on every edit and on card confirmation. Cleared on divorce — *§5.7*.
+- [x] Frontend (clean + localized ckb/ar/en): side-by-side review screen; auto-fill from the `draft` with per-field source/confidence markers; **match-warning** gate before confirm; manual-entry fallback when the reading fails; RTK Query polling that stops on `done`/`failed`; camera capture + file picker for both sides.
+- [x] **Married beneficiary via scan** — marital status on the scan screen; the spouse's card captured and read alongside the beneficiary's; the beneficiary's confirmation creates the record and the spouse's card is then filed onto it (the confirm response carries the client id + version for the second call). `spouse_pid` is captured at creation, so the household rule applies from the start — *§6.6, §5.7*.
+- [x] **Re-file operation** — `documents/refile.py`, run on every client and process update. A **name** correction only rewrites `display_filename`; a **category change** or **PID correction** moves the files (on commit, audited, short id preserved), and emptied person folders are pruned — *§6.7*.
 
-**Deliverable / demo:** import a document → OCR runs in the background → review side-by-side → correct + confirm → verified, with fields auto-filled.
+**Deliverable / demo:** photograph an ID → it reads in the background → review side-by-side → correct + confirm → the client, the case and the filed document all exist, with the file under the right category folder and the right name.
 
-**Definition of Done:** uploads never block on OCR; failed OCR falls back cleanly to manual entry; verification audited; corrected-vs-predicted pairs retained.
+**Definition of Done:** uploads never block on the reading; a failed reading falls back cleanly to manual entry **and is still confirmable**; confirmation audited; corrected-vs-predicted pairs retained (in the append-only audit log).
+
+**Still open:** only **one** real ID has been tested — do not tune the review screen's confidence thresholds until 15–25 real samples exist. PaddleOCR comparison not done. All build items are complete.
 
 ---
 
@@ -195,10 +206,10 @@ This plan front-loads the demo and defers **OCR** (Iteration 5) and the **offlin
 **Tasks**
 
 - [ ] Camera capture (`getUserMedia`) → canvas → multi-page PDF via bundled `pdf-lib` (no CDN); optional `opencv.js` enhance — *§6.1*.
-- [ ] Same upload path as import (`input_source=scanned`).
+- [ ] Same upload paths as import — `POST /documents/` for ordinary papers, `POST /card-scans/` for an ID (`input_source=scanned`). Both already accept images and convert server-side (It.5), so the camera path is a UI addition, not a new contract.
 - [ ] (Optional) host **scanner-helper** (NAPS2/WIA on Windows, SANE on macOS) if a sheet-fed scanner is used — *§6.1, §2.5*.
 
-**Deliverable / demo:** scan a multi-page document with the camera; it assembles into a PDF, uploads, and flows through OCR → verify like any import.
+**Deliverable / demo:** scan a multi-page document with the camera; it assembles into a PDF, uploads, and flows through reading → review → confirm like any import.
 
 **Definition of Done:** scanning works from the client computer's own camera with no internet; the assembled PDF is valid and OCR-able.
 

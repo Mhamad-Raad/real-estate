@@ -30,6 +30,10 @@ class Client(SoftDeleteModel):
     # fields for the spouse; they stay empty unless the client is married (§6.6).
     spouse_date_of_birth = models.DateField(null=True, blank=True)
     spouse_mother_full_name = models.CharField(max_length=200, blank=True)
+    # The spouse's own government ID. Not needed by the letter — this is a **dedup key**: a
+    # household may not be allocated land twice, so a spouse who later applies in their own name
+    # has to be recognisable as someone already covered by an allocation (§3.7, §5.7).
+    spouse_pid = models.CharField(max_length=50, blank=True, db_index=True)
 
     # Required: the letter prints a birth year, and a blank one would go out to a ministry.
     date_of_birth = models.DateField()

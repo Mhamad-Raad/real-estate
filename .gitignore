@@ -57,3 +57,10 @@ Thumbs.db
 .idea/
 .vscode/
 *.swp
+
+# OCR samples — real government ID scans. Personal data: never commit these.
+*.jpeg
+*.jpg
+*.png
+!frontend/public/**
+samples/

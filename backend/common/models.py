@@ -11,6 +11,19 @@ class ActiveManager(models.Manager):
         return super().get_queryset().filter(is_deleted=False)
 
 
+class JobStatus(models.TextChoices):
+    """Shared lifecycle for every background job (OCR reads, PDF generation).
+
+    Status lives in the database rather than Celery's result backend: it survives a broker
+    restart, it is what the UI polls, and a failure keeps its reason instead of vanishing.
+    """
+
+    PENDING = "pending", "Pending"
+    RUNNING = "running", "Running"
+    DONE = "done", "Done"
+    FAILED = "failed", "Failed"
+
+
 class TimeStampedModel(models.Model):
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     updated_at = models.DateTimeField(auto_now=True)

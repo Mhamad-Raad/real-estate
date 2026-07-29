@@ -12,6 +12,7 @@ from common.permissions import IsAdmin, IsProcessAssigneeOrAdmin
 from common.viewsets import AuditedSoftDeleteViewSet
 from documents.compile import start_compile_case_job
 from documents.generation import start_eligibility_job, start_process_list_job
+from documents.refile import refile_client_documents
 from documents.serializers import GenerationJobSerializer
 
 from .models import ProcessInstituteEntry
@@ -83,6 +84,11 @@ class ProcessViewSet(AuditedSoftDeleteViewSet, ModelViewSet):
         # Step 1's requirements include header fields (land_id, category) edited through here, so
         # its stored status would otherwise go stale against the live requirement list (§3.6).
         recompute_step(serializer.instance, 1)
+        # The category is the top-level folder of the document store, so changing it moves every
+        # file this case owns (§6.7).
+        refile_client_documents(
+            serializer.instance.client, actor=self.request.user, request=self.request
+        )
 
     @action(
         detail=True,

@@ -18,11 +18,13 @@ from processes.models import ProcessStep
 from processes.services import create_process
 
 from . import filestore
+from .factories import make_pdf
 from .models import Document
 from clients.factories import make_client
 
 
-def pdf_file(name="id.pdf", body=b"%PDF-1.4 minimal test pdf"):
+def pdf_file(name="id.pdf", body=None):
+    body = make_pdf() if body is None else body
     return SimpleUploadedFile(name, body, content_type="application/pdf")
 
 
@@ -73,6 +75,21 @@ class DocumentApiTests(APITestCase):
         self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertFalse(Document.objects.exists())
 
+    def test_rejects_a_malformed_image_without_a_server_error(self):
+        """Image bytes are converted on arrival (§6.7); a corrupt or hostile file is a bad upload,
+        so it must read as 400 like any other, not as a 500 from deep inside the decoder."""
+        self.client.force_authenticate(self.lawyer)
+        resp = self.client.post(
+            reverse("document-list"),
+            {"process": self.process.id, "step_number": 1, "document_type": "ClientID",
+             "file": SimpleUploadedFile(
+                 "id.jpg", b"\xff\xd8\xff" + b"garbage" * 50, content_type="image/jpeg"
+             )},
+            format="multipart",
+        )
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(Document.objects.exists())
+
     def test_oversize_rejected(self):
         self.client.force_authenticate(self.lawyer)
         with override_settings(MAX_UPLOAD_BYTES=10):
@@ -116,6 +133,9 @@ class FileStoreUnitTests(APITestCase):
 
     def test_looks_like_pdf(self):
         self.assertTrue(filestore.looks_like_pdf(b"%PDF-1.7 ..."))
+        # Magic bytes alone are not enough — a truncated scan passes that and is unreadable.
+        self.assertFalse(filestore.is_readable_pdf(b"%PDF-1.7 truncated"))
+        self.assertTrue(filestore.is_readable_pdf(make_pdf()))
         self.assertFalse(filestore.looks_like_pdf(b"GIF89a"))
 
 
@@ -140,7 +160,7 @@ class DocumentTypeVocabularyTests(APITestCase):
                 "step_number": 1,
                 "document_type": document_type,
                 "file": SimpleUploadedFile(
-                    "f.pdf", b"%PDF-1.4 x", content_type="application/pdf"
+                    "f.pdf", make_pdf(), content_type="application/pdf"
                 ),
             },
             format="multipart",

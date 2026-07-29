@@ -17,6 +17,7 @@ class ClientSerializer(serializers.ModelSerializer):
             "spouse_name",
             "spouse_date_of_birth",
             "spouse_mother_full_name",
+            "spouse_pid",
             "is_married",
             "date_of_birth",
             "place_of_birth",
@@ -48,7 +49,9 @@ class ClientSerializer(serializers.ModelSerializer):
         else:
             # Clear spouse details a divorce or bereavement left behind, so the letter prints the
             # blank spouse row the paper form expects rather than a former spouse's data.
-            attrs.update({"spouse_name": "", "spouse_mother_full_name": ""})
+            # `spouse_pid` especially: left behind, it would keep a former spouse flagged as an
+            # already-allocated household and block an application they are entitled to make.
+            attrs.update({"spouse_name": "", "spouse_mother_full_name": "", "spouse_pid": ""})
             attrs["spouse_date_of_birth"] = None
         return attrs
 
@@ -58,4 +61,6 @@ class DuplicateCheckSerializer(serializers.Serializer):
 
     pid = serializers.CharField(required=False, allow_blank=True, default="")
     mother_full_name = serializers.CharField(required=False, allow_blank=True, default="")
+    # A household may hold one allocation, so the spouse's ID is part of the check (§5.7).
+    spouse_pid = serializers.CharField(required=False, allow_blank=True, default="")
     exclude_id = serializers.IntegerField(required=False)

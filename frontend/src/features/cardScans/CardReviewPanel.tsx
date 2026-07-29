@@ -1,0 +1,185 @@
+import { AlertTriangle } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
+
+import { useAppSelector } from "@/app/hooks";
+import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
+import { toast } from "@/components/ui/toaster";
+import { apiErrorMessage } from "@/lib/apiError";
+
+import { DraftFieldInput } from "./DraftFieldInput";
+import { useConfirmCardScanMutation } from "./cardScansApi";
+import { CARD_FIELDS, type CardScan, type ConfirmPayload } from "./types";
+
+type Values = Record<(typeof CARD_FIELDS)[number], string>;
+
+const EMPTY: Values = { full_name: "", pid: "", mother_full_name: "", date_of_birth: "" };
+
+/** The scan on the left, the fields it proposes on the right — check, correct, confirm (§6.4). */
+export function CardReviewPanel({
+  scan,
+  extra,
+  onConfirmed,
+  buildPayload,
+}: {
+  scan: CardScan;
+  /** Case-level inputs the card cannot supply (assigned lawyer, category). */
+  extra?: React.ReactNode;
+  onConfirmed: (scan: CardScan) => void;
+  /** Everything beyond the card's own fields — which client, which lawyer, the version lock. */
+  buildPayload: () => Omit<ConfirmPayload, keyof Values> | null;
+}) {
+  const { t } = useTranslation();
+  const token = useAppSelector((s) => s.auth.access);
+  const [confirm, { isLoading }] = useConfirmCardScanMutation();
+  const [values, setValues] = useState<Values>(EMPTY);
+  const [acknowledged, setAcknowledged] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
+  const fields = scan.draft?.fields ?? {};
+  const warnings = scan.draft?.warnings ?? [];
+
+  // Pre-fill from the reading once it arrives; the human edits freely from there.
+  useEffect(() => {
+    setValues({
+      full_name: fields.full_name?.value ?? "",
+      pid: fields.pid?.value ?? "",
+      mother_full_name: fields.mother_full_name?.value ?? "",
+      date_of_birth: fields.date_of_birth?.value ?? "",
+    });
+    setAcknowledged(false);
+    // Re-fill only when a different reading arrives, never on every keystroke.
+  }, [scan.id, scan.status]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // The staged PDF needs the auth header, so a plain <iframe src> would come back 401.
+  useEffect(() => {
+    let objectUrl: string | null = null;
+    let cancelled = false;
+
+    fetch(`/api/v1/card-scans/${scan.id}/file/`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
+      .then((res) => (res.ok ? res.blob() : Promise.reject(new Error("preview failed"))))
+      .then((blob) => {
+        const created = URL.createObjectURL(blob);
+        if (cancelled) {
+          URL.revokeObjectURL(created);
+          return;
+        }
+        objectUrl = created;
+        setPreviewUrl(created);
+      })
+      .catch(() => toast.error(t("cardScan.previewError")));
+
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl); // never leak the blob
+    };
+  }, [scan.id, token, t]);
+
+  const complete = useMemo(
+    () => CARD_FIELDS.every((name) => values[name].trim().length > 0),
+    [values],
+  );
+
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    const rest = buildPayload();
+    if (!rest) return;
+    try {
+      const confirmed = await confirm({
+        id: scan.id,
+        ...values,
+        date_of_birth: values.date_of_birth || null,
+        ...rest,
+      }).unwrap();
+      toast.success(t("cardScan.confirmed"));
+      onConfirmed(confirmed);
+    } catch (err) {
+      toast.error(apiErrorMessage(err, t("cardScan.confirmError")));
+    }
+  };
+
+  return (
+    <form onSubmit={submit} className="grid gap-6 lg:grid-cols-2">
+      {/* Left: the card itself. */}
+      <div className="space-y-2">
+        <p className="text-xs text-muted-foreground">{t("cardScan.scannedCard")}</p>
+        {previewUrl ? (
+          <iframe
+            src={previewUrl}
+            title={t("cardScan.scannedCard")}
+            className="h-[32rem] w-full rounded-md border border-border bg-white"
+          />
+        ) : (
+          <div className="flex h-[32rem] items-center justify-center rounded-md border border-border">
+            <Spinner />
+          </div>
+        )}
+      </div>
+
+      {/* Right: what it says, editable. */}
+      <div className="space-y-4">
+        {scan.status === "failed" ? (
+          <Notice title={t("cardScan.readingFailedTitle")}>
+            {t("cardScan.readingFailedBody")}
+          </Notice>
+        ) : null}
+
+        {warnings.map((warning) => (
+          <Notice key={warning}>
+            {warning}
+          </Notice>
+        ))}
+
+        {CARD_FIELDS.map((name) => (
+          <DraftFieldInput
+            key={name}
+            name={name}
+            label={t(`cardScan.field.${name}`)}
+            value={values[name]}
+            draft={fields[name]}
+            type={name === "date_of_birth" ? "date" : "text"}
+            required
+            onChange={(value) => setValues((current) => ({ ...current, [name]: value }))}
+          />
+        ))}
+
+        {extra}
+
+        {/* §6.4: the match warning must be acknowledged before anything is written. */}
+        <label className="flex items-start gap-2 rounded-md border border-border bg-muted/40 p-3 text-sm">
+          <input
+            type="checkbox"
+            checked={acknowledged}
+            onChange={(e) => setAcknowledged(e.target.checked)}
+            className="mt-0.5 size-4 shrink-0"
+          />
+          <span>{t("cardScan.matchWarning")}</span>
+        </label>
+
+        <Button type="submit" disabled={!acknowledged || !complete || isLoading} className="w-full">
+          {isLoading ? <Spinner /> : null}
+          {t("cardScan.confirmAndSave")}
+        </Button>
+        {!complete ? (
+          <p className="text-xs text-muted-foreground">{t("cardScan.fillEveryField")}</p>
+        ) : null}
+      </div>
+    </form>
+  );
+}
+
+/** Everything a reading has to say for itself is a caution, so there is only one tone. */
+function Notice({ title, children }: { title?: string; children: React.ReactNode }) {
+  return (
+    <div className="flex gap-2 rounded-md border border-warning/40 bg-warning/10 p-3 text-sm">
+      <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" />
+      <div>
+        {title ? <p className="font-medium">{title}</p> : null}
+        <p className="text-muted-foreground">{children}</p>
+      </div>
+    </div>
+  );
+}

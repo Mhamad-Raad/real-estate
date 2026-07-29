@@ -27,6 +27,7 @@ const EMPTY: ClientInput = {
   mother_full_name: "",
   marital_status: "single",
   spouse_name: "",
+  spouse_pid: "",
   spouse_date_of_birth: null,
   spouse_mother_full_name: "",
   date_of_birth: null,
@@ -46,6 +47,7 @@ function toInput(client: Client): ClientInput {
     spouse_name: client.spouse_name,
     spouse_date_of_birth: client.spouse_date_of_birth,
     spouse_mother_full_name: client.spouse_mother_full_name,
+    spouse_pid: client.spouse_pid,
     date_of_birth: client.date_of_birth,
     place_of_birth: client.place_of_birth,
     address: client.address,
@@ -109,14 +111,23 @@ export function ClientFormDialog({
       spouse_name: married ? form.spouse_name : "",
       spouse_date_of_birth: married ? form.spouse_date_of_birth || null : null,
       spouse_mother_full_name: married ? form.spouse_mother_full_name : "",
+      // Cleared with the rest: left behind it would keep a former spouse flagged as an
+      // already-allocated household and block an application they may legitimately make (§5.7).
+      spouse_pid: married ? form.spouse_pid : "",
     };
     try {
       const result = await checkDuplicate({
         pid: payload.pid,
         mother_full_name: payload.mother_full_name,
+        // Without this the household rule (§5.7) could never fire from this form.
+        spouse_pid: payload.spouse_pid,
         exclude_id: client?.id,
       }).unwrap();
-      if (result.pid_matches.length || result.mother_name_matches.length) {
+      if (
+        result.pid_matches.length ||
+        result.household_matches.length ||
+        result.mother_name_matches.length
+      ) {
         setForm(payload);
         setWarning(result);
         return; // hold the save until the user resolves the warning
@@ -188,6 +199,19 @@ export function ClientFormDialog({
                     onChange={set("spouse_mother_full_name")}
                     required
                   />
+                </div>
+                {/* Not printed on any letter — this is the household dedup key (§5.7), so a
+                    couple entered by hand is covered by the same rule as a scanned one. */}
+                <div className="space-y-2">
+                  <Label htmlFor="c-spouse-pid">{t("clients.spousePid")}</Label>
+                  <Input
+                    id="c-spouse-pid"
+                    dir="ltr"
+                    className="text-start"
+                    value={form.spouse_pid}
+                    onChange={set("spouse_pid")}
+                  />
+                  <p className="text-xs text-muted-foreground">{t("clients.spousePidHint")}</p>
                 </div>
               </>
             )}
