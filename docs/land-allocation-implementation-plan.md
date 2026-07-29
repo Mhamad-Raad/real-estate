@@ -184,15 +184,18 @@ This plan front-loads the demo and defers **OCR** (Iteration 5) and the **offlin
 - [x] `CardScan` staging model + status lifecycle; **`manage.py sweep_card_scans`** re-enqueues readings whose task was lost and discards abandoned scans' files after 14 days (row kept) — *§6.3*.
 - [x] Reading-status endpoint (`GET /card-scans/{id}/`) + staged-PDF preview endpoint — *§6.3*.
 - [x] Confirm endpoint — creates client + case + filed document in one transaction, or updates an existing client under the optimistic lock (spouse card / re-scan); PID checked against the living population first so a misread is a **400 naming the conflict, not a 500**; audit records `corrected: [...]` — *§6.4, §6.5*.
-- [x] Accept photographed IDs (JPEG/PNG/TIFF → PDF server-side) and reject unreadable PDFs by parsing, not sniffing — *§6.1, §6.7*.
-- [ ] **Re-file operation** — a name edit *after* confirmation still leaves the old filename on disk — *§6.7*.
-- [ ] Frontend (clean + localized ckb/ar/en): side-by-side review screen; auto-fill from the `draft` with per-field source/confidence markers; **match-warning** gate before confirm; manual-entry fallback when the reading fails; RTK Query polling that stops on `done`/`failed`; local "reading finished" notification.
+- [x] Accept photographed IDs (JPEG/PNG/TIFF → PDF server-side), merge a card's **two sides into one PDF**, and reject unreadable files by parsing, not sniffing — *§6.1, §6.7*.
+- [x] **Store layout revised** — `<CATEGORY>/<pid>/<institute>_<type>__<id>.pdf`: one folder per *person* (keyed by PID, not row id), and a short on-disk name because the folders already carry the category and the person. `display_filename` keeps the long download name. Data migration `documents/0004` moves existing files — *§6.7*.
+- [x] **Household duplicate rule** — `Client.spouse_pid` + `clients.selectors.household_matches`: a married couple may hold one allocation, checked in both directions, re-derived on every edit and on card confirmation. Cleared on divorce — *§5.7*.
+- [x] Frontend (clean + localized ckb/ar/en): side-by-side review screen; auto-fill from the `draft` with per-field source/confidence markers; **match-warning** gate before confirm; manual-entry fallback when the reading fails; RTK Query polling that stops on `done`/`failed`; camera capture + file picker for both sides.
+- [ ] **Married beneficiary via scan** — marital status + the spouse's card in the same session, so `spouse_pid` is captured at creation. The backend already supports it (`confirm` with `client` + `client_version`); the create-a-client screen does not yet ask.
+- [ ] **Re-file operation** — now only needed for a **category change** or a **PID correction**; a name edit no longer touches the filesystem — *§6.7*.
 
 **Deliverable / demo:** photograph an ID → it reads in the background → review side-by-side → correct + confirm → the client, the case and the filed document all exist, with the file under the right category folder and the right name.
 
 **Definition of Done:** uploads never block on the reading; a failed reading falls back cleanly to manual entry **and is still confirmable**; confirmation audited; corrected-vs-predicted pairs retained (in the append-only audit log).
 
-**Still open:** only **one** real ID has been tested — do not tune the review screen's confidence thresholds until 15–25 real samples exist. PaddleOCR comparison not done.
+**Still open:** only **one** real ID has been tested — do not tune the review screen's confidence thresholds until 15–25 real samples exist. PaddleOCR comparison not done. Married-beneficiary scanning and the re-file operation are the two remaining build items.
 
 ---
 
