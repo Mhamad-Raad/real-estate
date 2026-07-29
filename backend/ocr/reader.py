@@ -7,9 +7,11 @@ install. Two deliberate choices, both measured during the accuracy spike:
   Sorani names well but mangles Latin digits (the card number came back as `240M 01`); `eng`
   reads the digits and the MRZ cleanly but cannot see Arabic at all. Reading once with either
   loses half the card — and the digits pass is what makes the front/MRZ cross-check possible.
-* **The raw image is tried first.** Thresholding a modern glossy card shredded the thin Arabic
-  strokes and produced far worse output, so cleanup is a fallback for a bad photo, not a stage
-  every scan goes through.
+* **The raw image is used as-is — there is deliberately no cleanup path here.** Thresholding a
+  modern glossy card shredded the thin Arabic strokes and produced far worse output. Re-measured
+  against *photocopied* input (§6.2), denoise+CLAHE+threshold rescued nothing and at two copier
+  generations destroyed a card number the raw read had recovered. Degraded scans are handled by
+  the check digits reporting the failure, not by trying to repair the pixels.
 """
 
 from dataclasses import dataclass
