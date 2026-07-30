@@ -157,6 +157,12 @@ Create the dev login accounts (first run only):
 docker compose -f deploy/docker-compose.dev.yml exec backend python manage.py seed_dev
 ```
 
+Optionally, load demo cases to click around in (see **Demo data** below):
+
+```bash
+docker compose -f deploy/docker-compose.dev.yml exec backend python manage.py seed_demo_data
+```
+
 ### 3. Start the frontend (separate terminal)
 
 ```bash
@@ -254,8 +260,35 @@ Dev-only seed accounts (created by `seed_dev` — not for production):
 
 `admin` is also a Django superuser: **http://localhost:8000/admin/**.
 
-> The app currently ships the authenticated **shell** only (login, language/RTL switch,
-> light/dark). Business data — clients, processes, land parcels — arrives in Iteration 1.
+---
+
+## Demo data
+
+`seed_demo_data` creates seven demo allocations covering the whole workflow, so every screen has
+something in it without anyone typing a case in by hand:
+
+| Case | State | What it is there to exercise |
+|------|-------|------------------------------|
+| `DEMO-0001` | Step 1, nothing filed | The missing-requirement badges and warnings |
+| `DEMO-0002` | Step 1 complete | Generating the eligibility letter |
+| `DEMO-0003` | Step 2 done, married | Spouse fields, spouse ID, institute entries |
+| `DEMO-0004` | Step 3 done | The Step-3 out-of-city row |
+| `DEMO-0005` | Steps 1–4 done | The Step-5 compiled export |
+| `DEMO-0006` | Completed | Completed-case screens, dashboard and report figures |
+| `DEMO-0007` | Rejected | A rejected case (which a client may re-apply after) |
+
+```bash
+manage.py seed_demo_data           # seed; refuses if demo data already exists
+manage.py seed_demo_data --reset   # purge, then seed again
+manage.py seed_demo_data --purge   # remove it all
+```
+
+Every demo beneficiary's national ID starts with **`DEMO-`**. A real government ID is 12 digits,
+so the two can never collide: demo records are obvious on screen, and their documents sit in their
+own `<CATEGORY>/DEMO-xxxx/` folders on disk. That is what makes `--purge` safe to run, and what
+keeps demo data from ever being mistaken for a real record during acceptance testing (Iteration 7).
+
+Nothing is hard-deleted — `--purge` soft-deletes, like everything else in this system (§11).
 
 ---
 
