@@ -64,3 +64,7 @@ Thumbs.db
 *.png
 !frontend/public/**
 samples/
+
+# Acceptance-testing findings (It.7) — local working notes, not repo content.
+# May quote real pilot records, so it deliberately stays out of git.
+/FINDINGS.md

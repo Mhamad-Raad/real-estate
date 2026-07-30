@@ -230,7 +230,7 @@ This is the first iteration whose input comes from outside the code. The office 
 **Tasks**
 
 - [ ] **Run the real process end to end** — the office creates and works genuine allocations: client + Step 1, institutes in Steps 2–4, generated eligibility and list letters, Step-5 compiled export. On the real two-computer setup wherever possible.
-- [ ] **Every finding becomes a use case** in `docs/use-cases.md`: actor, precondition, steps taken, expected vs actual, and a **verdict** — *bug* · *spec gap* · *change request* · *works as intended (misunderstanding)*.
+- [ ] **Every finding is written up** in `FINDINGS.md` at the repo root: actor, precondition, steps taken, expected vs actual, and a **verdict** — *bug* · *spec gap* · *change request* · *works as intended (misunderstanding)*. That file is **gitignored on purpose** — it is a working log of problems found (and may quote real pilot records), not repo content; the *fixes* are what get committed.
 - [ ] **Triage and close each one:** a bug gets a fix **plus a regression test**; a spec gap updates the architecture § first and is then built; a change request is scoped and decided before any code moves.
 - [ ] **Propagate to the docs** — §-level architecture updates, plus a dated deviation entry for anything that contradicts the current spec. The docs must describe what the office actually does.
 - [ ] **Re-verify per change:** both suites green, and a browser smoke of each changed flow in `ckb`/`ar`/`en`.
