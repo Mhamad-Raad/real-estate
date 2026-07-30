@@ -205,13 +205,15 @@ This plan front-loads the demo and defers **OCR** (Iteration 5) and the **offlin
 
 **Tasks**
 
-- [ ] Camera capture (`getUserMedia`) → canvas → multi-page PDF via bundled `pdf-lib` (no CDN); optional `opencv.js` enhance — *§6.1*.
-- [ ] Same upload paths as import — `POST /documents/` for ordinary papers, `POST /card-scans/` for an ID (`input_source=scanned`). Both already accept images and convert server-side (It.5), so the camera path is a UI addition, not a new contract.
+- [x] Camera capture (`getUserMedia`) → canvas → multi-page PDF via bundled `pdf-lib` (no CDN) — *§6.1*. **`opencv.js` enhance deliberately not built** (the §6.2 spike measured pre-processing as harmful; ~9 MB WASM for no demonstrated gain).
+- [x] Same upload paths as import — `POST /documents/` for ordinary papers, `POST /card-scans/` for an ID (`input_source=scanned`). Both already accept images and convert server-side (It.5), so the camera path was a UI addition, not a new contract.
 - [ ] (Optional) host **scanner-helper** (NAPS2/WIA on Windows, SANE on macOS) if a sheet-fed scanner is used — *§6.1, §2.5*.
 
-**Deliverable / demo:** scan a multi-page document with the camera; it assembles into a PDF, uploads, and flows through reading → review → confirm like any import.
+**Deliverable / demo:** scan a multi-page document with the camera; it assembles into a PDF, uploads, and is filed like any import. *(Reading → review → confirm applies to identity cards only — an ordinary scanned paper is archived, not OCR'd.)*
 
 **Definition of Done:** scanning works from the client computer's own camera with no internet; the assembled PDF is valid and OCR-able.
+
+**Status: DONE apart from the optional scanner-helper (2026-07-30).** Shared `useCamera` hook + `lib/pdfAssembly.ts` + `ScanDocumentDialog` (multi-page capture, reorder, remove, size guard), offered beside *Import PDF* on every Step 1–4 slot, localized ×3 with RTL. Verified in a real browser against a synthetic camera: two shots captured with the camera held open between them, reordered, uploaded 201, stored as a genuine 2-page PDF with `input_source=scanned`.
 
 ---
 

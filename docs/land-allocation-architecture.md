@@ -858,7 +858,7 @@ flowchart LR
 Because the app is a fully-offline browser SPA, the **default, first-class scan path assembles the PDF client-side**:
 
 1. **Capture** — `navigator.mediaDevices.getUserMedia({ video: … })` opens the computer's own webcam or an attached USB document camera. The user captures each page to a `<canvas>`. This works on **either** computer because capture and assembly happen in that machine's browser, then only the finished PDF is uploaded over the LAN.
-2. **Enhance (optional, offline)** — a **bundled** `opencv.js` (WASM, shipped inside the app — no CDN) applies deskew, grayscale, contrast, and adaptive threshold on the canvas for cleaner pages. Pure-canvas fallbacks (grayscale/contrast) exist if WASM is disabled.
+2. **Enhance (optional, offline)** — ***not built; see the "as shipped" note below.*** The sketch was a **bundled** `opencv.js` (WASM, no CDN) applying deskew, grayscale, contrast, and adaptive threshold on the canvas, with pure-canvas fallbacks if WASM is disabled.
 3. **Assemble** — a **bundled** `pdf-lib` (or `jsPDF`) stitches the page images into a single multi-page PDF entirely in the browser.
 4. **Upload** — the PDF blob is `POST`ed to `/api/v1/documents/` with `input_source="scanned"`.
 
@@ -866,7 +866,16 @@ Because the app is a fully-offline browser SPA, the **default, first-class scan 
 
 **Import path.** The file picker accepts a file; the frontend confirms it is a PDF. Uploaded with `input_source="imported"`.
 
-**Image uploads are converted server-side, and a card's two sides become one PDF** *(deviation from the above, settled It.5)*. A lawyer can photograph an ID today, so `POST /documents/` and `POST /card-scans/` both accept JPEG/PNG/TIFF and convert to PDF on arrival. A card is **one document with two sides**, so `card-scans` merges front and back into a single file: one row, one entry in the case folder, and a reader that gets both sides together — which is what makes the front↔MRZ cross-check possible at all — the store stays PDF-only and every downstream reader (preview, OCR, compile) handles exactly one format. No resampling: OCR accuracy depends on the original resolution. Alpha is flattened onto white, or a transparent PNG renders black. Client-side conversion still arrives with It.6; this is the path that works without it.
+**Scan capture as shipped** *(It.6, 2026-07-30)*. Four points where the build settled differently from the sketch above:
+
+- **Every document slot offers both.** `DocumentUpload` renders *Import PDF* beside *Scan* in Steps 1–4, so the camera serves ordinary government papers, not just the ID card on `/scan-card`. Importing a ready-made PDF is untouched and stays the shorter path when the office already has one. Both land on `POST /documents/`, differing only in `input_source`.
+- **Pages are laid out on A4 in the orientation each was shot in**, with the original image bytes embedded untouched — nothing is resampled, so a later read still sees full capture resolution. Uniform page boxes matter because the compiled case file (§10.3) merges these pages with generated letters, and mixed boxes print as a ragged stack.
+- **`opencv.js` enhance was deliberately NOT built.** The OCR spike (§6.2) measured pre-processing as actively *harmful*, and on an archival document it affects only human legibility — a ~9 MB WASM payload for a step with no demonstrated value. Revisit only with measurements, behind a toggle.
+- **`pdf-lib` is dynamically imported**, so it is a separate ~420 kB chunk fetched on the first scan rather than weight in the app shell. It is still bundled into `dist` and served by the office's own Nginx: the no-CDN rule is untouched.
+
+Ordinary scanned documents are **not** OCR'd — reading stays limited to identity cards (`IDENTITY_TYPE_CODES`, §6.5). A scanned institute letter is an archived image of paper, and inventing a draft from it would create a review step with nothing to review against.
+
+**Image uploads are converted server-side, and a card's two sides become one PDF** *(deviation from the above, settled It.5)*. A lawyer can photograph an ID today, so `POST /documents/` and `POST /card-scans/` both accept JPEG/PNG/TIFF and convert to PDF on arrival. A card is **one document with two sides**, so `card-scans` merges front and back into a single file: one row, one entry in the case folder, and a reader that gets both sides together — which is what makes the front↔MRZ cross-check possible at all — the store stays PDF-only and every downstream reader (preview, OCR, compile) handles exactly one format. No resampling: OCR accuracy depends on the original resolution. Alpha is flattened onto white, or a transparent PNG renders black. Client-side assembly arrived in It.6, but this server-side conversion stays: it is what lets a single photograph be uploaded through the ordinary import path with no camera involved.
 
 **Uploads are parsed, not sniffed.** `%PDF-` in the first five bytes proves nothing — a truncated scan passes that check, enters the store, and fails much later when the case is compiled or read. Every upload is opened with `PdfReader` and rejected at the door if it will not parse (`filestore.is_readable_pdf`).
 
@@ -1115,13 +1124,13 @@ src/
 │   │   ├── steps/               # Step1..Step5 forms
 │   │   ├── DuplicateWarningDialog.tsx
 │   │   └── LawyerNotes.tsx
-│   ├── documents/               # UploadDropzone, ScanCapture, OcrVerifyScreen
+│   ├── documents/               # DocumentUpload, ScanDocumentDialog, DocumentPreview
 │   ├── clients/  parcels/  categories/  institutes/
 │   ├── reports/  dashboard/  activities/  users/  settings/
 ├── components/ui/               # shadcn components
 ├── i18n/                        # i18next config + dir handling
 ├── locales/{ckb,ar,en}/*.json
-├── lib/                         # pdf assembly, opencv wrapper, format utils
+├── lib/                         # pdf assembly, format utils
 ├── hooks/  routes/  styles/
 ```
 
@@ -1130,7 +1139,7 @@ src/
 - **Multi-step accordion form with per-step save** — shadcn `Accordion`; each `StepSection` has its own `PATCH` mutation and dirty-tracking; a save button per step; badges from `step_status_summary`. Steps are independently editable at any time.
 - **Per-step missing-file status/color badges** — a `StepBadge` maps `status` → grey/amber/red/green (§5.4), plus a process-level rollup.
 - **Side-by-side scan / OCR-verify screen** — `OcrVerifyScreen`: staged-PDF preview pane (`GET /card-scans/{id}/file/`) + pre-filled **editable** fields pane, per-field OCR-source/confidence markers, the **match-warning** confirmation gate, and a manual-entry path that stays open when the reading fails. Confirming posts to `/card-scans/{id}/confirm/`, which is what creates the client (§6.5).
-- **Scan capture** — `ScanCapture` uses `getUserMedia` + bundled `opencv.js`/`pdf-lib` to build the PDF client-side; same upload path as import.
+- **Scan capture** — `ScanDocumentDialog` (shipped It.6) uses the shared `useCamera` hook + bundled `pdf-lib` to build a multi-page PDF client-side; same upload path as import, and offered beside *Import PDF* on every document slot. No `opencv.js` — see §6.1.
 - **Repeatable custom-institute rows (Step 3)** — `react-hook-form` `useFieldArray` renders add/remove `(custom name + upload + lawyer)` rows, shown when `out_of_city_flag` is on.
 - **Shared institute enum** — `institutesApi` fetches `GET /institutes/` once and caches it; every institute dropdown/label reads from that cache, so the frontend never hard-codes the list.
 - **Processes-list multi-select → generate document (§6.8)** — a checkbox column on the processes table with filter-aware select-all; the selected rows drive a **"Generate document"** toolbar action that picks a `process_list` template and calls `POST /processes/generate-document/`, then opens the resulting PDF to print/save (progress via the same generation polling).
@@ -1354,7 +1363,7 @@ frontend/
 │   │   │   └── (each: api/  components/  hooks/  types.ts  index.ts)
 │   ├── components/ui/ (shadcn)
 │   ├── i18n/  locales/{ckb,ar,en}/
-│   ├── lib/ (pdfAssembly.ts, opencv.ts, bidi.ts, format.ts)
+│   ├── lib/ (pdfAssembly.ts, bidi.ts, format.ts)
 │   ├── hooks/  routes/  styles/
 ├── public/fonts/               # bundled Arabic/Kurdish fonts (offline)
 ├── index.html  vite.config.ts  tailwind.config.ts  Dockerfile (build → static)

@@ -31,6 +31,25 @@ def subject_name(client, document_type: str) -> str:
     return client.full_name
 
 
+def normalise_to_pdf(content: bytes, *, field: str = "file") -> bytes:
+    """One uploaded file, validated and returned as PDF bytes (§6.7).
+
+    A photographed page arrives as JPEG/PNG/TIFF; converting on arrival keeps the store PDF-only
+    so every downstream reader (preview, OCR, compile) handles exactly one format. Both failure
+    modes are bad *input* — truncated, mislabelled or hostile bytes, including a decompression
+    bomb — so they raise `ValidationError` and read as 400, never as a 500 from inside a decoder.
+    `field` names the offending upload, because a card scan posts two of them (front and back).
+    """
+    if filestore.looks_like_image(content):
+        try:
+            return filestore.image_to_pdf(content)
+        except Exception as exc:
+            raise ValidationError({field: "File is not a readable image."}) from exc
+    if not filestore.is_readable_pdf(content):
+        raise ValidationError({field: "File is not a readable PDF."})
+    return content
+
+
 def compose_location(*, process, document_type: str, institute_entry=None) -> tuple[str, "Path"]:
     """The download name and the store path for a document on this process (§6.7).
 
@@ -138,17 +157,7 @@ def create_document(
     if len(content) > limit:
         raise PayloadTooLarge()
 
-    # A photographed ID arrives as a JPEG; convert here so the store holds PDFs only and every
-    # downstream reader (compile, OCR, preview) has exactly one format to handle.
-    if filestore.looks_like_image(content):
-        try:
-            content = filestore.image_to_pdf(content)
-        except Exception as exc:
-            # Truncated, mislabelled or hostile image data (a decompression bomb raises here too)
-            # is a bad upload, not a server fault — it must read as 400, like every other upload.
-            raise ValidationError({"file": "File is not a readable image."}) from exc
-    if not filestore.is_readable_pdf(content):
-        raise ValidationError({"file": "File is not a readable PDF."})
+    content = normalise_to_pdf(content)
 
     display, rel = compose_location(
         process=process, document_type=document_type, institute_entry=institute_entry

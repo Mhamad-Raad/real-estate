@@ -7,6 +7,7 @@ from django.conf import settings
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import override_settings
 from django.urls import reverse
+from pypdf import PdfReader
 from rest_framework import status
 from rest_framework.test import APITestCase
 
@@ -87,6 +88,37 @@ class DocumentApiTests(APITestCase):
              )},
             format="multipart",
         )
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(Document.objects.exists())
+
+    def test_scanned_multipage_upload_is_filed_and_recorded_as_scanned(self):
+        """The camera path (§6.1) assembles the pages in the browser and posts the finished PDF
+        to this same endpoint — it differs from an import only in what the row says it is."""
+        self.client.force_authenticate(self.lawyer)
+        resp = self._upload(
+            file=pdf_file("scan.pdf", make_pdf(pages=3)),
+            input_source=Document.InputSource.SCANNED,
+        )
+        self.assertEqual(resp.status_code, status.HTTP_201_CREATED)
+        doc = Document.objects.get(pk=resp.data["id"])
+        self.assertEqual(doc.input_source, Document.InputSource.SCANNED)
+        # Every captured page survives the trip; a scan that quietly loses pages is a lost record.
+        stored = PdfReader(settings.DOCUMENTS_ROOT / doc.file_path)
+        self.assertEqual(len(stored.pages), 3)
+
+    def test_upload_without_an_input_source_is_an_import(self):
+        self.client.force_authenticate(self.lawyer)
+        resp = self._upload()
+        self.assertEqual(
+            Document.objects.get(pk=resp.data["id"]).input_source,
+            Document.InputSource.IMPORTED,
+        )
+
+    def test_an_upload_cannot_claim_to_be_system_generated(self):
+        """`system_generated` carries the 200 MB cap instead of the 25 MB upload cap (§12), so a
+        user-supplied value must not be able to select it."""
+        self.client.force_authenticate(self.lawyer)
+        resp = self._upload(input_source=Document.InputSource.SYSTEM_GENERATED)
         self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertFalse(Document.objects.exists())
 

@@ -1,9 +1,10 @@
 import { Camera, RotateCcw, Upload, X } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useRef } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/toaster";
+import { useCamera } from "@/hooks/useCamera";
 
 // A card side, held as a File so the camera and the file picker produce the same thing and the
 // upload code never has to know which one it came from.
@@ -25,53 +26,17 @@ export function CardCapture({
 }) {
   const { t } = useTranslation();
   const inputRef = useRef<HTMLInputElement>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const [stream, setStream] = useState<MediaStream | null>(null);
-
-  const stopCamera = useCallback(() => {
-    setStream((current) => {
-      current?.getTracks().forEach((track) => track.stop());
-      return null;
-    });
-  }, []);
-
-  // The camera must be released on unmount, or its light stays on after the dialog closes.
-  useEffect(() => stopCamera, [stopCamera]);
-
-  useEffect(() => {
-    if (stream && videoRef.current) videoRef.current.srcObject = stream;
-  }, [stream]);
+  const camera = useCamera();
 
   const openCamera = async () => {
-    try {
-      // The rear camera on a tablet; a laptop simply ignores the preference.
-      const opened = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment", width: { ideal: 1920 } },
-      });
-      setStream(opened);
-    } catch {
-      toast.error(t("cardScan.cameraDenied"));
-    }
+    if (!(await camera.open())) toast.error(t("cardScan.cameraDenied"));
   };
 
-  const shoot = () => {
-    const video = videoRef.current;
-    if (!video) return;
-    const canvas = document.createElement("canvas");
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    canvas.getContext("2d")?.drawImage(video, 0, 0);
-    // JPEG at high quality: OCR accuracy depends on resolution, and the server does not resample.
-    canvas.toBlob(
-      (blob) => {
-        if (!blob) return;
-        const file = new File([blob], `${label}.jpg`, { type: "image/jpeg" });
-        replace({ file, url: URL.createObjectURL(blob) });
-        stopCamera();
-      },
-      "image/jpeg",
-      0.95,
-    );
+  const shoot = async () => {
+    const file = await camera.capture(`${label}.jpg`);
+    if (!file) return;
+    replace({ file, url: URL.createObjectURL(file) });
+    camera.stop();
   };
 
   // One object URL alive per side; the previous one is revoked so previews cannot leak.
@@ -96,8 +61,14 @@ export function CardCapture({
       <div className="relative flex min-h-40 items-center justify-center overflow-hidden rounded-md border border-dashed border-border bg-muted/40">
         {side ? (
           <img src={side.url} alt={label} className="max-h-56 w-full object-contain" />
-        ) : stream ? (
-          <video ref={videoRef} autoPlay playsInline muted className="max-h-56 w-full object-contain" />
+        ) : camera.active ? (
+          <video
+            ref={camera.videoRef}
+            autoPlay
+            playsInline
+            muted
+            className="max-h-56 w-full object-contain"
+          />
         ) : (
           <p className="p-6 text-center text-xs text-muted-foreground">{t("cardScan.noImage")}</p>
         )}
@@ -116,13 +87,13 @@ export function CardCapture({
             <RotateCcw className="size-4" />
             {t("cardScan.retake")}
           </Button>
-        ) : stream ? (
+        ) : camera.active ? (
           <>
             <Button type="button" size="sm" disabled={disabled} onClick={shoot}>
               <Camera className="size-4" />
               {t("cardScan.shoot")}
             </Button>
-            <Button type="button" variant="ghost" size="sm" onClick={stopCamera}>
+            <Button type="button" variant="ghost" size="sm" onClick={camera.stop}>
               <X className="size-4" />
               {t("common.cancel")}
             </Button>
