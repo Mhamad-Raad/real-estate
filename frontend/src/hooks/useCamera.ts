@@ -8,8 +8,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
  */
 export function useCamera() {
   const videoRef = useRef<HTMLVideoElement>(null);
-  // The stream lives in a ref and only its presence is state: releasing a device is a side
-  // effect, and a `setState` updater is not allowed to have one — React may run it twice.
+  // Stream in a ref, presence in state: releasing a device is a side effect, banned in an updater.
   const streamRef = useRef<MediaStream | null>(null);
   const [active, setActive] = useState(false);
 
@@ -50,8 +49,7 @@ export function useCamera() {
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
       canvas.getContext("2d")?.drawImage(video, 0, 0);
-      // JPEG at high quality: OCR accuracy depends on resolution, and nothing downstream
-      // resamples — the server wraps these pixels, and pdf-lib embeds them, untouched.
+      // High quality: OCR needs the resolution, and nothing downstream resamples these pixels.
       canvas.toBlob(
         (blob) => resolve(blob ? new File([blob], filename, { type: "image/jpeg" }) : null),
         "image/jpeg",

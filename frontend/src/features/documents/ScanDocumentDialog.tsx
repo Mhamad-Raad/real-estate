@@ -12,10 +12,7 @@ import { formatNumber } from "@/lib/format";
 import { assemblePagesToPdf, isSupportedPageImage } from "@/lib/pdfAssembly";
 
 import { useUploadDocumentMutation } from "./documentsApi";
-
-// Mirrors the server's MAX_UPLOAD_BYTES default (§12). The server is still the authority — this
-// only spares the lawyer a long upload that ends in a 413 after they photographed twenty pages.
-export const MAX_SCAN_BYTES = 25 * 1024 * 1024;
+import { MAX_UPLOAD_BYTES } from "./types";
 
 /** A captured page, held for review: the image itself plus a URL for its thumbnail. */
 interface ScanPage {
@@ -58,16 +55,13 @@ export function ScanDocumentDialog({
     url: URL.createObjectURL(file),
   });
 
-  // Closing is not the only way out — navigating away unmounts the dialog mid-scan, and the
-  // captured pages would then be held in memory for the life of the tab. A ref, because the
-  // cleanup must see the pages that exist when it runs, not the ones from the render it closed over.
+  // Navigating away also ends a scan; the ref lets the cleanup see the pages that exist then.
   const live = useRef<ScanPage[]>([]);
   live.current = pages;
   useEffect(() => () => live.current.forEach((page) => URL.revokeObjectURL(page.url)), []);
 
   const close = () => {
-    // Every thumbnail holds an object URL; dropping the state without revoking them leaks the
-    // whole scan into memory for as long as the tab lives.
+    // Each thumbnail holds an object URL; dropping the state without revoking leaks the scan.
     pages.forEach((page) => URL.revokeObjectURL(page.url));
     setPages([]);
     camera.stop();
@@ -93,8 +87,7 @@ export function ScanDocumentDialog({
   };
 
   const removePage = (id: string) => {
-    // Revoked outside the updater: React may call an updater twice, and side effects do not
-    // belong in one.
+    // Revoked outside the updater — React may run an updater twice, so it must stay pure.
     const dropped = pages.find((page) => page.id === id);
     if (dropped) URL.revokeObjectURL(dropped.url);
     setPages((current) => current.filter((page) => page.id !== id));
@@ -119,7 +112,7 @@ export function ScanDocumentDialog({
         pages.map((page) => page.file),
         `${documentType}-scan.pdf`,
       );
-      if (pdf.size > MAX_SCAN_BYTES) {
+      if (pdf.size > MAX_UPLOAD_BYTES) {
         toast.error(t("scan.tooLarge"));
         return;
       }
@@ -228,13 +221,13 @@ export function ScanDocumentDialog({
               <ul className="grid max-h-72 grid-cols-2 gap-3 overflow-y-auto sm:grid-cols-4">
                 {pages.map((page, index) => (
                   <li key={page.id} className="rounded-md border border-border p-2">
+                    {/* Contain, not cover — cropping an A4 page hides the header and footer a
+                        lawyer uses to tell one page from the next. */}
                     <img
                       src={page.url}
                       alt={t("scan.pageAlt", {
                         number: formatNumber(index + 1, i18n.language),
                       })}
-                      // Contain, not cover: a cropped thumbnail of an A4 page hides exactly the
-                      // header and footer a lawyer uses to tell one page from the next.
                       className="h-28 w-full rounded bg-muted object-contain"
                     />
                     <div className="mt-2 flex items-center justify-between gap-1">

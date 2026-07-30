@@ -5,8 +5,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { jpegLandscape, jpegPortrait } from "@/test/images";
 
-import { MAX_SCAN_BYTES, ScanDocumentDialog } from "./ScanDocumentDialog";
-import type { UploadArgs } from "./types";
+import { ScanDocumentDialog } from "./ScanDocumentDialog";
+import { MAX_UPLOAD_BYTES, type UploadArgs } from "./types";
 
 // Only the assembled size is faked — the real assembler still runs, so the guard is tested
 // against a genuine PDF rather than against a stub that could drift from it.
@@ -17,7 +17,7 @@ vi.mock("@/lib/pdfAssembly", async (importOriginal) => {
     ...actual,
     assemblePagesToPdf: async (pages: File[], name: string) => {
       const pdf = await actual.assemblePagesToPdf(pages, name);
-      if (oversize.next) Object.defineProperty(pdf, "size", { value: MAX_SCAN_BYTES + 1 });
+      if (oversize.next) Object.defineProperty(pdf, "size", { value: MAX_UPLOAD_BYTES + 1 });
       return pdf;
     },
   };

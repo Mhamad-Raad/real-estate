@@ -40,9 +40,7 @@ export async function isSupportedPageImage(file: File): Promise<boolean> {
 export async function assemblePagesToPdf(pages: File[], filename: string): Promise<File> {
   if (pages.length === 0) throw new Error("Cannot assemble a PDF with no pages.");
 
-  // Loaded on demand: pdf-lib is ~470 kB and only a lawyer who actually scans ever needs it.
-  // It is still bundled into `dist` (never a CDN), so the chunk is served by the office's own
-  // Nginx and the offline guarantee is untouched.
+  // Loaded on demand — ~470 kB, needed only by a lawyer who scans; still bundled, never a CDN.
   const { PDFDocument } = await import("pdf-lib");
   const pdf = await PDFDocument.create();
   for (const page of pages) {
@@ -55,8 +53,7 @@ export async function assemblePagesToPdf(pages: File[], filename: string): Promi
     const landscape = image.width > image.height;
     const width = landscape ? A4_LONG : A4_SHORT;
     const height = landscape ? A4_SHORT : A4_LONG;
-    // Uniform page sizes matter downstream: the compiled case file (§10.3) merges these pages
-    // with generated letters, and mixed page boxes print as a ragged stack.
+    // Uniform boxes: the compiled case (§10.3) merges these with letters; mixed sizes print ragged.
     const sheet = pdf.addPage([width, height]);
     const fitted = image.scaleToFit(width, height);
     sheet.drawImage(image, {
@@ -67,9 +64,7 @@ export async function assemblePagesToPdf(pages: File[], filename: string): Promi
     });
   }
 
-  // `File` copies exactly the view's bytes, so the saved array goes straight in — no intermediate
-  // copy of a scan that may be tens of megabytes. The cast only narrows away `SharedArrayBuffer`,
-  // which `BlobPart` excludes and `save()` never returns.
+  // `File` copies just the view's bytes; the cast only narrows away `BlobPart`'s SharedArrayBuffer.
   const saved = (await pdf.save()) as Uint8Array<ArrayBuffer>;
   return new File([saved], filename, { type: "application/pdf" });
 }
