@@ -8,8 +8,13 @@ import { toast } from "@/components/ui/toaster";
 import { apiErrorMessage } from "@/lib/apiError";
 
 import { useUploadDocumentMutation } from "./documentsApi";
+import { ScanDocumentDialog } from "./ScanDocumentDialog";
 
-// PDF import button — scan capture is Iteration 6; here it's file import only (§6.1).
+/** The two ways paper reaches a document slot (§6.1): import a ready-made PDF, or scan it.
+ *
+ * Both end at the same `POST /documents/` upload and produce the same kind of row — scanning
+ * differs only in that the browser builds the PDF first, and the row records `scanned`. An
+ * office that already has a PDF never has to go near the camera. */
 export function DocumentUpload({
   process,
   step,
@@ -43,7 +48,7 @@ export function DocumentUpload({
   };
 
   return (
-    <>
+    <div className="flex flex-wrap items-center gap-2">
       <input ref={inputRef} type="file" accept="application/pdf" className="hidden" onChange={onFile} />
       <Button
         type="button"
@@ -55,6 +60,13 @@ export function DocumentUpload({
         {isLoading ? <Spinner /> : <Upload className="size-4" />}
         {label ?? t("workflow.upload")}
       </Button>
-    </>
+      <ScanDocumentDialog
+        process={process}
+        step={step}
+        documentType={documentType}
+        instituteEntry={instituteEntry}
+        disabled={disabled || isLoading}
+      />
+    </div>
   );
 }

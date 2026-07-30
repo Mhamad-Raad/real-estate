@@ -20,4 +20,6 @@ export interface UploadArgs {
   document_type: string;
   institute_entry?: number | null;
   file: File;
+  // How the paper got here (§4.4). Omitted means imported — the server's own default.
+  input_source?: "imported" | "scanned";
 }

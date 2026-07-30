@@ -442,5 +442,25 @@
     "spousePidHint": "The spouse's card number is not printed on any letter — it only stops a couple being allocated land twice.",
     "spouseIncomplete": "The spouse's name, birth date and mother's name are all needed.",
     "spouseFileError": "The beneficiary was saved, but the spouse's card could not be filed. Try attaching it from the case."
+  },
+  "scan": {
+    "action": "Scan",
+    "title": "Scan a document",
+    "hint": "Photograph each page. The pages are combined into a single PDF before it is filed.",
+    "noPages": "No pages yet. Open the camera or add images.",
+    "cameraClosed": "The camera is closed. Open it again to add more pages.",
+    "useCamera": "Use camera",
+    "shoot": "Capture page",
+    "closeCamera": "Close camera",
+    "addFromFile": "Add images",
+    "pageTally": "Pages: {{pages}}",
+    "pageAlt": "Page {{number}}",
+    "moveUp": "Move earlier",
+    "moveDown": "Move later",
+    "removePage": "Remove page",
+    "save": "Save as PDF",
+    "cameraDenied": "Could not open the camera. Add images from a file instead.",
+    "unsupportedFile": "Only JPEG and PNG images can be added as pages.",
+    "tooLarge": "The scan is too large. Remove some pages and try again."
   }
 }
