@@ -22,7 +22,7 @@ from common.locking import check_version
 from common.models import ActivityLog
 from common.services import record_activity
 from documents import filestore
-from documents.services import PayloadTooLarge, file_staged_document
+from documents.services import PayloadTooLarge, file_staged_document, normalise_to_pdf
 from processes.services import create_process, recompute_client_state
 
 from .models import CardScan
@@ -41,21 +41,6 @@ SPOUSE_FIELD_MAP = {
 }
 # Identity papers belong to Step 1 (§3.6).
 IDENTITY_STEP = 1
-
-
-def _to_pdf(content: bytes, *, label: str) -> bytes:
-    """One uploaded side, validated and normalised to PDF."""
-    # A photographed ID arrives as a JPEG; convert on arrival so the store holds PDFs only and
-    # every downstream reader (review pane, OCR, compile) has exactly one format to handle.
-    if filestore.looks_like_image(content):
-        try:
-            return filestore.image_to_pdf(content)
-        except Exception as exc:
-            # Truncated, mislabelled or hostile image data is a bad upload, not a server fault.
-            raise ValidationError({label: "File is not a readable image."}) from exc
-    if not filestore.is_readable_pdf(content):
-        raise ValidationError({label: "File is not a readable PDF."})
-    return content
 
 
 def stage_scan(
@@ -77,9 +62,9 @@ def stage_scan(
     if len(content) + len(back or b"") > settings.MAX_UPLOAD_BYTES:
         raise PayloadTooLarge()
 
-    content = _to_pdf(content, label="front")
+    content = normalise_to_pdf(content, field="front")
     if back:
-        content = filestore.merge_pdfs([content, _to_pdf(back, label="back")])
+        content = filestore.merge_pdfs([content, normalise_to_pdf(back, field="back")])
 
     rel = filestore.staging_path(filestore.short_id())
     dest = filestore.write_pdf(rel, content)
