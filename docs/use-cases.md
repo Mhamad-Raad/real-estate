@@ -15,11 +15,17 @@ Every finding the office reports while running **real allocations with real data
 | **Change request** | New behaviour nobody specified | Scope and decide before any code moves |
 | **Works as intended** | Behaviour is correct; the expectation was mistaken | Close with the explanation — and ask whether the UI misled them |
 
+## How findings are worked
+
+**Captured one by one, fixed in batches.** Each finding is written up here the moment it is reported, so nothing is lost and testing never waits on a fix. Fixes are then grouped into a **batch**: related use cases are worked together, on one branch, so shared root causes are found once rather than patched three times and the architecture updates stay coherent.
+
+**Fixed immediately, out of band** — anything that blocks further testing, risks real data, or is a security hole.
+
 ## Status board
 
-| # | Title | Reported | Verdict | Status | Closed by |
-|---|-------|----------|---------|--------|-----------|
-| — | _none yet_ | | | | |
+| # | Title | Reported | Verdict | Batch | Status | Closed by |
+|---|-------|----------|---------|-------|--------|-----------|
+| — | _none yet_ | | | | | |
 
 ---
 
