@@ -8,31 +8,33 @@ import { useCallback, useEffect, useRef, useState } from "react";
  */
 export function useCamera() {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [stream, setStream] = useState<MediaStream | null>(null);
+  // The stream lives in a ref and only its presence is state: releasing a device is a side
+  // effect, and a `setState` updater is not allowed to have one — React may run it twice.
+  const streamRef = useRef<MediaStream | null>(null);
+  const [active, setActive] = useState(false);
 
   const stop = useCallback(() => {
-    setStream((current) => {
-      current?.getTracks().forEach((track) => track.stop());
-      return null;
-    });
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+    setActive(false);
   }, []);
 
   // The camera must be released on unmount, or its light stays on after the dialog closes.
   useEffect(() => stop, [stop]);
 
   useEffect(() => {
-    if (stream && videoRef.current) videoRef.current.srcObject = stream;
-  }, [stream]);
+    if (active && videoRef.current) videoRef.current.srcObject = streamRef.current;
+  }, [active]);
 
   /** Open the device. Returns false when the user or the OS refuses, so the caller can say so
    * in its own words rather than the hook guessing at the wording. */
   const open = useCallback(async () => {
     try {
       // The rear camera on a tablet; a laptop simply ignores the preference.
-      const opened = await navigator.mediaDevices.getUserMedia({
+      streamRef.current = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: "environment", width: { ideal: 1920 } },
       });
-      setStream(opened);
+      setActive(true);
       return true;
     } catch {
       return false;
@@ -58,5 +60,5 @@ export function useCamera() {
     });
   }, []);
 
-  return { videoRef, active: stream !== null, open, stop, capture };
+  return { videoRef, active, open, stop, capture };
 }

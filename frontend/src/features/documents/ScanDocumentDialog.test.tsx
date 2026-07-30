@@ -5,8 +5,23 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { jpegLandscape, jpegPortrait } from "@/test/images";
 
-import { ScanDocumentDialog } from "./ScanDocumentDialog";
+import { MAX_SCAN_BYTES, ScanDocumentDialog } from "./ScanDocumentDialog";
 import type { UploadArgs } from "./types";
+
+// Only the assembled size is faked — the real assembler still runs, so the guard is tested
+// against a genuine PDF rather than against a stub that could drift from it.
+const oversize = vi.hoisted(() => ({ next: false }));
+vi.mock("@/lib/pdfAssembly", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/pdfAssembly")>();
+  return {
+    ...actual,
+    assemblePagesToPdf: async (pages: File[], name: string) => {
+      const pdf = await actual.assemblePagesToPdf(pages, name);
+      if (oversize.next) Object.defineProperty(pdf, "size", { value: MAX_SCAN_BYTES + 1 });
+      return pdf;
+    },
+  };
+});
 
 const unwrap = vi.fn().mockResolvedValue({ id: 3 });
 const uploadMutation = vi.fn((_args: UploadArgs) => ({ unwrap }));
@@ -28,6 +43,7 @@ vi.mock("./documentsApi", () => ({
 }));
 
 beforeEach(() => {
+  oversize.next = false;
   vi.stubGlobal("URL", { ...URL, createObjectURL: () => "blob:x", revokeObjectURL: () => {} });
   uploadMutation.mockClear();
   unwrap.mockClear();
@@ -151,6 +167,48 @@ describe("ScanDocumentDialog", () => {
     expect(
       (await PDFDocument.load(await uploaded().file.arrayBuffer())).getPageCount(),
     ).toBe(1);
+  });
+
+  it("refuses to upload a scan over the size cap, and keeps the pages so they can be trimmed", async () => {
+    oversize.next = true;
+    const user = userEvent.setup();
+    renderDialog();
+    await open(user);
+
+    await user.upload(pageInput(), [jpegPortrait(), jpegLandscape()]);
+    await waitFor(() => expect(screen.getAllByRole("listitem")).toHaveLength(2));
+    await user.click(saveButton());
+
+    await waitFor(() =>
+      expect(toastError).toHaveBeenCalledWith(
+        "The scan is too large. Remove some pages and try again.",
+      ),
+    );
+    // Never sent: the point of the client-side guard is to fail before the long upload, not after.
+    expect(uploadMutation).not.toHaveBeenCalled();
+    expect(screen.getAllByRole("listitem")).toHaveLength(2);
+    expect(saveButton()).toBeEnabled();
+  });
+
+  it("revokes every page's object URL when it unmounts mid-scan", async () => {
+    const revoked: string[] = [];
+    let n = 0;
+    vi.stubGlobal("URL", {
+      ...URL,
+      createObjectURL: () => `blob:${n++}`,
+      revokeObjectURL: (url: string) => revoked.push(url),
+    });
+    const user = userEvent.setup();
+    const view = renderDialog();
+    await open(user);
+
+    await user.upload(pageInput(), [jpegPortrait(), jpegLandscape()]);
+    await waitFor(() => expect(screen.getAllByRole("listitem")).toHaveLength(2));
+
+    // Navigating away is not "cancel" — without this the captured pages stay in memory
+    // for the life of the tab.
+    view.unmount();
+    expect(revoked).toEqual(["blob:0", "blob:1"]);
   });
 
   it("says so when the camera cannot be opened, and still allows adding images", async () => {

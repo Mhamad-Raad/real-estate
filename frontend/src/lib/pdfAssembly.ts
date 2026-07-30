@@ -10,19 +10,13 @@
 const A4_SHORT = 595.28;
 const A4_LONG = 841.89;
 
+type PageImageKind = "jpeg" | "png";
+
+// The only two formats pdf-lib can embed; anything else is refused at the point a page is added.
 const MAGIC: Record<PageImageKind, number[]> = {
   jpeg: [0xff, 0xd8, 0xff],
   png: [0x89, 0x50, 0x4e, 0x47],
 };
-
-export type PageImageKind = "jpeg" | "png";
-
-/** What a captured page is worth carrying around: the bytes, and a URL for its thumbnail. */
-export interface ScanPage {
-  id: string;
-  file: File;
-  url: string;
-}
 
 function detect(head: Uint8Array): PageImageKind | null {
   for (const [kind, magic] of Object.entries(MAGIC)) {
@@ -73,10 +67,9 @@ export async function assemblePagesToPdf(pages: File[], filename: string): Promi
     });
   }
 
-  const saved = await pdf.save();
-  // Copy into a fresh buffer: pdf-lib's Uint8Array can be a view over a larger pool, and Blob
-  // would otherwise take the whole backing buffer.
-  return new File([new Uint8Array(saved).slice().buffer as ArrayBuffer], filename, {
-    type: "application/pdf",
-  });
+  // `File` copies exactly the view's bytes, so the saved array goes straight in — no intermediate
+  // copy of a scan that may be tens of megabytes. The cast only narrows away `SharedArrayBuffer`,
+  // which `BlobPart` excludes and `save()` never returns.
+  const saved = (await pdf.save()) as Uint8Array<ArrayBuffer>;
+  return new File([saved], filename, { type: "application/pdf" });
 }

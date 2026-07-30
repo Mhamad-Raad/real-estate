@@ -1,5 +1,5 @@
 import { ArrowDown, ArrowUp, Camera, ImagePlus, ScanLine, X } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
@@ -9,13 +9,20 @@ import { toast } from "@/components/ui/toaster";
 import { useCamera } from "@/hooks/useCamera";
 import { apiErrorMessage } from "@/lib/apiError";
 import { formatNumber } from "@/lib/format";
-import { assemblePagesToPdf, isSupportedPageImage, type ScanPage } from "@/lib/pdfAssembly";
+import { assemblePagesToPdf, isSupportedPageImage } from "@/lib/pdfAssembly";
 
 import { useUploadDocumentMutation } from "./documentsApi";
 
 // Mirrors the server's MAX_UPLOAD_BYTES default (§12). The server is still the authority — this
 // only spares the lawyer a long upload that ends in a 413 after they photographed twenty pages.
-const MAX_SCAN_BYTES = 25 * 1024 * 1024;
+export const MAX_SCAN_BYTES = 25 * 1024 * 1024;
+
+/** A captured page, held for review: the image itself plus a URL for its thumbnail. */
+interface ScanPage {
+  id: string;
+  file: File;
+  url: string;
+}
 
 /** Scan a paper document with the computer's camera and file it as one PDF (§6.1).
  *
@@ -51,6 +58,13 @@ export function ScanDocumentDialog({
     url: URL.createObjectURL(file),
   });
 
+  // Closing is not the only way out — navigating away unmounts the dialog mid-scan, and the
+  // captured pages would then be held in memory for the life of the tab. A ref, because the
+  // cleanup must see the pages that exist when it runs, not the ones from the render it closed over.
+  const live = useRef<ScanPage[]>([]);
+  live.current = pages;
+  useEffect(() => () => live.current.forEach((page) => URL.revokeObjectURL(page.url)), []);
+
   const close = () => {
     // Every thumbnail holds an object URL; dropping the state without revoking them leaks the
     // whole scan into memory for as long as the tab lives.
@@ -71,13 +85,10 @@ export function ScanDocumentDialog({
   };
 
   const addFiles = async (chosen: FileList) => {
-    const accepted: ScanPage[] = [];
-    let rejected = 0;
-    for (const file of Array.from(chosen)) {
-      if (await isSupportedPageImage(file)) accepted.push(makePage(file));
-      else rejected += 1;
-    }
-    if (rejected > 0) toast.error(t("scan.unsupportedFile"));
+    const files = Array.from(chosen);
+    const supported = await Promise.all(files.map(isSupportedPageImage));
+    const accepted = files.filter((_, i) => supported[i]).map(makePage);
+    if (accepted.length < files.length) toast.error(t("scan.unsupportedFile"));
     if (accepted.length > 0) setPages((current) => [...current, ...accepted]);
   };
 
