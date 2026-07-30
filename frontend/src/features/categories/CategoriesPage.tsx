@@ -17,14 +17,15 @@ import { ConfirmDialog } from "@/features/common/ConfirmDialog";
 import { PageHeader } from "@/features/common/PageHeader";
 import { Pagination } from "@/features/common/Pagination";
 import { TableStateRows } from "@/features/common/TableStateRows";
-import { apiErrorMessage } from "@/lib/apiError";
+import { apiErrorMessage, apiInUseTotal } from "@/lib/apiError";
+import { formatNumber } from "@/lib/format";
 
 import { CategoryFormDialog } from "./CategoryFormDialog";
 import { useDeleteCategoryMutation, useListCategoriesQuery } from "./categoriesApi";
 import type { Category } from "./types";
 
 export function CategoriesPage() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [page, setPage] = useState(1);
   const { data, isLoading, isError, refetch } = useListCategoriesQuery({ page });
   const [remove, { isLoading: removing }] = useDeleteCategoryMutation();
@@ -48,7 +49,13 @@ export function CategoriesPage() {
       toast.success(t("common.deleted"));
       setToDelete(null);
     } catch (err) {
-      toast.error(apiErrorMessage(err, t("common.deleteError")));
+      // The server refuses while live cases still belong to this category; say how many.
+      const inUse = apiInUseTotal(err);
+      toast.error(
+        inUse
+          ? t("categories.inUse", { total: formatNumber(inUse, i18n.language) })
+          : apiErrorMessage(err, t("common.deleteError")),
+      );
     }
   };
 

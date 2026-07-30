@@ -16,3 +16,19 @@ export function apiErrorMessage(err: unknown, fallback: string): string {
 export function apiErrorStatus(err: unknown): number | undefined {
   return (err as { status?: number })?.status;
 }
+
+/** How many live records blocked a delete, when the server refused one for being in use.
+ *
+ * The backend answers with `{in_use: {<relation>: <count>}}` rather than a sentence, so the
+ * message the user reads is composed and translated here — the server's `detail` is English and
+ * every screen in this app is localized (§9).
+ */
+export function apiInUseTotal(err: unknown): number | undefined {
+  const inUse = (err as { data?: { in_use?: unknown } })?.data?.in_use;
+  if (!inUse || typeof inUse !== "object") return undefined;
+  // DRF renders error details as strings, so the counts arrive as "9", not 9.
+  const counts = Object.values(inUse as Record<string, unknown>)
+    .map(Number)
+    .filter((n) => Number.isFinite(n) && n > 0);
+  return counts.length ? counts.reduce((a, b) => a + b, 0) : undefined;
+}

@@ -8,6 +8,7 @@ from django.db import transaction
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.decorators import action
+from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 
 from .locking import check_version
@@ -20,6 +21,14 @@ class AuditedSoftDeleteViewSet:
     """Mixin for DRF ModelViewSets — override `audit_entity` with the model name."""
 
     audit_entity = "Entity"
+    # Reverse accessors that must hold no live rows before this resource may be soft-deleted.
+    #
+    # `on_delete=PROTECT` cannot cover this: a soft-delete issues no SQL DELETE, so the database
+    # never gets the chance to refuse it and every FK guard is bypassed. Without this list, a
+    # category still carrying live cases disappears from every dropdown, filter and report while
+    # the cases keep pointing at it — the records look intact but can no longer be grouped by
+    # the thing that classifies them.
+    protect_if_used: tuple[str, ...] = ()
 
     @transaction.atomic  # mutation + its audit row commit together or not at all (§11)
     def perform_create(self, serializer):
@@ -50,8 +59,29 @@ class AuditedSoftDeleteViewSet:
             request=self.request,
         )
 
+    def assert_not_in_use(self, instance):
+        """Refuse the delete while live records still reference this one.
+
+        Counted through the reverse accessors, which use the related model's default manager and
+        therefore see **live rows only** — a category whose only cases were themselves deleted is
+        free to go.
+        """
+        blocking = {
+            relation: count
+            for relation in self.protect_if_used
+            if (count := getattr(instance, relation).count())
+        }
+        if blocking:
+            raise ValidationError(
+                {
+                    "detail": "This record is still in use and cannot be deleted.",
+                    "in_use": blocking,
+                }
+            )
+
     @transaction.atomic
     def perform_destroy(self, instance):
+        self.assert_not_in_use(instance)
         # Soft-delete only — never a hard DELETE.
         instance.is_deleted = True
         instance.deleted_at = timezone.now()

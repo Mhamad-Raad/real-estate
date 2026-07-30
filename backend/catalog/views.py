@@ -19,6 +19,9 @@ class CategoryViewSet(AuditedSoftDeleteViewSet, ModelViewSet):
     serializer_class = CategorySerializer
     permission_classes = (IsAdminOrReadOnly,)
     audit_entity = "Category"
+    # A category classifies cases and names their folder on disk (§6.7), so it may not be removed
+    # while any live case or beneficiary still belongs to it.
+    protect_if_used = ("processes", "clients")
 
 
 class InstitutesView(APIView):

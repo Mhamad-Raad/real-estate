@@ -94,7 +94,8 @@
     "name": "Name",
     "empty": "No categories yet.",
     "deleteTitle": "Delete category",
-    "deleteConfirm": "Delete category “{{name}}”? It can be restored later."
+    "deleteConfirm": "Delete category “{{name}}”? It can be restored later.",
+    "inUse": "This category cannot be deleted — {{total}} record(s) still belong to it."
   },
   "users": {
     "title": "Users",
