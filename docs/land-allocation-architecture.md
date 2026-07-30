@@ -858,7 +858,7 @@ flowchart LR
 Because the app is a fully-offline browser SPA, the **default, first-class scan path assembles the PDF client-side**:
 
 1. **Capture** — `navigator.mediaDevices.getUserMedia({ video: … })` opens the computer's own webcam or an attached USB document camera. The user captures each page to a `<canvas>`. This works on **either** computer because capture and assembly happen in that machine's browser, then only the finished PDF is uploaded over the LAN.
-2. **Enhance (optional, offline)** — a **bundled** `opencv.js` (WASM, shipped inside the app — no CDN) applies deskew, grayscale, contrast, and adaptive threshold on the canvas for cleaner pages. Pure-canvas fallbacks (grayscale/contrast) exist if WASM is disabled.
+2. **Enhance (optional, offline)** — ***not built; see the "as shipped" note below.*** The sketch was a **bundled** `opencv.js` (WASM, no CDN) applying deskew, grayscale, contrast, and adaptive threshold on the canvas, with pure-canvas fallbacks if WASM is disabled.
 3. **Assemble** — a **bundled** `pdf-lib` (or `jsPDF`) stitches the page images into a single multi-page PDF entirely in the browser.
 4. **Upload** — the PDF blob is `POST`ed to `/api/v1/documents/` with `input_source="scanned"`.
 
@@ -1124,13 +1124,13 @@ src/
 │   │   ├── steps/               # Step1..Step5 forms
 │   │   ├── DuplicateWarningDialog.tsx
 │   │   └── LawyerNotes.tsx
-│   ├── documents/               # UploadDropzone, ScanCapture, OcrVerifyScreen
+│   ├── documents/               # DocumentUpload, ScanDocumentDialog, DocumentPreview
 │   ├── clients/  parcels/  categories/  institutes/
 │   ├── reports/  dashboard/  activities/  users/  settings/
 ├── components/ui/               # shadcn components
 ├── i18n/                        # i18next config + dir handling
 ├── locales/{ckb,ar,en}/*.json
-├── lib/                         # pdf assembly, opencv wrapper, format utils
+├── lib/                         # pdf assembly, format utils
 ├── hooks/  routes/  styles/
 ```
 
@@ -1139,7 +1139,7 @@ src/
 - **Multi-step accordion form with per-step save** — shadcn `Accordion`; each `StepSection` has its own `PATCH` mutation and dirty-tracking; a save button per step; badges from `step_status_summary`. Steps are independently editable at any time.
 - **Per-step missing-file status/color badges** — a `StepBadge` maps `status` → grey/amber/red/green (§5.4), plus a process-level rollup.
 - **Side-by-side scan / OCR-verify screen** — `OcrVerifyScreen`: staged-PDF preview pane (`GET /card-scans/{id}/file/`) + pre-filled **editable** fields pane, per-field OCR-source/confidence markers, the **match-warning** confirmation gate, and a manual-entry path that stays open when the reading fails. Confirming posts to `/card-scans/{id}/confirm/`, which is what creates the client (§6.5).
-- **Scan capture** — `ScanCapture` uses `getUserMedia` + bundled `opencv.js`/`pdf-lib` to build the PDF client-side; same upload path as import.
+- **Scan capture** — `ScanDocumentDialog` (shipped It.6) uses the shared `useCamera` hook + bundled `pdf-lib` to build a multi-page PDF client-side; same upload path as import, and offered beside *Import PDF* on every document slot. No `opencv.js` — see §6.1.
 - **Repeatable custom-institute rows (Step 3)** — `react-hook-form` `useFieldArray` renders add/remove `(custom name + upload + lawyer)` rows, shown when `out_of_city_flag` is on.
 - **Shared institute enum** — `institutesApi` fetches `GET /institutes/` once and caches it; every institute dropdown/label reads from that cache, so the frontend never hard-codes the list.
 - **Processes-list multi-select → generate document (§6.8)** — a checkbox column on the processes table with filter-aware select-all; the selected rows drive a **"Generate document"** toolbar action that picks a `process_list` template and calls `POST /processes/generate-document/`, then opens the resulting PDF to print/save (progress via the same generation polling).
@@ -1363,7 +1363,7 @@ frontend/
 │   │   │   └── (each: api/  components/  hooks/  types.ts  index.ts)
 │   ├── components/ui/ (shadcn)
 │   ├── i18n/  locales/{ckb,ar,en}/
-│   ├── lib/ (pdfAssembly.ts, opencv.ts, bidi.ts, format.ts)
+│   ├── lib/ (pdfAssembly.ts, bidi.ts, format.ts)
 │   ├── hooks/  routes/  styles/
 ├── public/fonts/               # bundled Arabic/Kurdish fonts (offline)
 ├── index.html  vite.config.ts  tailwind.config.ts  Dockerfile (build → static)
