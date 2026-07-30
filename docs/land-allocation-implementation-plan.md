@@ -22,10 +22,10 @@
 
 ### Sequencing note — build first, OCR & deployment later
 
-This plan front-loads the demo and defers **OCR** (Iteration 5) and the **offline production deployment** (Iteration 7). That is safe:
+This plan front-loads the demo and defers **OCR** (Iteration 5) and the **offline production deployment** (Iteration 9). That is safe:
 
 - The app is **fully usable with manual data entry + imported PDFs from Iteration 2**. OCR only *auto-fills* fields, so deferring it costs nothing functionally — it's an enhancement, not a dependency.
-- You still run a **minimal local dev environment** throughout (PostgreSQL + the Django and Vite dev servers). That is *not* "deployment" — the full offline Docker/LAN packaging, backups, and encryption are what's deferred to Iteration 7.
+- You still run a **minimal local dev environment** throughout (PostgreSQL + the Django and Vite dev servers). That is *not* "deployment" — the full offline Docker/LAN packaging, backups, and encryption are what's deferred to Iteration 9.
 - **One honest tradeoff:** the Sorani-OCR accuracy spike (the biggest technical unknown) now lands at Iteration 5 rather than up front. **Recommendation:** run that ~1-day spike *in parallel, in the background* whenever someone has spare capacity before Iteration 5, so there are no surprises when you reach it.
   - **Outcome (2026-07-29): the spike ran at the start of It.5 and the deferral cost real rework.** Two of the plan's own assumptions were wrong — there is no `ckb` model, and pre-processing *lowered* accuracy — so §6.2 had to be rewritten and the tasks re-scoped mid-iteration. Nothing was lost, because OCR only auto-fills. **The lesson stands for the next unknown: a spike deferred is a plan written on a guess.**
 
@@ -51,7 +51,9 @@ This plan front-loads the demo and defers **OCR** (Iteration 5) and the **offlin
 | 4 | Reports, dashboard, activities, compiled export | Leadership outputs + admin views | RTL/multilingual print | 2, 3 |
 | 5 | OCR pipeline | Photograph an ID → draft → review → **confirmation creates the client, case and filed document** | Sorani OCR accuracy — **retired, see §6.2** | 2, 3 |
 | 6 | Client-side scan capture | Scan with the camera into the pipeline | Offline browser scan-to-PDF | 5 |
-| 7 | Offline deployment, hardening & ops | Production-ready offline on the two computers | Data loss · at-rest · offline deploy | all |
+| 7 | Real-data acceptance testing with the office | Every finding written up as a use case and closed; the specs match the real process | Does the built workflow match how the office actually works | 6 |
+| 8 | Full-project review & hardening pass | One review report over the whole codebase — security, invariants, DRY, docs — findings fixed | Defects only a whole-project view reveals | 7 |
+| 9 | Offline deployment, hardening & ops | Production-ready offline on the two computers | Data loss · at-rest · offline deploy | all |
 
 **Showable milestones:**
 
@@ -59,7 +61,9 @@ This plan front-loads the demo and defers **OCR** (Iteration 5) and the **offlin
 - **End of Iteration 2** — the **flagship demo**: create and run a complete case using imported PDFs. Genuinely usable for daily work with manual entry.
 - **End of Iteration 4** — feature-complete for daily use (manual entry) — dashboards, reports, generated + compiled documents.
 - **End of Iteration 6** — the paper-to-digital loop is complete (OCR auto-fill + camera scanning).
-- **End of Iteration 7** — production-hardened offline deployment on the two office computers.
+- **End of Iteration 7** — the office has run real allocations end to end; every finding is a written use case, triaged and closed.
+- **End of Iteration 8** — the entire project has passed a single security / quality / architecture review.
+- **End of Iteration 9** — production-hardened offline deployment on the two office computers.
 
 ---
 
@@ -72,7 +76,7 @@ This plan front-loads the demo and defers **OCR** (Iteration 5) and the **offlin
 **Tasks**
 
 - [ ] Monorepo scaffold — `land-allocation/` with `backend/` (Django), `frontend/` (React + Vite), shared config — *§14*.
-- [ ] **Minimal local dev runtime** (not production): PostgreSQL (local or a one-line docker) + Django dev server + Vite dev server. *Full offline Docker/LAN packaging is deferred to Iteration 7.*
+- [ ] **Minimal local dev runtime** (not production): PostgreSQL (local or a one-line docker) + Django dev server + Vite dev server. *Full offline Docker/LAN packaging is deferred to Iteration 9.*
 - [ ] Base models: `TimeStampedModel`, `SoftDeleteModel`, `ActiveManager`; `ActivityLog` + audit-service skeleton — *§3.1, §11*.
 - [ ] JWT auth (SimpleJWT): `login`/`refresh`/`logout`/`me`; custom `User` with `role`, `language`, `theme` — *§7*.
 - [ ] React app shell: routing, RTK Query `baseApi` (auth header + refresh-on-401), `auth` slice, protected routes, app layout (nav/sidebar/header), Login page — *§8*.
@@ -217,7 +221,54 @@ This plan front-loads the demo and defers **OCR** (Iteration 5) and the **offlin
 
 ---
 
-## Iteration 7 — Offline deployment, hardening & operations
+## Iteration 7 — Real-data acceptance testing with the office
+
+**Goal:** the lawyers who will actually use this run **real allocations with real data** through the built product, and every finding they report becomes a **written use case** that is triaged and closed — updating the specs *before* deployment freezes them.
+
+This is the first iteration whose input comes from outside the code. The office reports what happened; each report is written up as a use case, given a verdict, and either fixed, specified, or deliberately declined. Expect a meaningful share to land in the **architecture doc**, not just the code — a mismatch between the built workflow and the office's real process is a *spec* defect, and §-level updates plus dated deviation entries are the deliverable, not an afterthought.
+
+**Tasks**
+
+- [ ] **Run the real process end to end** — the office creates and works genuine allocations: client + Step 1, institutes in Steps 2–4, generated eligibility and list letters, Step-5 compiled export. On the real two-computer setup wherever possible.
+- [ ] **Every finding becomes a use case** in `docs/use-cases.md`: actor, precondition, steps taken, expected vs actual, and a **verdict** — *bug* · *spec gap* · *change request* · *works as intended (misunderstanding)*.
+- [ ] **Triage and close each one:** a bug gets a fix **plus a regression test**; a spec gap updates the architecture § first and is then built; a change request is scoped and decided before any code moves.
+- [ ] **Propagate to the docs** — §-level architecture updates, plus a dated deviation entry for anything that contradicts the current spec. The docs must describe what the office actually does.
+- [ ] **Re-verify per change:** both suites green, and a browser smoke of each changed flow in `ckb`/`ar`/`en`.
+- [ ] **Collect 15–25 real ID cards** (with some genuine photocopies) while real scanning is happening, and **tune the OCR confidence threshold** against them — *§6.2*. This iteration is the natural place to retire that long-standing blocker.
+- [ ] **Separate pilot data from dev/test data** — clean the dev DB before the pilot and account for what the pilot creates, so real records are never confused with smoke data.
+
+> **⚠️ Data-handling rule for this iteration — real citizen data.** Pilot data is real people's national IDs. **Never commit ID images or scans** (`.gitignore` blocks image files — keep it that way, and never `git add -A`), never paste identifying extracts into a chat or an issue, and share findings in **aggregate or redacted** form. A privacy incident already happened once on this project (2026-07-29); the rule exists because of it.
+
+**Deliverable / demo:** a use-case log where every reported finding has a verdict and, where applicable, the commit that closed it — and specs that match the office's real process.
+
+**Definition of Done:** the office confirms the workflow matches how they actually work; no known correctness or usability blocker remains; the architecture doc reflects reality; both suites green.
+
+---
+
+## Iteration 8 — Full-project review & hardening pass
+
+**Goal:** one deliberate review of the **entire project** — not a diff — for security, correctness, architecture conformance, DRY, dead code, documentation and lint, with every finding fixed or explicitly deferred with a reason.
+
+Previous reviews in this project were per-iteration and scoped to what had just changed. This one is whole-codebase, and exists to catch what only a project-wide view reveals: an invariant that silently stopped holding somewhere, the fourth copy of a helper, a stale doc claim, an endpoint whose permissions drifted. **Every finding is probed before it is claimed** — that standard is what has made the previous reviews worth the time.
+
+**Tasks**
+
+- [ ] **Security review of the whole surface** — authn/authz on *every* endpoint against the §7 RBAC matrix; input validation; file handling and path traversal; CSV injection; secrets handling; error/stack-trace leakage; refresh-token handling — *§7, §12*.
+- [ ] **Invariant audit, endpoint by endpoint** — soft-delete everywhere, append-only audit written only from services, the two partial-unique "no land twice" indexes, optimistic locking on every writable resource. Each one **proven by a test**, not by reading — *§3.7, §11, §12*.
+- [ ] **Architecture conformance** — thin views → services → selectors; RTK Query owning all server state; the institute list defined once; indexes shipped with their migrations — *§14*.
+- [ ] **DRY + dead-code sweep** across backend and frontend. This project has repeatedly found third and fourth copies of the same helper; assume more exist.
+- [ ] **Bug & logic hunt** — N+1 queries, race conditions, transaction boundaries, `on_commit` correctness, timezone/date handling, i18n digit and pluralization handling.
+- [ ] **Lint, type and build clean** across the whole tree — including the two long-standing `only-export-components` warnings.
+- [ ] **Test-quality audit** — find tests that silently skip, assert nothing, or cover a mock instead of the code; verify the invariants are actually covered.
+- [ ] **Documentation reconciliation** — architecture doc vs shipped reality, this plan's checkboxes, `running.md`, and **settle whether `CLAUDE.md` is tracked in git** (it is currently gitignored, so a fresh clone gets outdated OCR guidance).
+
+**Deliverable / demo:** a written review report — findings ordered by severity, each with the probe that proved it and either the commit that fixed it or the reason it was deferred.
+
+**Definition of Done:** no known security defect; every invariant proven by a test; lint/type/build clean; the documentation matches the code.
+
+---
+
+## Iteration 9 — Offline deployment, hardening & operations
 
 **Goal:** make it production-safe and truly offline on the two office computers: containerized, on the LAN, encrypted, backed up, restore-tested, and tuned.
 
@@ -245,8 +296,8 @@ This plan front-loads the demo and defers **OCR** (Iteration 5) and the **offlin
 - **Invariant tests (critical)** — soft-delete hides rows everywhere; audit captures before/after; duplicate rule blocks a second active allocation under concurrent inserts; optimistic-lock returns 409 on a stale write.
 - **API tests** — role matrix (Admin vs Lawyer, assignee vs non-assignee) per endpoint.
 - **Localization checks** — every screen has no hard-coded strings; RTL renders correctly for `ckb`/`ar`; numbers/dates use bidi-safe rendering.
-- **Manual/dev smoke** — exercise each new capability locally per iteration; **LAN / two-computer smoke starts at Iteration 7**.
-- **High-stakes (Iteration 7)** — a documented, rehearsed restore drill; a performance run at target scale.
+- **Manual/dev smoke** — exercise each new capability locally per iteration; **LAN / two-computer smoke starts at Iteration 9**.
+- **High-stakes (Iteration 9)** — a documented, rehearsed restore drill; a performance run at target scale.
 
 ## Deferred / backlog (nice-to-have, out of the critical path)
 
