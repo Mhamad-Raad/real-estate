@@ -5,7 +5,6 @@ import {
   FolderKanban,
   UserCog,
   FileBarChart,
-  ScanLine,
   ScrollText,
   Settings,
   Tags,
@@ -28,7 +27,8 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { to: "/", labelKey: "nav.dashboard", icon: LayoutDashboard },
   { to: "/clients", labelKey: "nav.clients", icon: Users },
-  { to: "/scan-card", labelKey: "nav.scanCard", icon: ScanLine },
+  // No standalone scan entry: a card is scanned inside the Step-1 intake form, so exactly one
+  // path opens a case (§5, UC-024).
   { to: "/processes", labelKey: "nav.processes", icon: FolderKanban },
   { to: "/reports", labelKey: "nav.reports", icon: FileBarChart, adminOnly: true },
   { to: "/activities", labelKey: "nav.activities", icon: ScrollText, adminOnly: true },

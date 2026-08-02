@@ -20,7 +20,7 @@ class IntakeApiTests(APITestCase):
         self.client.force_authenticate(self.lawyer)
 
     def _payload(self, **overrides):
-        return {"client_data": client_data(pid="199505054321", **overrides)}
+        return {"client_data": client_data(**{"pid": "199505054321", **overrides})}
 
     def test_creates_the_beneficiary_and_the_case_together(self):
         resp = self.client.post(reverse("process-list"), self._payload(), format="json")
@@ -54,6 +54,19 @@ class IntakeApiTests(APITestCase):
     def test_rejects_neither(self):
         resp = self.client.post(reverse("process-list"), {}, format="json")
         self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_a_pid_someone_else_holds_is_a_400_not_a_500(self):
+        """`ix_client_pid_active` would otherwise raise IntegrityError → an HTTP 500 saying nothing.
+
+        DRF derives the check from the partial UniqueConstraint, so it lands as a field error on
+        `pid`; `assert_pid_is_free` is the backstop for the OCR path, which has no serializer.
+        """
+        make_client(full_name="Already Here", pid="196001011234")
+        resp = self.client.post(
+            reverse("process-list"), self._payload(pid="196001011234"), format="json"
+        )
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("pid", str(resp.data))
 
     def test_married_beneficiary_still_needs_the_full_spouse_set(self):
         """The nested serializer must enforce exactly what the Clients API does (§6.6)."""

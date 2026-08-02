@@ -30,6 +30,8 @@ export type CardScan = {
   /** Who the confirmation created or updated — with the version the next call's lock needs. */
   client: number | null;
   client_version: number | null;
+  /** The case the confirmation opened — the intake form navigates into its Step 1. */
+  process: number | null;
   confirmed_at: string | null;
   confirmed_by: number | null;
   created_at: string;
@@ -46,6 +48,10 @@ export type ConfirmPayload = {
   client_version?: number;
   assigned_lawyer?: number | null;
   category?: number | null;
+  // Only read when the card creates the case: the intake form asks for the land beside the card,
+  // so it commits in the same transaction rather than a follow-up PATCH (§5).
+  land_id?: string;
+  land_address?: string;
   // Not on the card. Marital status decides whether Step 1 owes a spouse ID and whether the
   // letter prints a spouse row, and the letter needs the spouse's three printed fields together;
   // `spouse_pid` is never printed and exists only for the household duplicate rule (§5.7, §6.6).

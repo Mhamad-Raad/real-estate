@@ -6,10 +6,10 @@ import { ActivitiesPage } from "@/features/activities/ActivitiesPage";
 import { AdminRoute } from "@/features/auth/AdminRoute";
 import { LoginPage } from "@/features/auth/LoginPage";
 import { ProtectedRoute } from "@/features/auth/ProtectedRoute";
-import { ScanCardPage } from "@/features/cardScans/ScanCardPage";
 import { CategoriesPage } from "@/features/categories/CategoriesPage";
 import { TemplatesPage } from "@/features/templates/TemplatesPage";
 import { ClientsPage } from "@/features/clients/ClientsPage";
+import { ProcessCreatePage } from "@/features/processes/ProcessCreatePage";
 import { ProcessesPage } from "@/features/processes/ProcessesPage";
 import { ReportsPage } from "@/features/reports/ReportsPage";
 import { ProcessDetailPage } from "@/features/processes/detail/ProcessDetailPage";
@@ -28,8 +28,9 @@ export default function App() {
           <Route element={<AppLayout />}>
             <Route index element={<DashboardPage />} />
             <Route path="clients" element={<ClientsPage />} />
-            <Route path="scan-card" element={<ScanCardPage />} />
             <Route path="processes" element={<ProcessesPage />} />
+            {/* Before `:id`, or "new" would be parsed as a process id. */}
+            <Route path="processes/new" element={<ProcessCreatePage />} />
             <Route path="processes/:id" element={<ProcessDetailPage />} />
             {/* Admin-only management screens (server enforces RBAC too). */}
             <Route element={<AdminRoute />}>

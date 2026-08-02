@@ -1,11 +1,32 @@
 """Write-side domain rules for clients — the sole place that writes client audit rows (§14.2)."""
 
 from django.db import transaction
+from rest_framework.exceptions import ValidationError
 
 from common.models import ActivityLog
 from common.services import record_activity
 
 from .models import Client
+
+
+def assert_pid_is_free(pid: str, *, exclude=None) -> None:
+    """Reject a national ID another living client already holds — before the DB does.
+
+    `ix_client_pid_active` would raise an IntegrityError here, which surfaces as an HTTP 500 and
+    tells the lawyer nothing. It lands on the "no land twice" key, so every path that can write a
+    PID — typed, scanned or corrected — goes through this and names the conflict (§3.7, §5.7).
+    """
+    if not pid:
+        return
+    # `Client.objects` hides soft-deleted rows — exactly the condition the partial index carries.
+    candidates = Client.objects.filter(pid=pid)
+    if exclude is not None:
+        candidates = candidates.exclude(pk=exclude.pk)
+    conflict = candidates.first()
+    if conflict:
+        raise ValidationError(
+            {"pid": f"National ID {pid} already belongs to {conflict.full_name}."}
+        )
 
 
 @transaction.atomic  # client row + its audit row commit together or not at all (§11)

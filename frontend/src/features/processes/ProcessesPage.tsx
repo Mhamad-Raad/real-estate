@@ -1,7 +1,7 @@
 import { AlertTriangle, Plus, ShieldCheck, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 import { useAppSelector } from "@/app/hooks";
 import { Badge, type BadgeProps } from "@/components/ui/badge";
@@ -28,7 +28,6 @@ import { apiErrorMessage } from "@/lib/apiError";
 import { formatDate } from "@/lib/format";
 
 import { OverrideDialog } from "./OverrideDialog";
-import { ProcessCreateDialog } from "./ProcessCreateDialog";
 import { useDeleteProcessMutation, useListProcessesQuery } from "./processesApi";
 import { OVERALL_STATUSES, type OverallStatus, type ProcessListItem } from "./types";
 
@@ -72,7 +71,7 @@ export function ProcessesPage() {
   const { data, isLoading, isError, refetch } = useListProcessesQuery(filters);
   const [remove, { isLoading: removing }] = useDeleteProcessMutation();
 
-  const [createOpen, setCreateOpen] = useState(false);
+  const navigate = useNavigate();
   const [overriding, setOverriding] = useState<ProcessListItem | null>(null);
   const [toDelete, setToDelete] = useState<ProcessListItem | null>(null);
   const [selected, setSelected] = useState<number[]>([]);
@@ -112,7 +111,7 @@ export function ProcessesPage() {
         title={t("processes.title")}
         description={t("processes.subtitle")}
         action={
-          <Button onClick={() => setCreateOpen(true)}>
+          <Button onClick={() => navigate("/processes/new")}>
             <Plus className="size-4" />
             {t("processes.add")}
           </Button>
@@ -272,7 +271,6 @@ export function ProcessesPage() {
 
       <Pagination page={page} count={data?.count ?? 0} onPage={setPage} />
 
-      <ProcessCreateDialog open={createOpen} onClose={() => setCreateOpen(false)} />
       <OverrideDialog process={overriding} onClose={() => setOverriding(null)} />
       <ConfirmDialog
         open={Boolean(toDelete)}

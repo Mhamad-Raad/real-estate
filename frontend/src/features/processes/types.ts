@@ -1,3 +1,5 @@
+import type { ClientInput } from "@/features/clients/types";
+
 export type OverallStatus = "draft" | "in_progress" | "complete" | "rejected";
 
 export const OVERALL_STATUSES: OverallStatus[] = ["draft", "in_progress", "complete", "rejected"];
@@ -20,10 +22,17 @@ export interface ProcessListItem {
   version: number;
 }
 
+/**
+ * The Step-1 intake payload (§5, UC-024). Exactly one of `client` (already on file) or
+ * `client_data` (created by this same submit) — the server rejects both or neither.
+ */
 export interface ProcessCreateInput {
-  client: number;
+  client?: number;
+  client_data?: ClientInput;
   category?: number | null;
   assigned_lawyer?: number;
+  land_id?: string;
+  land_address?: string;
 }
 
 export interface ProcessFilters {

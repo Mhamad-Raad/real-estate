@@ -24,6 +24,8 @@ class CardScanSerializer(serializers.ModelSerializer):
     # the optimistic lock — without these the caller would have to go looking for them.
     client = serializers.SerializerMethodField()
     client_version = serializers.SerializerMethodField()
+    # The case the confirmation opened — the intake form navigates straight into its Step 1 (§5).
+    process = serializers.SerializerMethodField()
 
     class Meta:
         model = CardScan
@@ -36,6 +38,7 @@ class CardScanSerializer(serializers.ModelSerializer):
             "document",
             "client",
             "client_version",
+            "process",
             "confirmed_at",
             "confirmed_by",
             "created_at",
@@ -52,6 +55,9 @@ class CardScanSerializer(serializers.ModelSerializer):
     def get_client_version(self, scan):
         client = self._client(scan)
         return client.version if client else None
+
+    def get_process(self, scan):
+        return scan.document.process_id if scan.document_id else None
 
 
 class StageScanSerializer(serializers.Serializer):
@@ -102,6 +108,10 @@ class ConfirmSerializer(serializers.Serializer):
     category = serializers.PrimaryKeyRelatedField(
         queryset=Category.objects.all(), required=False, allow_null=True
     )
+    # Also only used when creating: the Step-1 intake form asks for the land alongside the card, so
+    # it rides the same transaction rather than a follow-up PATCH that could fail on its own (§5).
+    land_id = serializers.CharField(required=False, allow_blank=True, max_length=100)
+    land_address = serializers.CharField(required=False, allow_blank=True, max_length=300)
 
     def validate(self, attrs):
         if not any(name in attrs for name in CLIENT_FIELDS):
@@ -169,6 +179,8 @@ class CardScanViewSet(RetrieveModelMixin, GenericViewSet):
             client_version=data.pop("client_version", None),
             assigned_lawyer=data.pop("assigned_lawyer", None),
             category=data.pop("category", None),
+            land_id=data.pop("land_id", ""),
+            land_address=data.pop("land_address", ""),
             values=data,
             actor=request.user,
             request=request,

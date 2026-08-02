@@ -12,8 +12,7 @@
     "categories": "Categories",
     "users": "Users",
     "settings": "Settings",
-    "templates": "Templates",
-    "scanCard": "Scan a card"
+    "templates": "Templates"
   },
   "auth": {
     "title": "Sign in",
@@ -206,7 +205,8 @@
     "selectedCount": "{{count}} selected",
     "printStep1": "Print Step 1",
     "selectAll": "Select all",
-    "selectRow": "Select allocation"
+    "selectRow": "Select allocation",
+    "pickLawyer": "Choose the responsible lawyer first."
   },
   "workflow": {
     "backToList": "Back to processes",
@@ -463,5 +463,25 @@
     "cameraDenied": "Could not open the camera. Add images from a file instead.",
     "unsupportedFile": "Only JPEG and PNG images can be added as pages.",
     "tooLarge": "The scan is too large. Remove some pages and try again."
+  },
+  "intake": {
+    "title": "New allocation",
+    "subtitle": "Create the beneficiary and open their case — nothing is saved until you submit.",
+    "back": "Back to processes",
+    "beneficiary": "Beneficiary",
+    "beneficiaryHint": "Who this allocation is for. Scan their ID, find someone already on file, or type the details.",
+    "modeScan": "Scan ID card",
+    "modeScanHint": "Read the card and let it create the record",
+    "modeExisting": "Find existing",
+    "modeExistingHint": "Someone already in the register",
+    "modeManual": "Enter manually",
+    "modeManualHint": "Type the details by hand",
+    "caseDetails": "Case details",
+    "caseDetailsHint": "The land and category. Both can still be changed in Step 1.",
+    "idCard": "Identity card",
+    "idCardHint": "Photograph both sides; confirming the reading creates the beneficiary and the case.",
+    "noClients": "No matching beneficiaries",
+    "showingSome": "Showing {{shown}} of {{total}} — keep typing to narrow the list",
+    "create": "Create case"
   }
 }

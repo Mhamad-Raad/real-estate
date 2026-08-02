@@ -17,13 +17,13 @@ from rest_framework.exceptions import ValidationError
 
 from catalog.document_types import IDENTITY_TYPE_CODES, SPOUSE_ID
 from clients.models import Client
-from clients.services import create_client
+from clients.services import assert_pid_is_free
 from common.locking import check_version
 from common.models import ActivityLog
 from common.services import record_activity
 from documents import filestore
 from documents.services import PayloadTooLarge, file_staged_document, normalise_to_pdf
-from processes.services import create_process, recompute_client_state
+from processes.services import intake_process, recompute_client_state
 
 from .models import CardScan
 
@@ -137,6 +137,8 @@ def confirm_scan(
     actor,
     assigned_lawyer=None,
     category=None,
+    land_id="",
+    land_address="",
     client=None,
     client_version=None,
     request=None,
@@ -168,7 +170,7 @@ def confirm_scan(
     if created_client:
         client, process = _create_from_card(
             values=values, actor=actor, assigned_lawyer=assigned_lawyer,
-            category=category, request=request,
+            category=category, land_id=land_id, land_address=land_address, request=request,
         )
         before, after = {}, {k: str(v) for k, v in values.items() if v not in (None, "")}
     else:
@@ -178,7 +180,7 @@ def confirm_scan(
         process = active_process_for(client)
         before, after = _apply_to_client(client, values, is_spouse=is_spouse)
         if after:
-            _assert_pid_is_free(client, after)
+            assert_pid_is_free(after.get('pid'), exclude=client)
             client.version += 1
             # Only the confirmed columns: a full save() would also write back everything the
             # review screen never loaded, silently undoing a concurrent edit on the record.
@@ -224,8 +226,14 @@ def confirm_scan(
     return scan
 
 
-def _create_from_card(*, values: dict, actor, assigned_lawyer, category, request):
-    """Create the person and their case from the confirmed reading."""
+def _create_from_card(
+    *, values: dict, actor, assigned_lawyer, category, land_id, land_address, request
+):
+    """Create the person and their case from the confirmed reading.
+
+    Shares `intake_process` with the typed and find-existing paths of the Step-1 form, so all three
+    ways of opening a case commit the same way and there is only one place that can get it wrong.
+    """
     if assigned_lawyer is None:
         raise ValidationError({"assigned_lawyer": "A new case needs an assigned lawyer."})
     missing = [name for name in CLIENT_FIELDS if not values.get(name)]
@@ -233,19 +241,20 @@ def _create_from_card(*, values: dict, actor, assigned_lawyer, category, request
         raise ValidationError(
             {name: "Required to create a client from a card." for name in missing}
         )
-    _assert_pid_is_free(None, {"pid": values["pid"]})
+    assert_pid_is_free(values["pid"])
 
     data = {name: values[name] for name in CLIENT_FIELDS}
     data.update(_marital_details(values))
-    client = create_client(data=data, actor=actor, request=request)
-    process = create_process(
-        client=client,
+    process = intake_process(
+        client_data=data,
         assigned_lawyer=assigned_lawyer,
         category=category,
+        land_id=land_id,
+        land_address=land_address,
         actor=actor,
         request=request,
     )
-    return client, process
+    return process.client, process
 
 
 # The letter prints a spouse row of name / birth date / mother's name, and the DB check
@@ -311,31 +320,6 @@ def _apply_to_client(client, values: dict, *, is_spouse: bool) -> tuple[dict, di
         after[target] = str(new_value)
         setattr(client, target, new_value)
     return before, after
-
-
-def _assert_pid_is_free(client, after: dict) -> None:
-    """Reject a card number another living client already holds — before the DB does.
-
-    `ix_client_pid_active` would raise an IntegrityError here, which surfaces as an HTTP 500 and
-    tells the lawyer nothing. A misread digit in a 12-digit card number is the likeliest OCR
-    error there is, and it lands on the "no land twice" key, so the message has to name the
-    conflict the way the duplicate-check dialog does (§3.7, §5.7).
-    """
-    pid = after.get("pid")
-    if not pid:
-        return
-    # `Client.objects` hides soft-deleted rows — exactly the condition the partial index carries.
-    candidates = Client.objects.filter(pid=pid)
-    if client is not None:
-        candidates = candidates.exclude(pk=client.pk)
-    conflict = candidates.first()
-    if conflict:
-        raise ValidationError(
-            {
-                "pid": f"Card number {pid} already belongs to {conflict.full_name}. "
-                f"Check the reading against the card."
-            }
-        )
 
 
 def _corrected_fields(scan: CardScan, values: dict) -> list[str]:

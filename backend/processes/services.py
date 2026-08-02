@@ -10,7 +10,7 @@ from rest_framework import status
 from rest_framework.exceptions import APIException, ValidationError
 
 from clients.selectors import duplicate_matches
-from clients.services import create_client
+from clients.services import assert_pid_is_free, create_client
 from common.locking import check_version
 from common.models import ActivityLog
 from common.services import record_activity
@@ -113,8 +113,9 @@ def intake_process(
             {"client": "Provide exactly one of an existing client or new client details."}
         )
     if client is None:
-        # A duplicate PID is refused by `ix_client_pid_active` before the case is ever reached;
-        # the outer atomic is what guarantees the client dies with it (§3.7).
+        # Named before the DB names it: `ix_client_pid_active` would raise an IntegrityError, which
+        # reaches the lawyer as a 500 saying nothing (§3.7).
+        assert_pid_is_free(client_data.get("pid"))
         client = create_client(data=client_data, actor=actor, request=request)
     process = create_process(
         client=client,
