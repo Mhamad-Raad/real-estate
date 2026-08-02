@@ -308,7 +308,11 @@
     "compileStarted": "بدأ تجميع ملف المعاملة…",
     "compileFailed": "تعذّر تجميع ملف المعاملة.",
     "compileLocked": "أضف مستنداً واحداً على الأقل قبل التجميع.",
-    "noCompiledYet": "لم يُجمّع بعد."
+    "noCompiledYet": "لم يُجمّع بعد.",
+    "sectionBeneficiary": "المستفيد",
+    "sectionLand": "الأرض والفئة",
+    "sectionPapers": "أوراق المستفيد",
+    "sectionLetter": "كتاب الاستحقاق"
   },
   "institute": {
     "s2_a": "الجهة S2-A",

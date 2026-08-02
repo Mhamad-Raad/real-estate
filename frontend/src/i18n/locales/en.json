@@ -308,7 +308,11 @@
     "compileStarted": "Compiling the case file…",
     "compileFailed": "Could not compile the case file.",
     "compileLocked": "Attach at least one document before compiling.",
-    "noCompiledYet": "Not compiled yet."
+    "noCompiledYet": "Not compiled yet.",
+    "sectionBeneficiary": "Beneficiary",
+    "sectionLand": "Land & category",
+    "sectionPapers": "Client papers",
+    "sectionLetter": "Eligibility letter"
   },
   "institute": {
     "s2_a": "Institute S2-A",

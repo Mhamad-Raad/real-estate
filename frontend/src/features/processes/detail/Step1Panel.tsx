@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
+import { FormSection } from "@/components/ui/separator";
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "@/components/ui/toaster";
 import { useListCategoriesQuery } from "@/features/categories/categoriesApi";
@@ -88,8 +89,11 @@ export function Step1Panel({
         </div>
       )}
 
-      <ClientDetailsPanel client={process.client_detail} canEdit={canEdit} />
+      <FormSection title={t("workflow.sectionBeneficiary")}>
+        <ClientDetailsPanel client={process.client_detail} canEdit={canEdit} />
+      </FormSection>
 
+      <FormSection title={t("workflow.sectionLand")}>
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-1.5">
           <Label htmlFor="s1-category">{t("processes.category")}</Label>
@@ -134,7 +138,9 @@ export function Step1Panel({
           {t("workflow.saveLand")}
         </Button>
       )}
+      </FormSection>
 
+      <FormSection title={t("workflow.sectionPapers")}>
       {types
         .filter(
           (dt) =>
@@ -177,14 +183,17 @@ export function Step1Panel({
             </div>
           );
         })}
+      </FormSection>
 
-      <GeneratedLetterPanel
-        processId={process.id}
-        documents={docs}
-        generatedTypes={types.filter((dt) => dt.generated)}
-        canGenerate={canEdit}
-        stepComplete={stepComplete}
-      />
+      <FormSection title={t("workflow.sectionLetter")}>
+        <GeneratedLetterPanel
+          processId={process.id}
+          documents={docs}
+          generatedTypes={types.filter((dt) => dt.generated)}
+          canGenerate={canEdit}
+          stepComplete={stepComplete}
+        />
+      </FormSection>
     </div>
   );
 }

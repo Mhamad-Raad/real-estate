@@ -308,7 +308,11 @@
     "compileStarted": "کۆکردنەوەی دۆسیەکە دەستی پێکرد…",
     "compileFailed": "نەتوانرا دۆسیەکە کۆبکرێتەوە.",
     "compileLocked": "پێش کۆکردنەوە بەلایەنی کەم یەک بەڵگەنامە زیاد بکە.",
-    "noCompiledYet": "هێشتا کۆنەکراوەتەوە."
+    "noCompiledYet": "هێشتا کۆنەکراوەتەوە.",
+    "sectionBeneficiary": "سوودمەند",
+    "sectionLand": "زەوی و پۆل",
+    "sectionPapers": "بەڵگەنامەکانی سوودمەند",
+    "sectionLetter": "نامەی شایستەیی"
   },
   "institute": {
     "s2_a": "دامەزراوەی S2-A",
