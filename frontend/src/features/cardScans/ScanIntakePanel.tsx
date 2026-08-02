@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "@/components/ui/toaster";
 import { apiErrorMessage } from "@/lib/apiError";
@@ -204,11 +205,10 @@ export function ScanIntakePanel({
       </div>
 
       <label className="flex items-start gap-2 rounded-md border border-border bg-muted/40 p-3 text-sm">
-        <input
-          type="checkbox"
+        <Checkbox
           checked={married}
           onChange={(e) => setMarried(e.target.checked)}
-          className="mt-0.5 size-4 shrink-0"
+          className="mt-0.5"
         />
         <span>
           {t("cardScan.married")}

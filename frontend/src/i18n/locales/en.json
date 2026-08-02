@@ -12,7 +12,9 @@
     "categories": "Categories",
     "users": "Users",
     "settings": "Settings",
-    "templates": "Templates"
+    "templates": "Templates",
+    "collapse": "Collapse",
+    "expand": "Expand"
   },
   "auth": {
     "title": "Sign in",

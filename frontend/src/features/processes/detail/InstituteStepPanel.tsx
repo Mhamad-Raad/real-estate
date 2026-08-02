@@ -2,6 +2,8 @@ import { Plus } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/components/ui/toaster";
@@ -24,13 +26,16 @@ export function InstituteStepPanel({
   canEdit: boolean;
 }) {
   const { t } = useTranslation();
-  const { data: institutes } = useListInstitutesQuery();
-  const { data: lawyers } = useListLawyersQuery();
+  // Both feed dropdowns. Without the loading flags the selects render EMPTY on a slow link, which
+  // a lawyer reads as "there are no institutes" rather than "still loading" (UC-006).
+  const { data: institutes, isLoading: loadingInstitutes } = useListInstitutesQuery();
+  const { data: lawyers, isLoading: loadingLawyers } = useListLawyersQuery();
   const [createEntry] = useCreateEntryMutation();
   const [saveStep] = useSaveStepMutation();
 
   const stepRow = process.steps.find((s) => s.step_number === step)!;
   const entries = process.institute_entries.filter((e) => e.step_number === step);
+  const loadingVocabulary = loadingInstitutes || loadingLawyers;
   const fixed = (institutes ?? []).filter((i) => i.step === step);
   const customs = entries.filter((e) => e.is_custom);
   const lawyerList = lawyers ?? [];
@@ -91,6 +96,13 @@ export function InstituteStepPanel({
         </div>
       )}
 
+      {loadingVocabulary && (
+        <div className="space-y-2">
+          <Skeleton className="h-11 w-full" />
+          <Skeleton className="h-11 w-full" />
+        </div>
+      )}
+
       {fixed.map((inst) => {
         const entry = entries.find((e) => !e.is_custom && e.institute_code === inst.code);
         if (entry) {
@@ -124,12 +136,10 @@ export function InstituteStepPanel({
       {step === 3 && (
         <div className="space-y-3 rounded-lg bg-muted/40 p-3">
           <label className="flex items-center gap-2 text-sm font-medium">
-            <input
-              type="checkbox"
+            <Checkbox
               checked={stepRow.out_of_city_flag}
               disabled={!canEdit}
               onChange={(e) => saveStepField({ out_of_city_flag: e.target.checked })}
-              className="size-4 accent-[var(--color-primary)]"
             />
             {t("workflow.outOfCity")}
           </label>

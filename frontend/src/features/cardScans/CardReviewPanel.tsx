@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 
 import { useAppSelector } from "@/app/hooks";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "@/components/ui/toaster";
 import { apiErrorMessage } from "@/lib/apiError";
@@ -150,11 +151,10 @@ export function CardReviewPanel({
 
         {/* §6.4: the match warning must be acknowledged before anything is written. */}
         <label className="flex items-start gap-2 rounded-md border border-border bg-muted/40 p-3 text-sm">
-          <input
-            type="checkbox"
+          <Checkbox
             checked={acknowledged}
             onChange={(e) => setAcknowledged(e.target.checked)}
-            className="mt-0.5 size-4 shrink-0"
+            className="mt-0.5"
           />
           <span>{t("cardScan.matchWarning")}</span>
         </label>

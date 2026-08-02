@@ -13,13 +13,20 @@ export function applyThemeClass(theme: Theme) {
   document.documentElement.classList.toggle("dark", theme === "dark");
 }
 
+// A sidebar that re-expands on every navigation is worse than none, so the choice persists —
+// legitimate global UI state per §14.3, alongside theme and language (UC-007).
+function initialSidebarCollapsed(): boolean {
+  return localStorage.getItem("sidebar_collapsed") === "true";
+}
+
 interface UiState {
   theme: Theme;
+  sidebarCollapsed: boolean;
 }
 
 const uiSlice = createSlice({
   name: "ui",
-  initialState: { theme: initialTheme() } as UiState,
+  initialState: { theme: initialTheme(), sidebarCollapsed: initialSidebarCollapsed() } as UiState,
   reducers: {
     setTheme(state, action: PayloadAction<Theme>) {
       state.theme = action.payload;
@@ -31,8 +38,12 @@ const uiSlice = createSlice({
       localStorage.setItem("theme", state.theme);
       applyThemeClass(state.theme);
     },
+    toggleSidebar(state) {
+      state.sidebarCollapsed = !state.sidebarCollapsed;
+      localStorage.setItem("sidebar_collapsed", String(state.sidebarCollapsed));
+    },
   },
 });
 
-export const { setTheme, toggleTheme } = uiSlice.actions;
+export const { setTheme, toggleTheme, toggleSidebar } = uiSlice.actions;
 export default uiSlice.reducer;

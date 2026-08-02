@@ -7,6 +7,7 @@ import { useAppSelector } from "@/app/hooks";
 import { Badge, type BadgeProps } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import {
@@ -171,10 +172,9 @@ export function ProcessesPage() {
           <TableHeader>
             <TableRow>
               <TableHead className="w-10">
-                <input
-                  type="checkbox"
-                  className="size-4 align-middle accent-primary"
+                <Checkbox
                   checked={allSelected}
+                  indeterminate={selected.length > 0 && !allSelected}
                   onChange={toggleAll}
                   aria-label={t("processes.selectAll")}
                 />
@@ -203,9 +203,7 @@ export function ProcessesPage() {
               rows.map((process) => (
                 <TableRow key={process.id}>
                   <TableCell>
-                    <input
-                      type="checkbox"
-                      className="size-4 align-middle accent-primary"
+                    <Checkbox
                       checked={selected.includes(process.id)}
                       onChange={() => toggle(process.id)}
                       aria-label={t("processes.selectRow")}
