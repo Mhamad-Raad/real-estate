@@ -95,9 +95,17 @@ class DocumentTemplateViewSet(ReadOnlyModelViewSet):
     """
 
     serializer_class = DocumentTemplateSerializer
+    # Unpaginated on purpose: the screen groups by letter type, and a grouping cannot be paged
+    # coherently — an active template on page 2 would render its group as "none installed" on
+    # page 1. The set is bounded by the number of letters the office uses, times their revisions.
+    pagination_class = None
 
     def get_queryset(self):
-        qs = DocumentTemplate.objects.select_related("uploaded_by").order_by("template_type")
+        # Active first within each type, then newest: the row that matters leads its group, and
+        # `install_templates` never deletes a retired version (§6.6), so the tail only grows.
+        qs = DocumentTemplate.objects.select_related("uploaded_by").order_by(
+            "template_type", "-is_active", "-created_at"
+        )
         template_type = self.request.query_params.get("template_type")
         return qs.filter(template_type=template_type) if template_type else qs
 

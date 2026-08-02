@@ -21,9 +21,13 @@ export const Checkbox = React.forwardRef<
 
   // `indeterminate` exists only as a DOM property — there is no attribute for it, so it cannot be
   // set through JSX. The select-all header needs it when only some rows are ticked.
+  //
+  // `checked` is in the deps because clicking a checkbox makes the browser clear `indeterminate`
+  // on the element itself: if only `checked` changed, the effect would not re-run and the DOM
+  // would keep the cleared value while the prop still said otherwise.
   React.useEffect(() => {
     if (inner.current) inner.current.indeterminate = indeterminate;
-  }, [indeterminate]);
+  }, [indeterminate, checked]);
 
   return (
     <span className="relative inline-flex size-4 shrink-0 align-middle">

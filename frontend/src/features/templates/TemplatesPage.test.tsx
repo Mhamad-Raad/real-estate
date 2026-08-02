@@ -27,11 +27,8 @@ const rows = [
 vi.mock("@/components/ui/toaster", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("./TemplatePreviewDialog", () => ({ TemplatePreviewDialog: () => null }));
 vi.mock("./templatesApi", () => ({
-  useListTemplatesQuery: () => ({
-    data: { results: rows, count: rows.length },
-    isLoading: false,
-    isError: false,
-  }),
+  // Unpaginated: the endpoint returns a plain list because the screen groups by type.
+  useListTemplatesQuery: () => ({ data: rows, isLoading: false, isError: false }),
   useListTemplateTypesQuery: () => ({
     data: [
       { code: "eligibility_single", display_key: "templates.types.eligibility_single" },

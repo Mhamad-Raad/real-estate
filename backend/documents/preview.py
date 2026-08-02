@@ -50,7 +50,9 @@ def _sample_context(template_type: str) -> dict:
             "client_pid": to_arabic_indic("200000000000"),
             "mother_name": SAMPLE_ROWS[0]["mother_name"],
             "birth_year": SAMPLE_ROWS[0]["year"],
-            "marital_status": LABELS["complete"],
+            # The sample beneficiary carries spouse values, so the status must say so — pulling a
+            # step label in here printed "complete" where the letter shows a marital status.
+            "marital_status": LABELS["married"],
             "spouse_name": SAMPLE_ROWS[0]["spouse_name"],
             "land_id": "نموونە — L-1",
             "land_address": "نموونە — ناونیشان",

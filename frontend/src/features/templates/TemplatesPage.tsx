@@ -6,7 +6,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/features/common/PageHeader";
-import { Pagination } from "@/features/common/Pagination";
 import { Skeleton } from "@/components/ui/skeleton";
 
 import { TemplatePreviewDialog } from "./TemplatePreviewDialog";
@@ -21,14 +20,13 @@ const kb = (bytes: number) => `${Math.max(1, Math.round(bytes / 1024))} KB`;
 // dozen of them inline buried the two rows that matter (UC-009).
 export function TemplatesPage() {
   const { t } = useTranslation();
-  const [page, setPage] = useState(1);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [previewing, setPreviewing] = useState<DocumentTemplate | null>(null);
 
-  const { data, isLoading, isError } = useListTemplatesQuery({ page });
+  const { data, isLoading, isError } = useListTemplatesQuery();
   const { data: types } = useListTemplateTypesQuery();
 
-  const rows = useMemo(() => data?.results ?? [], [data]);
+  const rows = useMemo(() => data ?? [], [data]);
   // One group per letter type the *backend* knows about, so a newly added type appears here
   // rather than silently missing as `case_summary` did (UC-008).
   const groups = useMemo(() => {
@@ -143,8 +141,6 @@ export function TemplatesPage() {
             )}
           </Card>
         ))}
-
-      <Pagination page={page} count={data?.count ?? 0} onPage={setPage} />
 
       <TemplatePreviewDialog template={previewing} onClose={() => setPreviewing(null)} />
     </div>
