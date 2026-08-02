@@ -9,7 +9,10 @@ export interface DashboardStats {
   window_start: string;
   window_days: number;
   clients_in_window: number;
+  /** The same figures over the preceding window, for the comparison chips (UC-019). */
+  clients_previous: number;
   processes_in_window: number;
+  processes_previous: number;
   processes_total: number;
   /** Keyed by overall_status; every status is present, even at zero. */
   processes_by_status: Record<string, number>;

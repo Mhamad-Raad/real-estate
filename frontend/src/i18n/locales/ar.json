@@ -83,7 +83,8 @@
     "byLawyer": "المعاملات المُنجَزة، حسب المحامي",
     "windowOf": "آخر {{days}} يومًا — منذ {{date}}",
     "clientsInWindow": "مستفيدون جدد",
-    "processesInWindow": "معاملات جديدة"
+    "processesInWindow": "معاملات جديدة",
+    "vsPrevious": "مقارنة بالـ ٣٠ يومًا السابقة"
   },
   "categories": {
     "title": "الفئات",

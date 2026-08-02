@@ -85,15 +85,21 @@ def _apply_range(qs, date_from, date_to):
 def dashboard_stats(*, now=None) -> dict:
     """Everything the Home page renders, in one call (§10.1)."""
     since = window_start(now)
+    # The window before this one, same length — "12 new cases" means nothing without a comparison,
+    # and a rolling window makes the previous period well defined (§10.1, UC-019).
+    previous_since = window_start(now, days=WINDOW_DAYS * 2)
     processes = Process.objects.all()
     in_window = processes.filter(created_at__gte=since)
+    previous = {"created_at__gte": previous_since, "created_at__lt": since}
     statuses = Process.OverallStatus.values
 
     return {
         "window_start": since.date(),
         "window_days": WINDOW_DAYS,
         "clients_in_window": Client.objects.filter(created_at__gte=since).count(),
+        "clients_previous": Client.objects.filter(**previous).count(),
         "processes_in_window": in_window.count(),
+        "processes_previous": processes.filter(**previous).count(),
         "processes_total": processes.count(),
         "processes_by_status": _grouped(processes, "overall_status", statuses),
         "processes_by_step": _grouped(processes, "current_step", STEP_NUMBERS),

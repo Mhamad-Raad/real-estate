@@ -83,7 +83,8 @@
     "byLawyer": "Cases handled, by lawyer",
     "windowOf": "Last {{days}} days — since {{date}}",
     "clientsInWindow": "New beneficiaries",
-    "processesInWindow": "New cases"
+    "processesInWindow": "New cases",
+    "vsPrevious": "vs previous 30 days"
   },
   "categories": {
     "title": "Categories",

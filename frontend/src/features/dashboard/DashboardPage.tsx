@@ -5,6 +5,7 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
+  LabelList,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -46,7 +47,7 @@ export function DashboardPage() {
     value,
   }));
   const stepData = Object.entries(data?.processes_by_step ?? {}).map(([key, value]) => ({
-    label: t("processes.stepShort", { n: key }),
+    label: t("processes.stepShort", { n: num(Number(key)) }),
     value,
   }));
   const hasStatusData = statusData.some((row) => row.value > 0);
@@ -59,7 +60,10 @@ export function DashboardPage() {
         </h1>
         <p className="text-muted-foreground">
           {data
-            ? t("dashboard.windowOf", { days: data.window_days, date: formatDate(data.window_start, i18n.language) })
+            ? t("dashboard.windowOf", {
+                days: num(data.window_days),
+                date: formatDate(data.window_start, i18n.language),
+              })
             : t("dashboard.subtitle")}
         </p>
       </div>
@@ -74,12 +78,14 @@ export function DashboardPage() {
         <StatCard
           label={t("dashboard.clientsInWindow")}
           value={data?.clients_in_window}
+          previous={data?.clients_previous}
           icon={UserPlus}
           loading={isLoading}
         />
         <StatCard
           label={t("dashboard.processesInWindow")}
           value={data?.processes_in_window}
+          previous={data?.processes_previous}
           hint={t("dashboard.ofTotal", { total: num(data?.processes_total ?? 0) })}
           icon={FolderKanban}
           loading={isLoading}
@@ -115,9 +121,17 @@ export function DashboardPage() {
                 {t("common.noData")}
               </p>
             ) : (
-              <ResponsiveContainer width="100%" height={224}>
+              <ResponsiveContainer width="100%" height={176}>
                 <PieChart>
-                  <Pie data={statusData} dataKey="value" nameKey="label" innerRadius={45}>
+                  <Pie
+                    data={statusData}
+                    dataKey="value"
+                    nameKey="label"
+                    innerRadius={44}
+                    outerRadius={72}
+                    paddingAngle={2}
+                    stroke="none"
+                  >
                     {statusData.map((row) => (
                       <Cell key={row.key} fill={STATUS_COLORS[row.key]} />
                     ))}
@@ -150,17 +164,36 @@ export function DashboardPage() {
               <Skeleton className="h-56 w-full" />
             ) : (
               // `reversed` mirrors the axis for RTL so step 1 starts on the correct side.
-              <ResponsiveContainer width="100%" height={224}>
-                <BarChart data={stepData}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.3} />
-                  <XAxis dataKey="label" reversed={i18n.dir() === "rtl"} tickLine={false} />
+              <ResponsiveContainer width="100%" height={176}>
+                <BarChart data={stepData} margin={{ top: 16, right: 4, left: 0, bottom: 0 }}>
+                  {/* A solid hairline reads as a rule; recharts' dotted default reads as noise. */}
+                  <CartesianGrid vertical={false} stroke="var(--color-border)" />
+                  <XAxis
+                    dataKey="label"
+                    reversed={i18n.dir() === "rtl"}
+                    tickLine={false}
+                    axisLine={false}
+                    tick={{ fontSize: 12 }}
+                  />
                   <YAxis
                     allowDecimals={false}
                     orientation={i18n.dir() === "rtl" ? "right" : "left"}
                     tickLine={false}
+                    axisLine={false}
+                    width={28}
+                    tick={{ fontSize: 12 }}
+                    tickFormatter={num}
                   />
-                  <Tooltip formatter={tooltipNumber} />
-                  <Bar dataKey="value" fill="var(--color-primary)" radius={[4, 4, 0, 0]} />
+                  <Tooltip formatter={tooltipNumber} cursor={{ fill: "var(--color-muted)" }} />
+                  <Bar dataKey="value" fill="var(--color-primary)" radius={[6, 6, 0, 0]} maxBarSize={48}>
+                    {/* The value on the bar removes a trip to the axis to read one number. */}
+                    <LabelList
+                      dataKey="value"
+                      position="top"
+                      formatter={(v: unknown) => num(Number(v ?? 0))}
+                      fontSize={12}
+                    />
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             )}

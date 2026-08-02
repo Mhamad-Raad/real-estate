@@ -124,13 +124,17 @@ class DashboardTests(ReportsTestBase):
         self.assertEqual(stats["duplicate_flagged"], 0)
 
     def test_query_count_does_not_grow_with_data(self):
-        """The guard that matters: every figure must stay a GROUP BY, not a loop."""
+        """The guard that matters: every figure must stay a GROUP BY, not a loop.
+
+        The constant moves when a figure is added (12 since the previous-period comparison); what
+        must never change is that it is the *same* before and after ten more cases exist.
+        """
         self._process("201")
-        with self.assertNumQueries(10):
+        with self.assertNumQueries(12):
             dashboard_stats()
         for pid in range(202, 212):
             self._process(str(pid))
-        with self.assertNumQueries(10):
+        with self.assertNumQueries(12):
             dashboard_stats()
 
     def test_requires_authentication(self):

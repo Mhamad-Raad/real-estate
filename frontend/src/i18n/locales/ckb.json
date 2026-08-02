@@ -83,7 +83,8 @@
     "byLawyer": "دۆسیە کارکراوەکان، بەپێی پارێزەر",
     "windowOf": "{{days}} ڕۆژی ڕابردوو — لە {{date}}ەوە",
     "clientsInWindow": "سوودمەندی نوێ",
-    "processesInWindow": "دۆسیەی نوێ"
+    "processesInWindow": "دۆسیەی نوێ",
+    "vsPrevious": "بەراورد بە ٣٠ ڕۆژی پێشوو"
   },
   "categories": {
     "title": "پۆلەکان",
