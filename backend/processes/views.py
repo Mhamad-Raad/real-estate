@@ -33,7 +33,7 @@ from .serializers import (
 from .services import (
     advance_step as advance_step_service,
     complete_process,
-    create_process,
+    intake_process,
     override_duplicate as override_duplicate_service,
     recompute_step,
     save_step,
@@ -71,11 +71,14 @@ class ProcessViewSet(AuditedSoftDeleteViewSet, ModelViewSet):
         assigned = data.get("assigned_lawyer") or user
         if not user.is_admin:
             assigned = user
-        serializer.instance = create_process(
-            client=data["client"],
+        serializer.instance = intake_process(
+            client=data.get("client"),
+            client_data=data.get("client_data"),
             assigned_lawyer=assigned,
             actor=user,
             category=data.get("category"),
+            land_id=data.get("land_id", ""),
+            land_address=data.get("land_address", ""),
             request=self.request,
         )
 

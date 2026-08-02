@@ -10,6 +10,7 @@ from rest_framework import status
 from rest_framework.exceptions import APIException, ValidationError
 
 from clients.selectors import duplicate_matches
+from clients.services import create_client
 from common.locking import check_version
 from common.models import ActivityLog
 from common.services import record_activity
@@ -85,6 +86,49 @@ def create_process(
         after={"client_id": client.id, "assigned_lawyer_id": assigned_lawyer.id},
         request=request,
     )
+    return process
+
+
+@transaction.atomic
+def intake_process(
+    *,
+    client=None,
+    client_data=None,
+    assigned_lawyer,
+    actor,
+    category=None,
+    land_id="",
+    land_address="",
+    request=None,
+) -> Process:
+    """Open a case from the Step-1 intake form — the beneficiary and their case commit together.
+
+    Either the person is already on file (`client`) or they are created here from `client_data`.
+    That is the office's real order: the card in the lawyer's hand creates the person *and* starts
+    the case, as one act (§5, UC-024). Nothing is written unless all of it is — an abandoned form
+    must leave no half-created case behind, because nothing here is ever hard-deleted (§11.1).
+    """
+    if (client is None) == (client_data is None):
+        raise ValidationError(
+            {"client": "Provide exactly one of an existing client or new client details."}
+        )
+    if client is None:
+        # A duplicate PID is refused by `ix_client_pid_active` before the case is ever reached;
+        # the outer atomic is what guarantees the client dies with it (§3.7).
+        client = create_client(data=client_data, actor=actor, request=request)
+    process = create_process(
+        client=client,
+        assigned_lawyer=assigned_lawyer,
+        category=category,
+        actor=actor,
+        request=request,
+    )
+    if land_id or land_address:
+        process.land_id = land_id
+        process.land_address = land_address
+        process.save(update_fields=["land_id", "land_address", "updated_at"])
+        # The land fields are part of what Step 1 requires, so its stored status must catch up (§3.6).
+        recompute_step(process, 1)
     return process
 
 

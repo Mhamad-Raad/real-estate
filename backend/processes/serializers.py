@@ -1,6 +1,7 @@
 from rest_framework import serializers
 
 from catalog.institutes import INSTITUTE_CODES, STEP_FOR_CODE
+from clients.serializers import ClientSerializer
 
 from .models import DuplicateOverride, Process, ProcessInstituteEntry, ProcessStep
 from .status import missing_requirements
@@ -122,8 +123,6 @@ class ProcessDetailSerializer(ProcessListSerializer):
         )
 
     def get_client_detail(self, obj):
-        from clients.serializers import ClientSerializer
-
         return ClientSerializer(obj.client).data
 
     def get_step_status_summary(self, obj):
@@ -138,14 +137,32 @@ class ProcessDetailSerializer(ProcessListSerializer):
 
 
 class ProcessCreateSerializer(serializers.ModelSerializer):
+    """The Step-1 intake payload: the beneficiary (existing or brand new) plus the land (§5, UC-024)."""
+
+    # Creating the person here is the whole point of the intake form — reuse `ClientSerializer` so
+    # the married-spouse rules and field validation cannot drift from the Clients API (§14.2).
+    client_data = ClientSerializer(required=False, write_only=True)
+
     class Meta:
         model = Process
         # `duplicate_flagged` is server-computed from the identity dedup — never client input (§5.7).
-        # Land details (land_id/land_address) are entered in Step 1, not at creation.
-        fields = ("id", "client", "category", "assigned_lawyer")
+        fields = ("id", "client", "client_data", "category", "assigned_lawyer", "land_id", "land_address")
         read_only_fields = ("id",)
-        # The view resolves the assignee (self for lawyers); admins may pass one explicitly.
-        extra_kwargs = {"assigned_lawyer": {"required": False}}
+        extra_kwargs = {
+            # The view resolves the assignee (self for lawyers); admins may pass one explicitly.
+            "assigned_lawyer": {"required": False},
+            # Exactly one of `client` / `client_data` — enforced in validate(), not by `required`.
+            "client": {"required": False},
+            "land_id": {"required": False},
+            "land_address": {"required": False},
+        }
+
+    def validate(self, attrs):
+        if bool(attrs.get("client")) == bool(attrs.get("client_data")):
+            raise serializers.ValidationError(
+                {"client": "Provide exactly one of `client` (existing) or `client_data` (new)."}
+            )
+        return attrs
 
 
 class ProcessUpdateSerializer(serializers.ModelSerializer):
