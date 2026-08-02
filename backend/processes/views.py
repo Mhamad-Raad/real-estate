@@ -1,6 +1,7 @@
 """Processes API — create, search, header edit, override, per-step save, complete (§4, §5, §7)."""
 
 from django.db import IntegrityError
+from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.decorators import action
@@ -15,7 +16,7 @@ from documents.generation import start_eligibility_job, start_process_list_job
 from documents.refile import refile_client_documents
 from documents.serializers import GenerationJobSerializer
 
-from .models import ProcessInstituteEntry
+from .models import Process, ProcessInstituteEntry
 from .permissions import IsEntryEditorOrAdmin
 from .selectors import search_processes
 from .serializers import (
@@ -187,18 +188,35 @@ class ProcessViewSet(AuditedSoftDeleteViewSet, ModelViewSet):
 
     @action(detail=False, methods=["post"], url_path="generate-document")
     def generate_document(self, request):
-        """Queue one list letter covering the selected allocations (§6.8).
+        """Queue the letter the selection calls for (§6.8, UC-016).
 
-        Any authenticated user may generate: it only exports rows they can already see.
+        One case selected means the office wants *that person's* eligibility letter, not a
+        one-row list. Delegating to the existing eligibility job keeps a single code path per
+        output kind — and files the letter on the case, superseding the previous copy, exactly as
+        Step 1's own button does.
         """
         payload = GenerateDocumentSerializer(data=request.data)
         payload.is_valid(raise_exception=True)
-        job = start_process_list_job(
-            process_ids=payload.validated_data["process_ids"],
-            actor=request.user,
-            template_id=payload.validated_data.get("template"),
-            request=request,
-        )
+        process_ids = payload.validated_data["process_ids"]
+        template_id = payload.validated_data.get("template")
+
+        if len(process_ids) == 1:
+            process = get_object_or_404(Process, pk=process_ids[0])
+            # The list letter only exports rows the caller can already see, so it stays open to
+            # any authenticated user. This branch *writes* a Document onto the case, and a write
+            # follows that case's assignment like every other write (§7.2).
+            if not (request.user.is_admin or process.assigned_lawyer_id == request.user.id):
+                raise PermissionDenied("Only the assigned lawyer or an admin may file this letter.")
+            job = start_eligibility_job(
+                process=process, actor=request.user, template_id=template_id, request=request
+            )
+        else:
+            job = start_process_list_job(
+                process_ids=process_ids,
+                actor=request.user,
+                template_id=template_id,
+                request=request,
+            )
         return Response(GenerationJobSerializer(job).data, status=status.HTTP_202_ACCEPTED)
 
 

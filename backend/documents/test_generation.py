@@ -276,7 +276,29 @@ class GenerationApiTests(APITestCase):
 
     def test_any_authenticated_user_may_generate_a_list_of_rows_they_can_see(self):
         make_template(DocumentTemplate.TemplateType.PROCESS_LIST, build_process_list)
+        second = create_process(
+            client=make_client(full_name="Second", pid="199001019999"),
+            assigned_lawyer=self.lawyer,
+            actor=self.lawyer,
+        )
         self.client.force_authenticate(self.other)
+
+        # Two rows: still the list letter, still open to anyone — it only *exports* (§6.8).
+        resp = self.client.post(
+            reverse("process-generate-document"),
+            {"process_ids": [self.process.id, second.id]},
+            format="json",
+        )
+
+        self.assertEqual(resp.status_code, status.HTTP_202_ACCEPTED)
+        self.assertEqual(resp.data["kind"], GenerationJob.Kind.PROCESS_LIST)
+
+    def test_one_selected_case_produces_that_persons_own_letter(self):
+        """UC-016: selecting a single case used to yield a one-row *list* letter."""
+        make_template(
+            DocumentTemplate.TemplateType.ELIGIBILITY_SINGLE, build_eligibility_single
+        )
+        self.client.force_authenticate(self.lawyer)
 
         resp = self.client.post(
             reverse("process-generate-document"),
@@ -285,6 +307,22 @@ class GenerationApiTests(APITestCase):
         )
 
         self.assertEqual(resp.status_code, status.HTTP_202_ACCEPTED)
+        self.assertEqual(resp.data["kind"], GenerationJob.Kind.ELIGIBILITY)
+
+    def test_a_non_assignee_cannot_file_a_single_letter_onto_someone_elses_case(self):
+        """This branch WRITES a Document, so it follows the case's assignment — not the export rule."""
+        make_template(
+            DocumentTemplate.TemplateType.ELIGIBILITY_SINGLE, build_eligibility_single
+        )
+        self.client.force_authenticate(self.other)
+
+        resp = self.client.post(
+            reverse("process-generate-document"),
+            {"process_ids": [self.process.id]},
+            format="json",
+        )
+
+        self.assertEqual(resp.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_a_job_is_visible_only_to_its_requester_or_an_admin(self):
         make_template(DocumentTemplate.TemplateType.PROCESS_LIST, build_process_list)

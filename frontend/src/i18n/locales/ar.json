@@ -205,10 +205,11 @@
       }
     },
     "selectedCount": "{{count}} محدد",
-    "printStep1": "طباعة الخطوة ١",
     "selectAll": "تحديد الكل",
     "selectRow": "تحديد المعاملة",
-    "pickLawyer": "اختر المحامي المسؤول أولًا."
+    "pickLawyer": "اختر المحامي المسؤول أولًا.",
+    "printSingle": "طباعة الكتاب",
+    "printList": "طباعة كتاب القائمة"
   },
   "workflow": {
     "backToList": "العودة إلى المعاملات",

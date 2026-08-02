@@ -11,7 +11,10 @@ vi.mock("@/app/hooks", () => ({ useAppSelector: () => "token" }));
 vi.mock("@/components/ui/toaster", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
-vi.mock("@/features/documents/download", () => ({ downloadGenerationJob: vi.fn() }));
+vi.mock("@/features/documents/download", () => ({
+  downloadGenerationJob: vi.fn(),
+  downloadDocument: vi.fn(),
+}));
 vi.mock("@/features/documents/generationApi", async () => {
   const actual = await vi.importActual<typeof import("@/features/documents/generationApi")>(
     "@/features/documents/generationApi",
@@ -39,8 +42,18 @@ describe("SelectionToolbar", () => {
   it("sends exactly the selected ids to the server", async () => {
     render(<SelectionToolbar selected={[4, 9]} onClear={vi.fn()} />);
 
-    await userEvent.click(screen.getByRole("button", { name: /print step 1/i }));
+    await userEvent.click(screen.getByRole("button", { name: /print list letter/i }));
 
     expect(generate).toHaveBeenCalledWith({ process_ids: [4, 9] });
+  });
+
+  // UC-016: the office reads the button to know which letter it is about to get.
+  it("offers the single letter for one row and the list letter for several", () => {
+    const { rerender } = render(<SelectionToolbar selected={[4]} onClear={vi.fn()} />);
+    expect(screen.getByRole("button", { name: /print letter/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /print list letter/i })).not.toBeInTheDocument();
+
+    rerender(<SelectionToolbar selected={[4, 9]} onClear={vi.fn()} />);
+    expect(screen.getByRole("button", { name: /print list letter/i })).toBeInTheDocument();
   });
 });

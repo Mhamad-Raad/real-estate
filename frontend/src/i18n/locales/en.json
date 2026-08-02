@@ -205,10 +205,11 @@
       }
     },
     "selectedCount": "{{count}} selected",
-    "printStep1": "Print Step 1",
     "selectAll": "Select all",
     "selectRow": "Select allocation",
-    "pickLawyer": "Choose the responsible lawyer first."
+    "pickLawyer": "Choose the responsible lawyer first.",
+    "printSingle": "Print letter",
+    "printList": "Print list letter"
   },
   "workflow": {
     "backToList": "Back to processes",

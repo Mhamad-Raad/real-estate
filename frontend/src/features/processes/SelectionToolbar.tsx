@@ -5,13 +5,14 @@ import { useAppSelector } from "@/app/hooks";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "@/components/ui/toaster";
-import { downloadGenerationJob } from "@/features/documents/download";
+import { downloadDocument, downloadGenerationJob } from "@/features/documents/download";
 import { useGenerateProcessListMutation } from "@/features/documents/generationApi";
 import { useGenerationRun } from "@/features/documents/useGenerationRun";
 import { apiErrorMessage } from "@/lib/apiError";
 
-// Bulk letter for the rows ticked on the Processes page (§6.8). The output spans several people,
-// so it is not filed under any one of them — it downloads straight to the user to print.
+// The letter for the rows ticked on the Processes page (§6.8, UC-016). **One** row produces that
+// person's own eligibility letter, filed on their case; **two or more** produce the list letter,
+// which spans several people and so is filed under none of them and downloads straight to print.
 export function SelectionToolbar({
   selected,
   onClear,
@@ -23,9 +24,14 @@ export function SelectionToolbar({
   const token = useAppSelector((s) => s.auth.access);
   const [generate, { isLoading: starting }] = useGenerateProcessListMutation();
   const { start, busy: running } = useGenerationRun((job) => {
-    downloadGenerationJob(job.id, token)
-      .then(onClear)
-      .catch(() => toast.error(t("workflow.downloadError")));
+    // The two kinds land in different places: a list letter is a job output with its own
+    // endpoint, a single letter is a Document on the case. Asking the job endpoint for the
+    // latter 404s, because an eligibility job carries no `output_path`.
+    const download =
+      job.kind === "eligibility" && job.document
+        ? downloadDocument(job.document, `letter_${job.document}.pdf`, token)
+        : downloadGenerationJob(job.id, token);
+    download.then(onClear).catch(() => toast.error(t("workflow.downloadError")));
   });
 
   if (!selected.length) return null;
@@ -51,7 +57,9 @@ export function SelectionToolbar({
         </Button>
         <Button size="sm" onClick={run} disabled={busy}>
           {busy ? <Spinner /> : <Printer className="size-4" />}
-          {busy ? t("workflow.generating") : t("processes.printStep1")}
+          {busy
+            ? t("workflow.generating")
+            : t(selected.length === 1 ? "processes.printSingle" : "processes.printList")}
         </Button>
       </div>
     </div>
