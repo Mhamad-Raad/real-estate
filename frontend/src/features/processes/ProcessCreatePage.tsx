@@ -1,11 +1,10 @@
-import { ArrowLeft, PenLine, ScanLine, UserSearch } from "lucide-react";
-import { useEffect, useState } from "react";
+import { ArrowLeft, PenLine, ScanLine } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
 import { useAppSelector } from "@/app/hooks";
 import { Button } from "@/components/ui/button";
-import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
@@ -15,15 +14,16 @@ import { toast } from "@/components/ui/toaster";
 import { ScanIntakePanel } from "@/features/cardScans/ScanIntakePanel";
 import { useListCategoriesQuery } from "@/features/categories/categoriesApi";
 import { ClientFields } from "@/features/clients/ClientFields";
+import { DuplicateWarningDialog } from "@/features/clients/DuplicateWarningDialog";
 import { EMPTY_CLIENT, type ClientDraft } from "@/features/clients/clientForm";
-import { useListClientsQuery } from "@/features/clients/clientsApi";
+import { useCheckDuplicateMutation } from "@/features/clients/clientsApi";
+import type { DuplicateCheckResult } from "@/features/clients/types";
 import { useListUsersQuery } from "@/features/users/usersApi";
-import { useDebounced } from "@/hooks/useDebounced";
 import { apiErrorMessage, apiErrorStatus } from "@/lib/apiError";
 
 import { useCreateProcessMutation } from "./processesApi";
 
-type Mode = "scan" | "existing" | "manual";
+type Mode = "scan" | "manual";
 
 // Opening a case IS Step 1 (§5, UC-024): the beneficiary is created here — from their ID card, from
 // the register, or by hand — alongside the land and category, and nothing is written until the one
@@ -41,37 +41,57 @@ export function ProcessCreatePage() {
   const [landAddress, setLandAddress] = useState("");
   const [lawyer, setLawyer] = useState("");
 
-  const [clientId, setClientId] = useState("");
-  const [clientTerm, setClientTerm] = useState("");
-  const clientSearch = useDebounced(clientTerm, 300);
   const [draft, setDraft] = useState<ClientDraft>(EMPTY_CLIENT);
 
   const { data: categories } = useListCategoriesQuery({});
   const { data: users } = useListUsersQuery({}, { skip: !isAdmin });
-  const { data: clients, isFetching: searching } = useListClientsQuery(
-    { search: clientSearch },
-    { skip: mode !== "existing" },
-  );
   const [create, { isLoading }] = useCreateProcessMutation();
+  const [checkDuplicate] = useCheckDuplicateMutation();
+
+  // §5.7's pre-save duplicate check. It lives here because this is now the only screen that can
+  // create a beneficiary (UC-026), and it serves BOTH branches that do so — typed and scanned.
+  const [warning, setWarning] = useState<DuplicateCheckResult | null>(null);
+  // The dialog is the answer to an async question, so the guard parks on a promise the buttons
+  // resolve. Held in a ref: a re-render must not lose the pending decision.
+  const decision = useRef<((proceed: boolean) => void) | null>(null);
+
+  /** `true` when it is safe to create. A hard match can only ever be cancelled (§5.7). */
+  const guardDuplicates = async (candidate: {
+    pid: string;
+    mother_full_name: string;
+    spouse_pid: string;
+  }) => {
+    try {
+      const result = await checkDuplicate(candidate).unwrap();
+      const hit =
+        result.pid_matches.length ||
+        result.household_matches.length ||
+        result.mother_name_matches.length;
+      if (!hit) return true;
+      setWarning(result);
+      return await new Promise<boolean>((resolve) => {
+        decision.current = resolve;
+      });
+    } catch {
+      // A failed check must not silently wave a possible duplicate through.
+      toast.error(t("common.loadError"));
+      return false;
+    }
+  };
+
+  const settle = (proceed: boolean) => {
+    decision.current?.(proceed);
+    decision.current = null;
+    setWarning(null);
+  };
 
   // A lawyer always takes their own case; an admin says whose it is (mirrored server-side, §7.2).
   const assignedLawyer = isAdmin ? (lawyer ? Number(lawyer) : null) : (currentUser?.id ?? null);
 
   // Switching how the beneficiary is identified must not carry the other mode's half-entry along.
   useEffect(() => {
-    setClientId("");
-    setClientTerm("");
     setDraft(EMPTY_CLIENT);
   }, [mode]);
-
-  const options: ComboboxOption[] = (clients?.results ?? []).map((c) => ({
-    value: String(c.id),
-    label: c.full_name,
-    hint: c.pid,
-  }));
-  // The list is one page deep, so a truncated result must say so rather than look complete (UC-023).
-  const total = clients?.count ?? 0;
-  const truncated = total > options.length;
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -79,11 +99,17 @@ export function ProcessCreatePage() {
       toast.error(t("processes.pickLawyer"));
       return;
     }
+    {
+      const clear = await guardDuplicates({
+        pid: draft.pid,
+        mother_full_name: draft.mother_full_name,
+        spouse_pid: draft.marital_status === "married" ? draft.spouse_pid : "",
+      });
+      if (!clear) return;
+    }
     try {
       const process = await create({
-        ...(mode === "existing"
-          ? { client: Number(clientId) }
-          : { client_data: { ...draft, category: category ? Number(category) : null } }),
+        client_data: { ...draft, category: category ? Number(category) : null },
         category: category ? Number(category) : null,
         land_id: landId,
         land_address: landAddress,
@@ -101,9 +127,11 @@ export function ProcessCreatePage() {
     }
   };
 
+  // Two ways to name the beneficiary. There is deliberately no "pick an existing client":
+  // one person holds one live allocation (§3.7), so an existing client already has a case.
+  // Re-application after a rejection is offered on the rejected case itself (UC-028).
   const MODES: { key: Mode; icon: typeof ScanLine; label: string; hint: string }[] = [
     { key: "scan", icon: ScanLine, label: t("intake.modeScan"), hint: t("intake.modeScanHint") },
-    { key: "existing", icon: UserSearch, label: t("intake.modeExisting"), hint: t("intake.modeExistingHint") },
     { key: "manual", icon: PenLine, label: t("intake.modeManual"), hint: t("intake.modeManualHint") },
   ];
 
@@ -168,7 +196,7 @@ export function ProcessCreatePage() {
       </div>
 
       <FormSection title={t("intake.beneficiary")} description={t("intake.beneficiaryHint")}>
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-2">
           {MODES.map(({ key, icon: Icon, label, hint }) => (
             <button
               key={key}
@@ -191,28 +219,6 @@ export function ProcessCreatePage() {
           ))}
         </div>
 
-        {mode === "existing" && (
-          <div className="space-y-1.5">
-            <Label htmlFor="i-client">{t("processes.client")}</Label>
-            <Combobox
-              id="i-client"
-              options={options}
-              value={clientId}
-              onSelect={setClientId}
-              term={clientTerm}
-              onTermChange={setClientTerm}
-              placeholder={t("processes.searchClient")}
-              loading={searching}
-              emptyLabel={t("intake.noClients")}
-              truncatedLabel={
-                truncated
-                  ? t("intake.showingSome", { shown: options.length, total })
-                  : undefined
-              }
-            />
-          </div>
-        )}
-
         {mode === "manual" && <ClientFields value={draft} onChange={setDraft} />}
       </FormSection>
 
@@ -227,6 +233,7 @@ export function ProcessCreatePage() {
             assignedLawyer={assignedLawyer}
             landId={landId}
             landAddress={landAddress}
+            onBeforeCreate={guardDuplicates}
             onCreated={(confirmed) =>
               confirmed.process
                 ? navigate(`/processes/${confirmed.process}`)
@@ -241,13 +248,20 @@ export function ProcessCreatePage() {
           </Button>
           <Button
             type="submit"
-            disabled={isLoading || (mode === "existing" ? !clientId : !draft.pid.trim())}
+            disabled={isLoading || !draft.pid.trim()}
           >
             {isLoading && <Spinner />}
             {t("intake.create")}
           </Button>
         </form>
       )}
+
+      <DuplicateWarningDialog
+        open={Boolean(warning)}
+        result={warning}
+        onProceed={() => settle(true)}
+        onClose={() => settle(false)}
+      />
     </div>
   );
 }

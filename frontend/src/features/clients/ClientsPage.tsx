@@ -1,6 +1,7 @@
-import { Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { ArrowRight, Search } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Link } from "react-router-dom";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -14,27 +15,22 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { toast } from "@/components/ui/toaster";
-import { ConfirmDialog } from "@/features/common/ConfirmDialog";
 import { PageHeader } from "@/features/common/PageHeader";
 import { Pagination } from "@/features/common/Pagination";
 import { TableStateRows } from "@/features/common/TableStateRows";
-import { apiErrorMessage } from "@/lib/apiError";
 
-import { ClientFormDialog } from "./ClientFormDialog";
-import { useDeleteClientMutation, useListClientsQuery } from "./clientsApi";
-import type { Client } from "./types";
+import { useListClientsQuery } from "./clientsApi";
 
+// **Find a beneficiary — nothing else** (§8, UC-026). A person is created only by the Step-1 intake
+// form, and edited from inside their own case, so this screen neither creates, edits nor deletes;
+// the API refuses all three regardless (§7.2). Each row links to that person's case, which is what
+// a lawyer searching for someone is actually looking for.
 export function ClientsPage() {
   const { t } = useTranslation();
   const [term, setTerm] = useState("");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const { data, isLoading, isError, refetch } = useListClientsQuery({ search, page });
-  const [remove, { isLoading: removing }] = useDeleteClientMutation();
-  const [editing, setEditing] = useState<Client | null>(null);
-  const [formOpen, setFormOpen] = useState(false);
-  const [toDelete, setToDelete] = useState<Client | null>(null);
 
   // Debounce the search box so typing doesn't fire a request per keystroke.
   useEffect(() => {
@@ -45,39 +41,10 @@ export function ClientsPage() {
   // A new search resets to the first page (its result set is different).
   useEffect(() => setPage(1), [search]);
 
-  const openCreate = () => {
-    setEditing(null);
-    setFormOpen(true);
-  };
-  const openEdit = (client: Client) => {
-    setEditing(client);
-    setFormOpen(true);
-  };
-
-  const confirmDelete = async () => {
-    if (!toDelete) return;
-    try {
-      await remove(toDelete.id).unwrap();
-      toast.success(t("common.deleted"));
-      setToDelete(null);
-    } catch (err) {
-      toast.error(apiErrorMessage(err, t("common.deleteError")));
-    }
-  };
-
   const rows = data?.results ?? [];
   return (
     <div className="mx-auto max-w-6xl space-y-6">
-      <PageHeader
-        title={t("clients.title")}
-        description={t("clients.subtitle")}
-        action={
-          <Button onClick={openCreate}>
-            <Plus className="size-4" />
-            {t("clients.add")}
-          </Button>
-        }
-      />
+      <PageHeader title={t("clients.title")} description={t("clients.subtitle")} />
 
       <div className="relative max-w-sm">
         <Search className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -97,7 +64,7 @@ export function ClientsPage() {
               <TableHead>{t("clients.pid")}</TableHead>
               <TableHead>{t("clients.motherName")}</TableHead>
               <TableHead>{t("clients.maritalStatus")}</TableHead>
-              <TableHead className="w-24 text-end">{t("common.actions")}</TableHead>
+              <TableHead className="w-32 text-end">{t("common.actions")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -115,32 +82,22 @@ export function ClientsPage() {
               rows.map((client) => (
                 <TableRow key={client.id}>
                   <TableCell className="font-medium">{client.full_name}</TableCell>
-                  <TableCell>{client.pid}</TableCell>
+                  <TableCell dir="ltr" className="text-start">
+                    {client.pid}
+                  </TableCell>
                   <TableCell>{client.mother_full_name}</TableCell>
                   <TableCell>
                     <Badge variant="neutral">{t(`clients.marital.${client.marital_status}`)}</Badge>
                   </TableCell>
                   <TableCell className="text-end">
-                    <div className="flex justify-end gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="size-8"
-                        onClick={() => openEdit(client)}
-                        aria-label={t("common.edit")}
-                      >
-                        <Pencil className="size-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="size-8 text-destructive"
-                        onClick={() => setToDelete(client)}
-                        aria-label={t("common.delete")}
-                      >
-                        <Trash2 className="size-4" />
-                      </Button>
-                    </div>
+                    {/* Filtered by PID rather than a process id: the client payload carries no
+                        case reference, and the Processes search matches a national ID (UC-005). */}
+                    <Button asChild variant="ghost" size="sm">
+                      <Link to={`/processes?search=${encodeURIComponent(client.pid)}`}>
+                        {t("clients.viewCase")}
+                        <ArrowRight className="size-4 rtl:rotate-180" />
+                      </Link>
+                    </Button>
                   </TableCell>
                 </TableRow>
               ))}
@@ -149,16 +106,6 @@ export function ClientsPage() {
       </Card>
 
       <Pagination page={page} count={data?.count ?? 0} onPage={setPage} />
-
-      <ClientFormDialog open={formOpen} client={editing} onClose={() => setFormOpen(false)} />
-      <ConfirmDialog
-        open={Boolean(toDelete)}
-        title={t("clients.deleteTitle")}
-        description={t("clients.deleteConfirm", { name: toDelete?.full_name ?? "" })}
-        onConfirm={confirmDelete}
-        onClose={() => setToDelete(null)}
-        loading={removing}
-      />
     </div>
   );
 }

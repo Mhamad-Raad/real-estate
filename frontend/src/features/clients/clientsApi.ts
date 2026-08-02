@@ -9,10 +9,6 @@ export const clientsApi = baseApi.injectEndpoints({
       query: (params) => ({ url: "clients/", params }),
       providesTags: ["Client"],
     }),
-    createClient: builder.mutation<Client, ClientInput>({
-      query: (body) => ({ url: "clients/", method: "POST", body }),
-      invalidatesTags: ["Client"],
-    }),
     updateClient: builder.mutation<
       Client,
       { id: number; version: number } & Partial<ClientInput>
@@ -21,10 +17,6 @@ export const clientsApi = baseApi.injectEndpoints({
       // Also Process: marital status and the spouse fields decide what Step 1 still requires,
       // so a stale process detail would show the wrong `missing` list (§3.6).
       invalidatesTags: ["Client", "Process"],
-    }),
-    deleteClient: builder.mutation<void, number>({
-      query: (id) => ({ url: `clients/${id}/`, method: "DELETE" }),
-      invalidatesTags: ["Client"],
     }),
     // Pre-save duplicate probe (§5.7): PID-exact and household (both hard) + mother-name fuzzy
     // (soft/sibling). `spouse_pid` is what the household check reads.
@@ -39,8 +31,6 @@ export const clientsApi = baseApi.injectEndpoints({
 
 export const {
   useListClientsQuery,
-  useCreateClientMutation,
   useUpdateClientMutation,
-  useDeleteClientMutation,
   useCheckDuplicateMutation,
 } = clientsApi;

@@ -1,7 +1,7 @@
 import { AlertTriangle, Plus, ShieldCheck, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
 import { useAppSelector } from "@/app/hooks";
 import { Badge, type BadgeProps } from "@/components/ui/badge";
@@ -44,10 +44,12 @@ export function ProcessesPage() {
   const isAdmin = useAppSelector((s) => s.auth.user?.is_admin ?? false);
   const { data: categories } = useListCategoriesQuery({});
 
-  // Raw text inputs vs the debounced values actually sent to the API (search/pid hit the DB).
-  const [searchTerm, setSearchTerm] = useState("");
+  // Seeded from the URL so a link can land here pre-filtered — the Clients page sends a national
+  // ID this way (UC-026). Read once: after that the box owns its own value.
+  const [params] = useSearchParams();
+  const [searchTerm, setSearchTerm] = useState(() => params.get("search") ?? "");
   const [pidTerm, setPidTerm] = useState("");
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(() => params.get("search") ?? "");
   const [pid, setPid] = useState("");
   const [category, setCategory] = useState<number | "">("");
   const [status, setStatus] = useState<OverallStatus | "">("");

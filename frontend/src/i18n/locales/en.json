@@ -119,8 +119,6 @@
   "clients": {
     "title": "Clients",
     "subtitle": "Land beneficiaries and their identity records.",
-    "add": "Add client",
-    "edit": "Edit client",
     "fullName": "Full name",
     "pid": "National ID",
     "motherName": "Mother's full name",
@@ -135,8 +133,6 @@
     "category": "Category",
     "searchPlaceholder": "Search by name or national ID…",
     "empty": "No clients found.",
-    "deleteTitle": "Delete client",
-    "deleteConfirm": "Delete client “{{name}}”? It can be restored later.",
     "marital": {
       "single": "Single",
       "married": "Married",
@@ -155,7 +151,8 @@
       "householdNote": "A married couple may be allocated land once. This person and the beneficiary below are recorded as spouses."
     },
     "spousePid": "Spouse's National ID",
-    "spousePidHint": "Used only to stop a couple being allocated land twice. Leave blank if unknown."
+    "spousePidHint": "Used only to stop a couple being allocated land twice. Leave blank if unknown.",
+    "viewCase": "View case"
   },
   "processes": {
     "title": "Processes",
@@ -315,7 +312,9 @@
     "sectionBeneficiary": "Beneficiary",
     "sectionLand": "Land & category",
     "sectionPapers": "Client papers",
-    "sectionLetter": "Eligibility letter"
+    "sectionLetter": "Eligibility letter",
+    "reapply": "Start a new application",
+    "reapplyNote": "This application was rejected. The beneficiary may apply again."
   },
   "institute": {
     "s2_a": "Institute S2-A",
@@ -486,16 +485,12 @@
     "beneficiaryHint": "Who this allocation is for. Scan their ID, find someone already on file, or type the details.",
     "modeScan": "Scan ID card",
     "modeScanHint": "Read the card and let it create the record",
-    "modeExisting": "Find existing",
-    "modeExistingHint": "Someone already in the register",
     "modeManual": "Enter manually",
     "modeManualHint": "Type the details by hand",
     "caseDetails": "Case details",
     "caseDetailsHint": "The land and category. Both can still be changed in Step 1.",
     "idCard": "Identity card",
     "idCardHint": "Photograph both sides; confirming the reading creates the beneficiary and the case.",
-    "noClients": "No matching beneficiaries",
-    "showingSome": "Showing {{shown}} of {{total}} — keep typing to narrow the list",
     "create": "Create case"
   },
   "settings": {

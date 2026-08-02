@@ -105,3 +105,34 @@ class IntakeAtomicityTests(APITestCase):
             reverse("process-list"), {"client": existing.id}, format="json"
         )
         self.assertEqual(resp.status_code, status.HTTP_409_CONFLICT)
+
+
+class ReapplyAfterRejectionTests(APITestCase):
+    """`ix_process_active_alloc` excludes rejected so a refused applicant can apply again (UC-028)."""
+
+    def setUp(self):
+        self.lawyer = User.objects.create_user("reapply_lw", password="pw12345678")
+        self.person = make_client(full_name="Refused", pid="198801011234")
+        self.first = create_process(
+            client=self.person, assigned_lawyer=self.lawyer, actor=self.lawyer
+        )
+        self.client.force_authenticate(self.lawyer)
+
+    def test_a_rejected_applicant_may_open_a_new_case(self):
+        Process.objects.filter(pk=self.first.pk).update(
+            overall_status=Process.OverallStatus.REJECTED
+        )
+
+        resp = self.client.post(
+            reverse("process-list"), {"client": self.person.id}, format="json"
+        )
+
+        self.assertEqual(resp.status_code, status.HTTP_201_CREATED)
+        self.assertNotEqual(resp.data["id"], self.first.id)
+
+    def test_a_live_case_still_blocks_a_second_one(self):
+        resp = self.client.post(
+            reverse("process-list"), {"client": self.person.id}, format="json"
+        )
+
+        self.assertEqual(resp.status_code, status.HTTP_409_CONFLICT)

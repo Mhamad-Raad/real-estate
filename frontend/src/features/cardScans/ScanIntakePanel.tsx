@@ -29,12 +29,18 @@ export function ScanIntakePanel({
   landId,
   landAddress,
   onCreated,
+  onBeforeCreate,
 }: {
   category: number | null;
   assignedLawyer: number | null;
   landId: string;
   landAddress: string;
   onCreated: (confirmed: CardScan) => void;
+  /**
+   * Vets the beneficiary about to be created — the intake form runs the duplicate check here
+   * (§5.7, UC-027). Resolving `false` aborts, so a hard match never reaches the server.
+   */
+  onBeforeCreate?: (candidate: { pid: string; mother_full_name: string; spouse_pid: string }) => Promise<boolean>;
 }) {
   const { t } = useTranslation();
 
@@ -142,7 +148,7 @@ export function ScanIntakePanel({
             if (married) await fileSpouseCard(confirmed);
             onCreated(confirmed);
           }}
-          buildPayload={() => {
+          buildPayload={async (values) => {
             if (assignedLawyer == null) {
               toast.error(t("cardScan.pickLawyer"));
               return null;
@@ -150,6 +156,16 @@ export function ScanIntakePanel({
             if (!spouseComplete) {
               toast.error(t("cardScan.spouseIncomplete"));
               return null;
+            }
+            // The card creates the person, so the duplicate check belongs here — this is the
+            // branch the office actually uses, and the one that had no check at all (UC-027).
+            if (onBeforeCreate) {
+              const clear = await onBeforeCreate({
+                pid: values.pid,
+                mother_full_name: values.mother_full_name,
+                spouse_pid: married ? spouse.spouse_pid : "",
+              });
+              if (!clear) return null;
             }
             return {
               assigned_lawyer: assignedLawyer,

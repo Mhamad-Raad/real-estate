@@ -28,8 +28,16 @@ export function CardReviewPanel({
   /** Case-level inputs the card cannot supply (assigned lawyer, category). */
   extra?: React.ReactNode;
   onConfirmed: (scan: CardScan) => void;
-  /** Everything beyond the card's own fields — which client, which lawyer, the version lock. */
-  buildPayload: () => Omit<ConfirmPayload, keyof Values> | null;
+  /**
+   * Everything beyond the card's own fields — which client, which lawyer, the version lock.
+   *
+   * Receives the confirmed values so the caller can vet them (the intake form runs the duplicate
+   * check on them, §5.7/UC-027), and may be async so that vetting can ask the user. Returning
+   * `null` aborts the confirmation.
+   */
+  buildPayload: (
+    values: Values,
+  ) => Promise<Omit<ConfirmPayload, keyof Values> | null> | Omit<ConfirmPayload, keyof Values> | null;
 }) {
   const { t } = useTranslation();
   const token = useAppSelector((s) => s.auth.access);
@@ -86,7 +94,7 @@ export function CardReviewPanel({
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
-    const rest = buildPayload();
+    const rest = await buildPayload(values);
     if (!rest) return;
     try {
       const confirmed = await confirm({

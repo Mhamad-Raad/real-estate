@@ -2,19 +2,21 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "@/components/ui/toaster";
+import { ClientFields } from "@/features/clients/ClientFields";
+import { toInput, withMaritalRules } from "@/features/clients/clientForm";
 import { useUpdateClientMutation } from "@/features/clients/clientsApi";
-import type { Client, MaritalStatus } from "@/features/clients/types";
+import type { Client, ClientInput } from "@/features/clients/types";
 import { apiErrorMessage } from "@/lib/apiError";
 
-const MARITAL: MaritalStatus[] = ["single", "married", "divorced", "widowed"];
-
 // The beneficiary's own details, edited from inside Step 1 — the generated letter prints exactly
-// these fields, so the lawyer fills them where the work happens rather than on the clients page.
+// these fields, so the lawyer fills them where the work happens rather than on the Clients page,
+// which is now search-only (§8, UC-026).
+//
+// Uses the shared `ClientFields` rather than its own inputs: this panel used to carry five fields
+// while the record has thirteen, so a scanned beneficiary's place of birth, address and phone could
+// not be entered anywhere once the Clients page stopped editing (UC-030).
 export function ClientDetailsPanel({
   client,
   canEdit,
@@ -24,50 +26,29 @@ export function ClientDetailsPanel({
 }) {
   const { t } = useTranslation();
   const [update, { isLoading }] = useUpdateClientMutation();
+  const [form, setForm] = useState<ClientInput>(() => toInput(client));
 
-  const [dob, setDob] = useState(client.date_of_birth ?? "");
-  const [marital, setMarital] = useState<MaritalStatus>(client.marital_status);
-  const [spouseName, setSpouseName] = useState(client.spouse_name);
-  const [spouseDob, setSpouseDob] = useState(client.spouse_date_of_birth ?? "");
-  const [spouseMother, setSpouseMother] = useState(client.spouse_mother_full_name);
-
+  // Re-seed when the server's copy changes — a save elsewhere (or a card confirmation) must not be
+  // silently overwritten by whatever is sitting in this form.
   useEffect(() => {
-    setDob(client.date_of_birth ?? "");
-    setMarital(client.marital_status);
-    setSpouseName(client.spouse_name);
-    setSpouseDob(client.spouse_date_of_birth ?? "");
-    setSpouseMother(client.spouse_mother_full_name);
-  }, [
-    client.id,
-    client.date_of_birth,
-    client.marital_status,
-    client.spouse_name,
-    client.spouse_date_of_birth,
-    client.spouse_mother_full_name,
-  ]);
+    setForm(toInput(client));
+  }, [client]);
 
-  const married = marital === "married";
-  const dirty =
-    dob !== (client.date_of_birth ?? "") ||
-    marital !== client.marital_status ||
-    spouseName !== client.spouse_name ||
-    spouseDob !== (client.spouse_date_of_birth ?? "") ||
-    spouseMother !== client.spouse_mother_full_name;
-
+  const saved = toInput(client);
+  const dirty = JSON.stringify(form) !== JSON.stringify(saved);
+  const married = form.marital_status === "married";
   // The server requires all three spouse fields together, so don't offer a save that would 400.
-  const complete = Boolean(dob) && (!married || Boolean(spouseName && spouseDob && spouseMother));
+  const complete =
+    Boolean(form.date_of_birth) &&
+    (!married ||
+      Boolean(form.spouse_name && form.spouse_date_of_birth && form.spouse_mother_full_name));
 
   const save = async () => {
     try {
       await update({
         id: client.id,
         version: client.version,
-        date_of_birth: dob || null,
-        marital_status: marital,
-        // Blank the spouse fields when there is no spouse, so a former one never reaches the letter.
-        spouse_name: married ? spouseName : "",
-        spouse_date_of_birth: married ? spouseDob || null : null,
-        spouse_mother_full_name: married ? spouseMother : "",
+        ...withMaritalRules(form),
       }).unwrap();
       toast.success(t("common.saved"));
     } catch (err) {
@@ -79,69 +60,11 @@ export function ClientDetailsPanel({
     <div className="space-y-3 rounded-md border border-border p-3">
       <p className="text-sm font-medium">{t("workflow.clientDetails")}</p>
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-1.5">
-          <Label htmlFor="s1-dob">{t("clients.dateOfBirth")}</Label>
-          <Input
-            id="s1-dob"
-            type="date"
-            value={dob}
-            disabled={!canEdit}
-            onChange={(e) => setDob(e.target.value)}
-          />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="s1-marital">{t("clients.maritalStatus")}</Label>
-          <Select
-            id="s1-marital"
-            value={marital}
-            disabled={!canEdit}
-            onChange={(e) => setMarital(e.target.value as MaritalStatus)}
-          >
-            {MARITAL.map((m) => (
-              <option key={m} value={m}>
-                {t(`clients.marital.${m}`)}
-              </option>
-            ))}
-          </Select>
-        </div>
-      </div>
-
-      {married && (
-        <div className="space-y-3 border-t border-border pt-3">
-          <p className="text-xs font-medium text-muted-foreground">{t("workflow.spouseSection")}</p>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="s1-spouse">{t("clients.spouseName")}</Label>
-              <Input
-                id="s1-spouse"
-                value={spouseName}
-                disabled={!canEdit}
-                onChange={(e) => setSpouseName(e.target.value)}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="s1-spouse-dob">{t("clients.spouseDateOfBirth")}</Label>
-              <Input
-                id="s1-spouse-dob"
-                type="date"
-                value={spouseDob}
-                disabled={!canEdit}
-                onChange={(e) => setSpouseDob(e.target.value)}
-              />
-            </div>
-            <div className="space-y-1.5 sm:col-span-2">
-              <Label htmlFor="s1-spouse-mother">{t("clients.spouseMotherName")}</Label>
-              <Input
-                id="s1-spouse-mother"
-                value={spouseMother}
-                disabled={!canEdit}
-                onChange={(e) => setSpouseMother(e.target.value)}
-              />
-            </div>
-          </div>
-        </div>
-      )}
+      {/* The case's category is asked once in the land section; a second one here would be two
+          controls for what the office thinks of as one thing. */}
+      <fieldset disabled={!canEdit} className="contents">
+        <ClientFields value={form} onChange={setForm} idPrefix="s1" showCategory={false} />
+      </fieldset>
 
       {canEdit && (
         <Button size="sm" onClick={save} disabled={isLoading || !dirty || !complete}>

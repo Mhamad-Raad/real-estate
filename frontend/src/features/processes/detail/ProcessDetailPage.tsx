@@ -1,15 +1,19 @@
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, RotateCcw } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 
 import { Accordion, AccordionItem } from "@/components/ui/accordion";
 import { Badge, type BadgeProps } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Spinner } from "@/components/ui/spinner";
+import { toast } from "@/components/ui/toaster";
 import { useMeQuery } from "@/features/auth/authApi";
 import { PageHeader } from "@/features/common/PageHeader";
+import { apiErrorMessage, apiErrorStatus } from "@/lib/apiError";
 
-import { useGetProcessQuery } from "../processesApi";
+import { useCreateProcessMutation, useGetProcessQuery } from "../processesApi";
 import type { OverallStatus, StepStatus } from "../types";
 import { CompiledCasePanel } from "./CompiledCasePanel";
 import { InstituteStepPanel } from "./InstituteStepPanel";
@@ -34,6 +38,8 @@ export function ProcessDetailPage() {
   // so on a deep link it lags a render and would briefly show an admin their steps as locked.
   const { data: user } = useMeQuery();
   const { data: process, isLoading, isError } = useGetProcessQuery(processId);
+  const navigate = useNavigate();
+  const [createProcess, { isLoading: reapplying }] = useCreateProcessMutation();
 
   if (isLoading) {
     return (
@@ -65,6 +71,22 @@ export function ProcessDetailPage() {
   const missingFor = (n: number): string[] =>
     process.steps.find((s) => s.step_number === n)?.missing ?? [];
 
+  // Opens a fresh case for the same beneficiary. The server allows it only because the previous
+  // one is rejected; anything else comes back 409, which is the guarantee doing its job.
+  const reapply = async () => {
+    try {
+      const created = await createProcess({ client: process.client }).unwrap();
+      toast.success(t("processes.created"));
+      navigate(`/processes/${created.id}`);
+    } catch (err) {
+      toast.error(
+        apiErrorStatus(err) === 409
+          ? t("processes.duplicateAllocation")
+          : apiErrorMessage(err, t("common.saveError")),
+      );
+    }
+  };
+
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       <Link
@@ -89,6 +111,19 @@ export function ProcessDetailPage() {
           </div>
         }
       />
+
+      {/* A rejected applicant may apply again — `ix_process_active_alloc` excludes rejected
+          precisely so they can (§3.7). Offered here rather than as a client picker on the intake
+          form: you re-apply a *case*, you do not re-pick a *person* (UC-028). */}
+      {process.overall_status === "rejected" && canEdit && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border bg-muted/40 px-3 py-2.5 text-sm">
+          <span className="text-muted-foreground">{t("workflow.reapplyNote")}</span>
+          <Button size="sm" variant="outline" onClick={reapply} disabled={reapplying}>
+            {reapplying ? <Spinner /> : <RotateCcw className="size-4 rtl:-scale-x-100" />}
+            {t("workflow.reapply")}
+          </Button>
+        </div>
+      )}
 
       <LawyerNotes process={process} canEdit={canEdit} />
 

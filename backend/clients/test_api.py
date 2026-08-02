@@ -28,8 +28,33 @@ class ClientApiTests(APITestCase):
         self.assertEqual([c["id"] for c in resp.data["pid_matches"]], [self.existing.id])
 
     def post_client(self, **overrides):
+        """Create through the **intake** endpoint — `POST /clients/` is 405 since UC-026.
+
+        The field rules live on `ClientSerializer`, which the intake payload nests, so this still
+        exercises exactly the validation it always did; only the door changed.
+        """
         payload = client_data(full_name="Alan", pid="222", mother_full_name="Runak", **overrides)
-        return self.client.post(reverse("client-list"), payload, format="json")
+        return self.client.post(
+            reverse("process-list"), {"client_data": payload}, format="json"
+        )
+
+    def test_a_client_cannot_be_created_through_the_clients_api(self):
+        """UC-026: a beneficiary is born in the Step-1 intake form, nowhere else (§7.2 — the
+        boundary moves, it is not merely hidden)."""
+        resp = self.client.post(
+            reverse("client-list"),
+            client_data(full_name="Nope", pid="999", mother_full_name="Nope"),
+            format="json",
+        )
+
+        self.assertEqual(resp.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+
+    def test_a_client_cannot_be_deleted_through_the_clients_api(self):
+        target = make_client(full_name="Keep", pid="888", mother_full_name="Keep")
+
+        resp = self.client.delete(reverse("client-detail", args=[target.id]))
+
+        self.assertEqual(resp.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
 
     def test_married_client_requires_every_spouse_field(self):
         """The letter prints a spouse row of name / birth date / mother — all three or none."""
@@ -42,18 +67,22 @@ class ClientApiTests(APITestCase):
                     marital_status="married",
                 )
                 payload.pop(field)
-                resp = self.client.post(reverse("client-list"), payload, format="json")
+                resp = self.client.post(
+                    reverse("process-list"), {"client_data": payload}, format="json"
+                )
                 self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
-                self.assertIn(field, resp.data)
+                self.assertIn(field, str(resp.data))
 
     def test_birth_date_is_required(self):
         payload = client_data(full_name="Alan", pid="222", mother_full_name="Runak")
         payload.pop("date_of_birth")
 
-        resp = self.client.post(reverse("client-list"), payload, format="json")
+        resp = self.client.post(
+            reverse("process-list"), {"client_data": payload}, format="json"
+        )
 
         self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("date_of_birth", resp.data)
+        self.assertIn("date_of_birth", str(resp.data))
 
     def test_unmarried_client_never_keeps_spouse_details(self):
         """A divorce must not leave the former spouse printed on the next generated letter."""

@@ -1,6 +1,25 @@
-import type { ClientInput } from "./types";
+import type { Client, ClientInput } from "./types";
 
 export type ClientDraft = ClientInput;
+
+/** Map a saved client to the editable shape, dropping server-owned fields like id/version. */
+export function toInput(client: Client): ClientInput {
+  return {
+    full_name: client.full_name,
+    pid: client.pid,
+    mother_full_name: client.mother_full_name,
+    marital_status: client.marital_status,
+    spouse_name: client.spouse_name,
+    spouse_date_of_birth: client.spouse_date_of_birth,
+    spouse_mother_full_name: client.spouse_mother_full_name,
+    spouse_pid: client.spouse_pid,
+    date_of_birth: client.date_of_birth,
+    place_of_birth: client.place_of_birth,
+    address: client.address,
+    phone: client.phone,
+    category: client.category,
+  };
+}
 
 export const EMPTY_CLIENT: ClientInput = {
   full_name: "",
