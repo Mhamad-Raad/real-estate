@@ -22,6 +22,7 @@ This section records where the **built system intentionally differs** from the d
 | **`version` field** | not shown in the `SoftDeleteModel` snippet (§3.1) | Present on every soft-deletable model incl. `User` | Required by the optimistic-locking invariant (§4.1, §12) |
 | **UI component library** | shadcn/ui (§8) | Hand-built shadcn-*style* primitives (Dialog/Select/Accordion have **zero** Radix deps) | Offline footprint + avoid dependency churn; same look and behavior |
 | **Step sequencing** | no forced sequence; `current_step` is informational and "not a gate" (§5.2) | `current_step` is the **highest step a lawyer has unlocked**. Steps above it render locked; an explicit **Proceed** (confirm dialog → `POST /processes/{id}/advance-step/`) unlocks the next one. Forward-only. Admins bypass it entirely and see all five | Product decision (It.2.5) — lawyers asked to walk one step at a time instead of facing all five at once. Unlocked steps stay editable, so non-linear work within them is unaffected |
+| **Where a case begins** (2026-08-02, It.7 — UC-024) | §5's START node requires an **existing** Client, set before Step 1 | **Creating a process *is* Step 1.** `/processes/new` opens the Step-1 form itself: the beneficiary is **created there** — by scanning their ID (§6.5), by finding someone already on file, or by typing the details — alongside category and land. Nothing is written until one **Create** submit, which creates client + case (+ the scanned ID document) in **one transaction** | The spec contradicted itself: §5.1 already lists "all gov-ID client fields" as **Step-1 inputs**, and §6 states reading is **scan-first** — the card creates the person. Only the START node said otherwise, and the build followed it. Real-data testing (It.7) found the result unusable: opening a case meant leaving Processes, creating the client on another screen, and searching them back out of a dropdown. **User decisions:** the case row is written *only* on submit, so an abandoned form leaves no draft case in a register where nothing can be hard-deleted (§11.1); and the standalone `/scan-card` entry point is **removed**, so exactly one path creates a case |
 
 ### Temporary simplifications (revisit when the named iteration lands)
 
@@ -703,16 +704,22 @@ GET /api/v1/processes/?search=<name>&pid=<exact>&date_from=2026-01-01&date_to=20
 
 Creating a Process starts a **5-step data-entry flow rendered as collapsible accordion sections**. Any step can be saved incomplete and returned to at any time — partial saves are the **norm**, because lawyers wait on external institutes. The process-wide responsible lawyer is set **at creation** and drives edit/soft-delete permission; per-institute lawyers are assigned inside Steps 2–4. A **Lawyer Notes** free-text field is available across all steps, editable anytime by the assignee or an admin, and every change is audited.
 
+**A case begins *inside* Step 1 (It.7, UC-024 — see §0).** There is no separate "create process" gate that demands a client who already exists: `/processes/new` **is** the Step-1 form. The beneficiary is created there — by **scanning their ID** (§6.5, the card creates the person), by **finding someone already on file**, or by **typing the details** — together with the category and the land. That ordering is the office's real one: the person and their case are a single act, and the ID card in the lawyer's hand is where both start.
+
+Nothing is persisted until a single **Create** submit, which writes the client, the case (and the scanned ID document, when the scan path was used) in **one transaction**. Abandoning the form therefore leaves **nothing** behind — deliberate, because §11.1 forbids hard deletes, so a half-created case would be permanent clutter in a government register. The duplicate check still runs **before** anything is written, so a second allocation is refused at the same point it always was.
+
 ```mermaid
 flowchart TD
-    START(["Create Process<br/>set Client, Category, process-wide Lawyer"]) --> DUP{Duplicate check<br/>PID or mother name}
+    START(["/processes/new — the Step 1 form<br/>beneficiary: scan ID · find existing · type details<br/>+ category + land"]) --> DUP{Duplicate check<br/>PID · household · mother name}
     DUP -- "match found" --> WARN["Strong warning<br/>block save"]
     WARN --> OV{Admin override?}
     OV -- "no" --> WARN
-    OV -- "yes, logged" --> S1
-    DUP -- "no match" --> S1
+    OV -- "yes, logged" --> CREATE
+    DUP -- "no match" --> CREATE
 
-    S1["STEP 1 — Client, land, category, agreement, marital status<br/>scan/import ID + real-estate + agreement → OCR autofill → verify<br/>generate eligibility PDF (+ spouse PDF if married)"]
+    CREATE["ONE transaction:<br/>create Client + Process (+ scanned ID Document)"] --> S1
+
+    S1["STEP 1 — Client, land, category, agreement, marital status<br/>remaining papers: real-estate + agreement → filed here<br/>generate eligibility PDF (+ spouse PDF if married)"]
     S2["STEP 2 — Institute submissions<br/>per-institute upload + assigned lawyer · start_date · approval → end_date"]
     S3["STEP 3 — Three institutes + out-of-city<br/>3 uploads+lawyers · optional custom rows · approved/rejected + date"]
     S4["STEP 4 — Two institutes<br/>2 uploads + assigned lawyers"]
@@ -727,7 +734,7 @@ flowchart TD
     classDef decision fill:#fef9c3,stroke:#ca8a04,color:#422006;
     classDef warn fill:#fee2e2,stroke:#dc2626,color:#450a0a;
     class S1,S2,S3,S4,S5 step;
-    class START,DONE start;
+    class START,CREATE,DONE start;
     class DUP,OV decision;
     class WARN warn;
 ```
@@ -736,7 +743,7 @@ flowchart TD
 
 | Step | Inputs | Documents (scan **or** import) | Institutes (from shared enum) | Approval / dates | Lawyer |
 |------|--------|-------------------------------|------------------------------|------------------|--------|
-| **1** | All gov-ID client fields, real-estate fields, **Category (A/B/C/G)**, **marital status (+spouse name if married)** | Client ID, real-estate papers, signed agreement → **OCR autofill + verify**; **generated** base eligibility PDF (always) + spouse PDF (if married) | — | — | process-wide only (set at creation) |
+| **1** | All gov-ID client fields, real-estate fields, **Category (A/B/C/G)**, **marital status (+spouse name if married)** — **the beneficiary is created here** (scan · find existing · type), which is what creates the case (§5, §0) | Client ID → **OCR autofill + verify**, filed by the same submit that creates the case; real-estate papers + signed agreement filed on the case afterwards; **generated** base eligibility PDF (always) + spouse PDF (if married) | — | — | process-wide only (set at creation) |
 | **2** | `start_date` (user) | one upload **per Step-2 institute** + the approved paperwork | Step-2 institutes | **approval recorded → sets `end_date`** (editable later) | **per-institute** assigned lawyer |
 | **3** | out-of-city flag; `approval_date` | one upload per **three** Step-3 institutes; **+ repeatable custom rows** (name+doc+lawyer) when flag on | three Step-3 institutes + custom | **approved / rejected + date** | per-institute + per-custom-row lawyer |
 | **4** | — | one upload per **two** Step-4 institutes | two Step-4 institutes | — | per-institute assigned lawyer |
@@ -822,6 +829,8 @@ Every document is a **PDF**, added one of three ways: **(a)** the built-in scan/
 
 **Only the two identity cards are read** (`ClientID`, `SpouseID`) — everything else is filed, not parsed. And reading is **scan-first**: the lawyer photographs the card *before the client record exists*, and the confirmed reading is what creates the person. That ordering is the point of the feature — an OCR that could only correct a name the lawyer had already typed would be solving the wrong problem.
 
+Since It.7 (UC-024) this is reached **inside the Step-1 intake form** (`/processes/new`, §5) rather than from a standalone scan page, which has been removed. The mechanism is unchanged — stage, read, review, confirm — but confirmation is now one branch of the single submit that opens a case, so there is exactly **one** path that creates a client and a case.
+
 It also decides where the file lives. The store path is `<CATEGORY>/<pid>/…`, and the download name carries the person — **both are what the card supplies**. So a scan is *staged* on arrival and only filed once its reading is confirmed (§6.7).
 
 ```mermaid
@@ -868,7 +877,7 @@ Because the app is a fully-offline browser SPA, the **default, first-class scan 
 
 **Scan capture as shipped** *(It.6, 2026-07-30)*. Four points where the build settled differently from the sketch above:
 
-- **Every document slot offers both.** `DocumentUpload` renders *Import PDF* beside *Scan* in Steps 1–4, so the camera serves ordinary government papers, not just the ID card on `/scan-card`. Importing a ready-made PDF is untouched and stays the shorter path when the office already has one. Both land on `POST /documents/`, differing only in `input_source`.
+- **Every document slot offers both.** `DocumentUpload` renders *Import PDF* beside *Scan* in Steps 1–4, so the camera serves ordinary government papers, not just the ID card in the Step-1 intake form (§5). Importing a ready-made PDF is untouched and stays the shorter path when the office already has one. Both land on `POST /documents/`, differing only in `input_source`.
 - **Pages are laid out on A4 in the orientation each was shot in**, with the original image bytes embedded untouched — nothing is resampled, so a later read still sees full capture resolution. Uniform page boxes matter because the compiled case file (§10.3) merges these pages with generated letters, and mixed boxes print as a ragged stack.
 - **`opencv.js` enhance was deliberately NOT built.** The OCR spike (§6.2) measured pre-processing as actively *harmful*, and on an archival document it affects only human legibility — a ~9 MB WASM payload for a step with no demonstrated value. Revisit only with measurements, behind a toggle.
 - **`pdf-lib` is dynamically imported**, so it is a separate ~420 kB chunk fetched on the first scan rather than weight in the app shell. It is still bundled into `dist` and served by the office's own Nginx: the no-CDN rule is untouched.
@@ -1138,7 +1147,7 @@ src/
 
 - **Multi-step accordion form with per-step save** — shadcn `Accordion`; each `StepSection` has its own `PATCH` mutation and dirty-tracking; a save button per step; badges from `step_status_summary`. Steps are independently editable at any time.
 - **Per-step missing-file status/color badges** — a `StepBadge` maps `status` → grey/amber/red/green (§5.4), plus a process-level rollup.
-- **Side-by-side scan / OCR-verify screen** — `OcrVerifyScreen`: staged-PDF preview pane (`GET /card-scans/{id}/file/`) + pre-filled **editable** fields pane, per-field OCR-source/confidence markers, the **match-warning** confirmation gate, and a manual-entry path that stays open when the reading fails. Confirming posts to `/card-scans/{id}/confirm/`, which is what creates the client (§6.5).
+- **Side-by-side scan / OCR-verify screen** — staged-PDF preview pane (`GET /card-scans/{id}/file/`) + pre-filled **editable** fields pane, per-field OCR-source/confidence markers, the **match-warning** confirmation gate, and a manual-entry path that stays open when the reading fails. Confirming posts to `/card-scans/{id}/confirm/`, which is what creates the client (§6.5). Since It.7 (UC-024) it is the **scan branch of the Step-1 intake form** (`/processes/new`), not a page of its own.
 - **Scan capture** — `ScanDocumentDialog` (shipped It.6) uses the shared `useCamera` hook + bundled `pdf-lib` to build a multi-page PDF client-side; same upload path as import, and offered beside *Import PDF* on every document slot. No `opencv.js` — see §6.1.
 - **Repeatable custom-institute rows (Step 3)** — `react-hook-form` `useFieldArray` renders add/remove `(custom name + upload + lawyer)` rows, shown when `out_of_city_flag` is on.
 - **Shared institute enum** — `institutesApi` fetches `GET /institutes/` once and caches it; every institute dropdown/label reads from that cache, so the frontend never hard-codes the list.
