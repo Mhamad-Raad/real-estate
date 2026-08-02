@@ -11,16 +11,22 @@ from django.db.models import Count, Q
 from django.utils import timezone
 
 from clients.models import Client
+from common.models import ActivityLog
 from processes.models import Process, ProcessStep
 
 STEP_NUMBERS = (1, 2, 3, 4, 5)
 
 
-def week_start(now=None):
-    """Monday 00:00 of the current week, in the configured timezone."""
+# A calendar week left the landing page almost entirely zeros every Monday morning and dropped the
+# previous week's work out of view. One allocation here spans weeks, so the window has to roll (§10.1).
+WINDOW_DAYS = 30
+
+
+def window_start(now=None, *, days: int = WINDOW_DAYS):
+    """Midnight, `days` ago, in the configured timezone."""
     now = now or timezone.localtime()
-    monday = now - timedelta(days=now.weekday())
-    return monday.replace(hour=0, minute=0, second=0, microsecond=0)
+    start = now - timedelta(days=days)
+    return start.replace(hour=0, minute=0, second=0, microsecond=0)
 
 
 def _grouped(qs, field, keys):
@@ -33,16 +39,25 @@ def _grouped(qs, field, keys):
     return {str(key): counts.get(key, 0) for key in keys}
 
 
-def _by_lawyer(qs):
+def _by_lawyer_handled(since):
+    """Distinct processes each user actually **worked on** in the window, from `activity_log`.
+
+    Not "processes created and assigned to them" (§10.1): a lawyer progressing cases opened last
+    month would report 0, which inverts the one thing the figure is for. `Count(distinct)` because
+    a single case edited ten times is one case handled, and `login`/`logout` rows are excluded —
+    they carry no entity and would otherwise credit simply signing in.
+    """
+    rows = (
+        ActivityLog.objects.filter(
+            entity_type="Process", created_at__gte=since, actor__isnull=False
+        )
+        .values("actor_id", "actor__username")
+        .annotate(total=Count("entity_id", distinct=True))
+        .order_by("-total", "actor__username")
+    )
     return [
-        {
-            "lawyer_id": row["assigned_lawyer_id"],
-            "username": row["assigned_lawyer__username"],
-            "count": row["total"],
-        }
-        for row in qs.values("assigned_lawyer_id", "assigned_lawyer__username")
-        .annotate(total=Count("id"))
-        .order_by("-total", "assigned_lawyer__username")
+        {"lawyer_id": row["actor_id"], "username": row["actor__username"], "count": row["total"]}
+        for row in rows
     ]
 
 
@@ -69,19 +84,20 @@ def _apply_range(qs, date_from, date_to):
 
 def dashboard_stats(*, now=None) -> dict:
     """Everything the Home page renders, in one call (§10.1)."""
-    since = week_start(now)
+    since = window_start(now)
     processes = Process.objects.all()
-    this_week = processes.filter(created_at__gte=since)
+    in_window = processes.filter(created_at__gte=since)
     statuses = Process.OverallStatus.values
 
     return {
-        "week_start": since.date(),
-        "clients_this_week": Client.objects.filter(created_at__gte=since).count(),
-        "processes_this_week": this_week.count(),
+        "window_start": since.date(),
+        "window_days": WINDOW_DAYS,
+        "clients_in_window": Client.objects.filter(created_at__gte=since).count(),
+        "processes_in_window": in_window.count(),
         "processes_total": processes.count(),
         "processes_by_status": _grouped(processes, "overall_status", statuses),
         "processes_by_step": _grouped(processes, "current_step", STEP_NUMBERS),
-        "by_lawyer_this_week": _by_lawyer(this_week),
+        "by_lawyer_handled": _by_lawyer_handled(since),
         # Outstanding paperwork, counted two ways: how many steps are short a file, and how many
         # cases that actually affects — one case can be missing files on several steps.
         "steps_missing_files": ProcessStep.objects.filter(

@@ -22,6 +22,7 @@ import { PageHeader } from "@/features/common/PageHeader";
 import { TableStateRows } from "@/features/common/TableStateRows";
 import { downloadFile } from "@/features/documents/download";
 import { useDebounced } from "@/hooks/useDebounced";
+import { lastNDays } from "@/lib/dateRange";
 import { formatNumber } from "@/lib/format";
 
 import { reportCsvUrl, useGetProcessReportQuery, useGetUserReportQuery } from "./reportsApi";
@@ -30,7 +31,8 @@ import type { ReportFilters } from "./types";
 export function ReportsPage() {
   const { t, i18n } = useTranslation();
   const token = useAppSelector((s) => s.auth.access);
-  const [filters, setFilters] = useState<ReportFilters>({});
+  // Defaults to the same rolling window as the dashboard; category stays unset = all (UC-017).
+  const [filters, setFilters] = useState<ReportFilters>(() => lastNDays());
   // A date input emits a change per segment typed; debounce so one entry is one request.
   const applied = useDebounced(filters);
 

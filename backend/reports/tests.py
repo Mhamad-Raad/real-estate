@@ -9,10 +9,12 @@ from rest_framework.test import APITestCase
 from accounts.models import User
 from catalog.models import Category
 from clients.factories import make_client
+from common.models import ActivityLog
+from common.services import record_activity
 from processes.models import Process, ProcessStep
 from processes.services import create_process
 
-from .selectors import dashboard_stats, user_report, week_start
+from .selectors import dashboard_stats, user_report, window_start
 
 
 class ReportsTestBase(APITestCase):
@@ -38,24 +40,73 @@ class ReportsTestBase(APITestCase):
 
 
 class DashboardTests(ReportsTestBase):
-    def test_counts_this_week_and_groups_every_bucket(self):
+    def test_counts_the_window_and_groups_every_bucket(self):
         self._process("101")
         self._process("102", status=Process.OverallStatus.COMPLETE)
         stats = dashboard_stats()
 
-        self.assertEqual(stats["processes_this_week"], 2)
-        self.assertEqual(stats["clients_this_week"], 2)
+        self.assertEqual(stats["processes_in_window"], 2)
+        self.assertEqual(stats["clients_in_window"], 2)
         self.assertEqual(stats["processes_by_status"]["complete"], 1)
         # Every status and step is present even at zero, so a chart never changes shape.
         self.assertEqual(set(stats["processes_by_status"]), set(Process.OverallStatus.values))
         self.assertEqual(set(stats["processes_by_step"]), {"1", "2", "3", "4", "5"})
         self.assertEqual(stats["processes_by_step"]["1"], 2)
 
-    def test_last_week_is_excluded(self):
+    def test_anything_older_than_the_window_is_excluded(self):
         old = self._process("103")
-        Process.objects.filter(pk=old.pk).update(created_at=week_start() - timedelta(days=1))
-        self.assertEqual(dashboard_stats()["processes_this_week"], 0)
+        Process.objects.filter(pk=old.pk).update(created_at=window_start() - timedelta(days=1))
+        self.assertEqual(dashboard_stats()["processes_in_window"], 0)
         self.assertEqual(dashboard_stats()["processes_total"], 1)
+
+    def test_handled_credits_whoever_worked_the_case_not_who_it_was_assigned_to(self):
+        """UC-003: counting *created* cases reported 0 for a lawyer progressing older ones."""
+        process = self._process("110")
+        # Created by `admin`, assigned to `lawyer`. The lawyer then does the actual work on it.
+        record_activity(
+            actor=self.lawyer,
+            action=ActivityLog.Action.UPDATE,
+            entity_type="Process",
+            entity_id=process.id,
+            after={"land_id": "L-1"},
+        )
+        rows = {row["username"]: row["count"] for row in dashboard_stats()["by_lawyer_handled"]}
+        self.assertEqual(rows["lw"], 1)
+
+    def test_handled_counts_a_case_once_however_often_it_is_touched(self):
+        process = self._process("111")
+        for n in range(3):
+            record_activity(
+                actor=self.lawyer,
+                action=ActivityLog.Action.UPDATE,
+                entity_type="Process",
+                entity_id=process.id,
+                after={"land_id": f"L-{n}"},
+            )
+        rows = {row["username"]: row["count"] for row in dashboard_stats()["by_lawyer_handled"]}
+        self.assertEqual(rows["lw"], 1)
+
+    def test_signing_in_does_not_count_as_handling_a_case(self):
+        record_activity(
+            actor=self.lawyer, action=ActivityLog.Action.LOGIN, entity_type="User", entity_id=1
+        )
+        rows = {row["username"]: row["count"] for row in dashboard_stats()["by_lawyer_handled"]}
+        self.assertNotIn("lw", rows)
+
+    def test_work_older_than_the_window_is_not_counted_as_handled(self):
+        process = self._process("112")
+        record_activity(
+            actor=self.lawyer,
+            action=ActivityLog.Action.UPDATE,
+            entity_type="Process",
+            entity_id=process.id,
+            after={},
+        )
+        ActivityLog.objects.filter(actor=self.lawyer).update(
+            created_at=window_start() - timedelta(days=1)
+        )
+        rows = {row["username"]: row["count"] for row in dashboard_stats()["by_lawyer_handled"]}
+        self.assertNotIn("lw", rows)
 
     def test_missing_files_counted_by_step_and_by_case(self):
         process = self._process("104")

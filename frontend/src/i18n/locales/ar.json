@@ -70,11 +70,8 @@
   "dashboard": {
     "title": "لوحة المعلومات",
     "welcome": "مرحبًا، {{name}}",
-    "subtitle": "هذه هي الواجهة الأساسية للتطبيق. ستُضاف ميزات العمل في المراحل القادمة.",
+    "subtitle": "نظرة عامة على التخصيصات وحجم العمل والمعاملات المعلّقة.",
     "comingSoon": "قريبًا",
-    "weekOf": "أسبوع {{date}}",
-    "clientsThisWeek": "عملاء جدد هذا الأسبوع",
-    "processesThisWeek": "معاملات جديدة هذا الأسبوع",
     "ofTotal": "من أصل {{total}}",
     "casesMissingFiles": "معاملات ناقصة المستندات",
     "acrossSteps": "عبر {{steps}} خطوة",
@@ -82,7 +79,10 @@
     "similarNames": "{{names}} اسم مشابه، للعلم فقط",
     "byStatus": "المعاملات حسب الحالة",
     "byStep": "المعاملات حسب الخطوة",
-    "byLawyer": "المعاملات المفتوحة هذا الأسبوع، حسب المحامي"
+    "byLawyer": "المعاملات المُنجَزة، حسب المحامي",
+    "windowOf": "آخر {{days}} يومًا — منذ {{date}}",
+    "clientsInWindow": "مستفيدون جدد",
+    "processesInWindow": "معاملات جديدة"
   },
   "categories": {
     "title": "الفئات",

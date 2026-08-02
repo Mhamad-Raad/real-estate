@@ -70,11 +70,8 @@
   "dashboard": {
     "title": "Dashboard",
     "welcome": "Welcome, {{name}}",
-    "subtitle": "This is the application shell. Domain features arrive in the next iterations.",
+    "subtitle": "Overview of allocations, workload and outstanding paperwork.",
     "comingSoon": "Coming soon",
-    "weekOf": "Week of {{date}}",
-    "clientsThisWeek": "New clients this week",
-    "processesThisWeek": "New cases this week",
     "ofTotal": "of {{total}} in total",
     "casesMissingFiles": "Cases missing files",
     "acrossSteps": "across {{steps}} step(s)",
@@ -82,7 +79,10 @@
     "similarNames": "{{names}} similar name(s), advisory only",
     "byStatus": "Cases by status",
     "byStep": "Cases by step",
-    "byLawyer": "Cases opened this week, by lawyer"
+    "byLawyer": "Cases handled, by lawyer",
+    "windowOf": "Last {{days}} days — since {{date}}",
+    "clientsInWindow": "New beneficiaries",
+    "processesInWindow": "New cases"
   },
   "categories": {
     "title": "Categories",

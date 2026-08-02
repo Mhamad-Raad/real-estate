@@ -1178,7 +1178,11 @@ Three languages — **Kurdish Sorani (`ckb`, primary), Arabic (`ar`), English (`
 
 ### 10.1 Home dashboard (all users)
 
-`GET /api/v1/dashboard/` returns pre-aggregated activity stats so the Home page renders in one call: **records entered this week**, **processes each user handled this week**, processes by status/step, and outstanding-missing-files count. Aggregations run as indexed `COUNT`/`GROUP BY` over `created_at` and `activity_log`, cheap at this scale. Charts use **recharts** (bundled).
+`GET /api/v1/dashboard/` returns pre-aggregated activity stats so the Home page renders in one call: **records entered in the window**, **processes each user handled in the window**, processes by status/step, and outstanding-missing-files count. Aggregations run as indexed `COUNT`/`GROUP BY` over `created_at` and `activity_log`, cheap at this scale. Charts use **recharts** (bundled).
+
+**The window is a rolling 30 days** (today − 30), not the calendar week (It.7, UC-001). A Monday-anchored week left the landing page nearly all zeros every Monday morning, and dropped last week's work out of view entirely — wrong for a low-volume office where one allocation spans weeks. The API fields are therefore **window-neutral** (`window_start`, `window_days`, `clients_in_window`, `processes_in_window`, `by_lawyer_handled`); a field named `..._this_week` holding 30 days would be a name that lies. Arbitrary ranges remain the Reports page's job (§10.2), which now **defaults to the same 30-day window** so the two screens agree (UC-017).
+
+**"Handled" means touched, and is read from `activity_log`** — the count of *distinct* processes a user wrote to in the window, not processes created and assigned to them (It.7, UC-003). Counting creations reported **0** for a lawyer who spent the month progressing cases opened earlier, which is the exact opposite of what the figure is for. Widening the window makes that more visible, not less, which is why the two changed together.
 
 ### 10.2 Reports page (Admin only)
 

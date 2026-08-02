@@ -59,7 +59,7 @@ export function DashboardPage() {
         </h1>
         <p className="text-muted-foreground">
           {data
-            ? t("dashboard.weekOf", { date: formatDate(data.week_start, i18n.language) })
+            ? t("dashboard.windowOf", { days: data.window_days, date: formatDate(data.window_start, i18n.language) })
             : t("dashboard.subtitle")}
         </p>
       </div>
@@ -72,14 +72,14 @@ export function DashboardPage() {
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
-          label={t("dashboard.clientsThisWeek")}
-          value={data?.clients_this_week}
+          label={t("dashboard.clientsInWindow")}
+          value={data?.clients_in_window}
           icon={UserPlus}
           loading={isLoading}
         />
         <StatCard
-          label={t("dashboard.processesThisWeek")}
-          value={data?.processes_this_week}
+          label={t("dashboard.processesInWindow")}
+          value={data?.processes_in_window}
           hint={t("dashboard.ofTotal", { total: num(data?.processes_total ?? 0) })}
           icon={FolderKanban}
           loading={isLoading}
@@ -175,11 +175,11 @@ export function DashboardPage() {
         <CardContent>
           {isLoading ? (
             <Skeleton className="h-20 w-full" />
-          ) : !data?.by_lawyer_this_week.length ? (
+          ) : !data?.by_lawyer_handled.length ? (
             <p className="py-6 text-center text-sm text-muted-foreground">{t("common.noData")}</p>
           ) : (
             <ul className="divide-y divide-border">
-              {data.by_lawyer_this_week.map((row) => (
+              {data.by_lawyer_handled.map((row) => (
                 <li key={row.lawyer_id} className="flex items-center gap-3 py-2 text-sm">
                   <Users className="size-4 shrink-0 text-muted-foreground" />
                   <span className="flex-1 truncate">{row.username}</span>
