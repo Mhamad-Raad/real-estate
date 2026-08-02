@@ -28,11 +28,18 @@ export function ClientDetailsPanel({
   const [update, { isLoading }] = useUpdateClientMutation();
   const [form, setForm] = useState<ClientInput>(() => toInput(client));
 
-  // Re-seed when the server's copy changes — a save elsewhere (or a card confirmation) must not be
-  // silently overwritten by whatever is sitting in this form.
+  // Re-seed when the server's copy actually changes — a save elsewhere (or a card confirmation)
+  // must not be silently overwritten by whatever is sitting in this form.
+  //
+  // Keyed on `id`/`version`, NOT on the `client` object: this panel is handed
+  // `process.client_detail`, a nested slice of another query's payload, and depending on its
+  // identity re-ran this effect on renders where nothing had changed — which reset the form
+  // under the lawyer mid-edit and threw away what they had typed. `version` bumps on every
+  // server-side write, so it is the exact signal and nothing else fires it.
   useEffect(() => {
     setForm(toInput(client));
-  }, [client]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [client.id, client.version]);
 
   const saved = toInput(client);
   const dirty = JSON.stringify(form) !== JSON.stringify(saved);
@@ -63,7 +70,10 @@ export function ClientDetailsPanel({
       {/* The case's category is asked once in the land section; a second one here would be two
           controls for what the office thinks of as one thing. */}
       <fieldset disabled={!canEdit} className="contents">
-        <ClientFields value={form} onChange={setForm} idPrefix="s1" showCategory={false} />
+        {/* `ben-`, not `s1-`: Step 1's land block already owns `s1-address`, and two elements
+            sharing an id is invalid HTML — the `htmlFor` label binds to whichever renders first,
+            so one of the two labels focuses the wrong input. */}
+        <ClientFields value={form} onChange={setForm} idPrefix="ben" showCategory={false} />
       </fieldset>
 
       {canEdit && (
