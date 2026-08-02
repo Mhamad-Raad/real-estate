@@ -1,5 +1,7 @@
 """Read/query logic for processes — the search & filter contract (§3.7, §4.3)."""
 
+from clients.selectors import name_or_pid
+
 from .models import Process
 
 
@@ -14,7 +16,9 @@ def search_processes(params) -> "list[Process]":
 
     search = params.get("search")
     if search:
-        qs = qs.filter(client__full_name__trigram_similar=search)
+        # Same box, same rule as the Clients page — the two screens searched differently before
+        # and this one had the identical partial-match defect (§4.3, UC-004).
+        qs = qs.filter(name_or_pid(search, prefix="client__"))
 
     # Exact-match list filters, incl. current_step so the list can be narrowed to a workflow step.
     for field in ("category", "overall_status", "assigned_lawyer", "current_step"):

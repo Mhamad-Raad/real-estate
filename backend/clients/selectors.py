@@ -13,13 +13,27 @@ from .models import Client
 NAME_SIMILARITY_THRESHOLD = 0.5
 
 
+def name_or_pid(term: str, *, prefix: str = "") -> Q:
+    """One search box: match a name fragment **or** a national-ID fragment (§4.3, UC-004/UC-005).
+
+    `icontains` (`ILIKE '%…%'`), never the pg_trgm `%` similarity operator: similarity divides by
+    the union of both strings, so `'pers'` against `'Married Smoke Person'` scores 0.182 and misses
+    — and a Kurdish name of 3–4 parts pushes even the person's own first name under the threshold.
+    Both columns carry a trigram GIN index, which serves `ILIKE` as a bitmap index scan.
+
+    `prefix` lets the Processes list reuse the identical rule across its `client` FK, so the two
+    screens cannot drift apart again.
+    """
+    return Q(**{f"{prefix}full_name__icontains": term}) | Q(**{f"{prefix}pid__icontains": term})
+
+
 def search_clients(*, search: str = "", pid: str = ""):
-    """List/search clients by exact PID or fuzzy full-name (trigram)."""
+    """List/search clients: `pid` stays an exact filter; `search` is the fuzzy name-or-ID box."""
     qs = Client.objects.all()
     if pid:
         qs = qs.filter(pid=pid)
     if search:
-        qs = qs.filter(full_name__trigram_similar=search)
+        qs = qs.filter(name_or_pid(search))
     return qs.order_by("full_name")
 
 

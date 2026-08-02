@@ -88,6 +88,10 @@ class Client(SoftDeleteModel):
                 fields=["mother_full_name"],
                 opclasses=["gin_trgm_ops"],
             ),
+            # The one search box matches a PID fragment too (§4.3, UC-005). `ix_client_pid_active`
+            # is a btree and cannot serve `ILIKE '%…%'`, so without this the ID half of every
+            # search is a sequential scan over the whole archive.
+            GinIndex(name="ix_client_pid_trgm", fields=["pid"], opclasses=["gin_trgm_ops"]),
         ]
 
     @property

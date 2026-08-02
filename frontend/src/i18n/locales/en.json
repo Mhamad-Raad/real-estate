@@ -131,7 +131,7 @@
     "phone": "Phone",
     "address": "Address",
     "category": "Category",
-    "searchPlaceholder": "Search by name…",
+    "searchPlaceholder": "Search by name or national ID…",
     "empty": "No clients found.",
     "deleteTitle": "Delete client",
     "deleteConfirm": "Delete client “{{name}}”? It can be restored later.",
@@ -183,7 +183,7 @@
       "rejected": "Rejected"
     },
     "filters": {
-      "name": "Search by name…",
+      "name": "Name or national ID…",
       "pid": "National ID…",
       "allCategories": "All categories",
       "allStatuses": "All statuses",

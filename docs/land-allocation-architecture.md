@@ -682,8 +682,10 @@ GET /api/v1/processes/?search=<name>&pid=<exact>&date_from=2026-01-01&date_to=20
                        &category=A&status=in_progress&assigned_lawyer=7&current_step=3&page=1&page_size=25
 ```
 
-- `pid` → exact match on the partial-unique PID index (fast).
-- `search` → trigram `ILIKE` on `client.full_name` (partial/fuzzy).
+- `pid` → exact match on the partial-unique PID index (fast). Kept for API callers and the dedup path.
+- `search` → **`ILIKE '%…%'` on `client.full_name` OR `client.pid`** — one box that finds a person however the lawyer describes them (It.7, UC-004/UC-005). Both sides are trigram-GIN-backed (`ix_client_name_trgm`, `ix_client_pid_trgm`), so a substring query is an index scan, not a table scan.
+  - It is **`ILIKE`, not the pg_trgm `%` similarity operator.** Similarity divides shared trigrams by the union of *both* strings, so it penalises a short fragment against a long name: `similarity('pers','Married Smoke Person') = 0.182`, below the 0.3 threshold, so a partial name matched **nothing**. Worse for Kurdish/Arabic names of 3–4 parts — a person's own first name scored 0.333 and dropped *below* threshold as their full name got longer, so search silently degraded exactly where it mattered.
+  - **Similarity is still the right operator for the mother-name duplicate check** (§5.7) — "is this the same person, misspelled" is a genuine fuzzy-match question. Substring lookup and fuzzy matching are two different jobs; they no longer share one operator.
 - `date_from/date_to` → range on `process.created_at` index.
 - `current_step` → exact match on `process.current_step` (1–5) — narrows the list to processes at a given workflow step (added It.2.5). The list also shows each process's current step as a column.
 - `assigned_lawyer` → matches the **process-wide** assignee **or** any per-institute assignee (documented so the UI can label which). Response includes `step_status_summary` so the list can show per-step badges without extra calls.

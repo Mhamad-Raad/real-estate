@@ -131,7 +131,7 @@
     "phone": "الهاتف",
     "address": "العنوان",
     "category": "الفئة",
-    "searchPlaceholder": "ابحث بالاسم…",
+    "searchPlaceholder": "ابحث بالاسم أو رقم الهوية…",
     "empty": "لا يوجد مراجعون.",
     "deleteTitle": "حذف المراجع",
     "deleteConfirm": "حذف المراجع «{{name}}»؟ يمكن استعادته لاحقًا.",
@@ -183,7 +183,7 @@
       "rejected": "مرفوضة"
     },
     "filters": {
-      "name": "ابحث بالاسم…",
+      "name": "الاسم أو رقم الهوية…",
       "pid": "الرقم الوطني…",
       "allCategories": "كل الفئات",
       "allStatuses": "كل الحالات",
