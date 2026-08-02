@@ -11,13 +11,23 @@
 :root {
   --radius: 0.65rem;
 
-  /* Accent theme. Every themed token derives from this hue/chroma pair, so a preset is one
-     line rather than a duplicated block per light/dark mode (§9, UC-015). */
+  /* ---- Palette ---------------------------------------------------------------------------
+     A theme is four numbers. **Every** token below derives from them — the surfaces and borders
+     as well as the accent — so switching palette moves the whole screen, not just the buttons
+     (UC-032). `--neutral-tint` scales how much colour the greys carry: 1 keeps the tint, 0 makes
+     them true neutrals.
+
+     Deriving rather than redeclaring is what keeps this safe. `:root[data-accent="x"]` has
+     specificity (0,2,0) and `.dark` has (0,1,0), so a preset that declared `--primary` itself
+     would out-specify dark mode and silently break it. Presets set only these four; `:root` and
+     `.dark` each read them and stay in charge of their own light/dark values. */
   --accent-hue: 178;
   --accent-chroma: 0.1;
+  --neutral-hue: 160;
+  --neutral-tint: 1;
 
-  --background: oklch(0.99 0.004 120);
-  --foreground: oklch(0.22 0.02 160);
+  --background: oklch(0.99 calc(0.004 * var(--neutral-tint)) var(--neutral-hue));
+  --foreground: oklch(0.22 calc(0.02 * var(--neutral-tint)) var(--neutral-hue));
 
   --card: oklch(1 0 0);
   --card-foreground: var(--foreground);
@@ -27,11 +37,11 @@
   --primary: oklch(0.58 var(--accent-chroma) var(--accent-hue));
   --primary-foreground: oklch(0.99 0.01 var(--accent-hue));
 
-  --secondary: oklch(0.96 0.01 160);
-  --secondary-foreground: oklch(0.3 0.03 165);
+  --secondary: oklch(0.96 calc(0.01 * var(--neutral-tint)) var(--neutral-hue));
+  --secondary-foreground: oklch(0.3 calc(0.03 * var(--neutral-tint)) var(--neutral-hue));
 
-  --muted: oklch(0.96 0.008 150);
-  --muted-foreground: oklch(0.52 0.02 160);
+  --muted: oklch(0.96 calc(0.008 * var(--neutral-tint)) var(--neutral-hue));
+  --muted-foreground: oklch(0.52 calc(0.02 * var(--neutral-tint)) var(--neutral-hue));
 
   --accent: oklch(0.93 0.04 var(--accent-hue));
   --accent-foreground: oklch(0.3 0.05 var(--accent-hue));
@@ -42,32 +52,32 @@
   --success: oklch(0.62 0.14 150);
   --warning: oklch(0.75 0.15 75);
 
-  --border: oklch(0.9 0.01 160);
-  --input: oklch(0.9 0.01 160);
+  --border: oklch(0.9 calc(0.01 * var(--neutral-tint)) var(--neutral-hue));
+  --input: oklch(0.9 calc(0.01 * var(--neutral-tint)) var(--neutral-hue));
   --ring: oklch(0.58 var(--accent-chroma) var(--accent-hue));
 
-  --sidebar: oklch(0.985 0.006 160);
+  --sidebar: oklch(0.985 calc(0.006 * var(--neutral-tint)) var(--neutral-hue));
   --sidebar-foreground: var(--foreground);
-  --sidebar-border: oklch(0.9 0.01 160);
+  --sidebar-border: oklch(0.9 calc(0.01 * var(--neutral-tint)) var(--neutral-hue));
 }
 
 .dark {
-  --background: oklch(0.2 0.02 175);
-  --foreground: oklch(0.95 0.01 160);
+  --background: oklch(0.2 calc(0.02 * var(--neutral-tint)) var(--neutral-hue));
+  --foreground: oklch(0.95 calc(0.01 * var(--neutral-tint)) var(--neutral-hue));
 
-  --card: oklch(0.24 0.02 175);
+  --card: oklch(0.24 calc(0.02 * var(--neutral-tint)) var(--neutral-hue));
   --card-foreground: var(--foreground);
-  --popover: oklch(0.24 0.02 175);
+  --popover: oklch(0.24 calc(0.02 * var(--neutral-tint)) var(--neutral-hue));
   --popover-foreground: var(--foreground);
 
   --primary: oklch(0.7 calc(var(--accent-chroma) + 0.01) var(--accent-hue));
   --primary-foreground: oklch(0.2 0.03 var(--accent-hue));
 
-  --secondary: oklch(0.3 0.02 172);
-  --secondary-foreground: oklch(0.92 0.01 160);
+  --secondary: oklch(0.3 calc(0.02 * var(--neutral-tint)) var(--neutral-hue));
+  --secondary-foreground: oklch(0.92 calc(0.01 * var(--neutral-tint)) var(--neutral-hue));
 
-  --muted: oklch(0.3 0.02 172);
-  --muted-foreground: oklch(0.7 0.02 160);
+  --muted: oklch(0.3 calc(0.02 * var(--neutral-tint)) var(--neutral-hue));
+  --muted-foreground: oklch(0.7 calc(0.02 * var(--neutral-tint)) var(--neutral-hue));
 
   --accent: oklch(0.34 0.04 var(--accent-hue));
   --accent-foreground: oklch(0.92 0.02 var(--accent-hue));
@@ -78,13 +88,13 @@
   --success: oklch(0.68 0.14 150);
   --warning: oklch(0.78 0.15 75);
 
-  --border: oklch(0.32 0.02 172);
-  --input: oklch(0.35 0.02 172);
+  --border: oklch(0.32 calc(0.02 * var(--neutral-tint)) var(--neutral-hue));
+  --input: oklch(0.35 calc(0.02 * var(--neutral-tint)) var(--neutral-hue));
   --ring: oklch(0.7 calc(var(--accent-chroma) + 0.01) var(--accent-hue));
 
-  --sidebar: oklch(0.23 0.02 175);
+  --sidebar: oklch(0.23 calc(0.02 * var(--neutral-tint)) var(--neutral-hue));
   --sidebar-foreground: var(--foreground);
-  --sidebar-border: oklch(0.32 0.02 172);
+  --sidebar-border: oklch(0.32 calc(0.02 * var(--neutral-tint)) var(--neutral-hue));
 }
 
 /* Map design tokens to Tailwind utilities (bg-background, text-primary, rounded-lg…). */
@@ -137,26 +147,60 @@
   color: oklch(0.99 0.01 var(--accent-hue));
 }
 
-[data-accent="teal"]     { --accent-hue: 178; --accent-chroma: 0.1; }
-[data-accent="blue"]     { --accent-hue: 255; --accent-chroma: 0.11; }
-[data-accent="indigo"]   { --accent-hue: 285; --accent-chroma: 0.11; }
-[data-accent="violet"]   { --accent-hue: 305; --accent-chroma: 0.1; }
-[data-accent="rose"]     { --accent-hue: 15;  --accent-chroma: 0.11; }
-[data-accent="amber"]    { --accent-hue: 70;  --accent-chroma: 0.12; }
-[data-accent="green"]    { --accent-hue: 145; --accent-chroma: 0.11; }
-[data-accent="emerald"]  { --accent-hue: 160; --accent-chroma: 0.1; }
-[data-accent="slate"]    { --accent-hue: 250; --accent-chroma: 0.03; }
-[data-accent="graphite"] { --accent-hue: 200; --accent-chroma: 0.015; }
+/* Four palettes rather than ten hue shifts: each one has to hold up in light, in dark and in RTL,
+   and a few well-made ones beat a long thin list. Each is the full screen — surfaces, borders and
+   sidebar move with the accent (UC-032). */
+[data-accent="teal"] {
+  --accent-hue: 178;
+  --accent-chroma: 0.1;
+  --neutral-hue: 160;
+  --neutral-tint: 1;
+}
+[data-accent="indigo"] {
+  --accent-hue: 275;
+  --accent-chroma: 0.13;
+  --neutral-hue: 285;
+  --neutral-tint: 1;
+}
+[data-accent="amber"] {
+  --accent-hue: 68;
+  --accent-chroma: 0.13;
+  --neutral-hue: 75;
+  --neutral-tint: 1.2;
+}
+/* True greys: the tint is dialled out entirely, so only the accent carries colour. */
+[data-accent="slate"] {
+  --accent-hue: 250;
+  --accent-chroma: 0.1;
+  --neutral-hue: 250;
+  --neutral-tint: 0.25;
+}
 
 /* ---- Font presets (UC-015) ----------------------------------------------------------------
    **Every face here was verified glyph-by-glyph against the Sorani alphabet** (ە ڕ ۆ ێ ڵ پ چ ژ گ)
    before being offered. Cairo was a candidate and was REJECTED: it is missing five of them, and a
    missing glyph renders as tofu on a government document. The list is short for that reason, and
    because each family is bundled into `dist` — there is no CDN (§12). */
-[data-font="vazirmatn"] { --font-arabic: "Vazirmatn Variable", "Inter Variable", system-ui, sans-serif; }
-[data-font="noto"]      { --font-arabic: "Noto Sans Arabic Variable", "Inter Variable", system-ui, sans-serif; }
-[data-font="lateef"]    { --font-arabic: "Lateef", "Inter Variable", system-ui, serif; }
-[data-font="reemkufi"]  { --font-arabic: "Reem Kufi Variable", "Inter Variable", system-ui, sans-serif; }
+/* Each preset sets **both** variables, so the choice is system-wide. Setting only `--font-arabic`
+   (what this did before) left the English UI on Inter and the setting looked dead — it is Latin
+   text that renders from `--font-sans` (UC-031). All four families ship a Latin subset, so each is
+   its own pairing; Inter stays as the fallback for anything a family does not cover. */
+[data-font="vazirmatn"] {
+  --font-sans: "Vazirmatn Variable", "Inter Variable", system-ui, sans-serif;
+  --font-arabic: "Vazirmatn Variable", "Inter Variable", system-ui, sans-serif;
+}
+[data-font="noto"] {
+  --font-sans: "Noto Sans Arabic Variable", "Inter Variable", system-ui, sans-serif;
+  --font-arabic: "Noto Sans Arabic Variable", "Inter Variable", system-ui, sans-serif;
+}
+[data-font="lateef"] {
+  --font-sans: "Lateef", "Inter Variable", system-ui, serif;
+  --font-arabic: "Lateef", "Inter Variable", system-ui, serif;
+}
+[data-font="reemkufi"] {
+  --font-sans: "Reem Kufi Variable", "Inter Variable", system-ui, sans-serif;
+  --font-arabic: "Reem Kufi Variable", "Inter Variable", system-ui, sans-serif;
+}
 
 @layer base {
   * {

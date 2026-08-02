@@ -498,23 +498,17 @@
   "settings": {
     "title": "Settings",
     "subtitle": "How the app looks on this computer.",
-    "accent": "Accent colour",
-    "accentHint": "Applies to buttons, links and highlights, in both light and dark.",
-    "font": "Kurdish / Arabic font",
-    "fontHint": "Changes the on-screen typeface for Sorani and Arabic text.",
+    "accent": "Palette",
+    "accentHint": "Changes the colours across the whole app — surfaces, borders and highlights, in light and dark.",
+    "font": "Typeface",
+    "fontHint": "Changes the font across the whole app, in every language.",
     "fontVerified": "Every font offered here was checked to contain the Sorani letters (ە ڕ ۆ ێ ڵ). Faces missing them are deliberately not listed.",
     "localOnly": "Saved on this computer only, and never applied to generated letters — those keep the typeface the office fixed in Word.",
     "accents": {
       "teal": "Teal",
-      "blue": "Blue",
       "indigo": "Indigo",
-      "violet": "Violet",
-      "rose": "Rose",
       "amber": "Amber",
-      "green": "Green",
-      "emerald": "Emerald",
-      "slate": "Slate",
-      "graphite": "Graphite"
+      "slate": "Slate"
     },
     "fonts": {
       "vazirmatn": "Vazirmatn (default)",

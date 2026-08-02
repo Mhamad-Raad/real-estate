@@ -13,11 +13,8 @@ export function applyThemeClass(theme: Theme) {
   document.documentElement.classList.toggle("dark", theme === "dark");
 }
 
-/** Accent presets — pure CSS token overrides, so these cost bytes rather than a font payload. */
-export const ACCENTS = [
-  "teal", "blue", "indigo", "violet", "rose",
-  "amber", "green", "emerald", "slate", "graphite",
-] as const;
+/** Full palettes — surfaces, borders and sidebar move with the accent, not just the buttons. */
+export const ACCENTS = ["teal", "indigo", "amber", "slate"] as const;
 export type Accent = (typeof ACCENTS)[number];
 
 /**
