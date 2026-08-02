@@ -1,29 +1,31 @@
 """Documents API — upload (multipart), metadata, permission-checked download, soft-delete (§4.4)."""
 
+import io
+
 from django.conf import settings
 from django.http import FileResponse, Http404
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
-from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
+from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet, ReadOnlyModelViewSet
 
-from common.permissions import IsAdminOrReadOnly
 from common.viewsets import AuditedSoftDeleteViewSet
 from processes.services import recompute_step
 
 from .models import Document, DocumentTemplate, GenerationJob
 from .permissions import IsDocumentEditorOrAdmin
 from .selectors import documents_for_process
+from .preview import render_template_preview
+from .rendering import RenderError
 from .serializers import (
     DocumentSerializer,
     DocumentTemplateSerializer,
-    DocumentTemplateUploadSerializer,
     DocumentUploadSerializer,
     GenerationJobSerializer,
 )
-from .services import create_document, create_template
+from .services import create_document
 
 
 class DocumentViewSet(AuditedSoftDeleteViewSet, ModelViewSet):
@@ -82,49 +84,42 @@ class DocumentViewSet(AuditedSoftDeleteViewSet, ModelViewSet):
         )
 
 
-class DocumentTemplateViewSet(AuditedSoftDeleteViewSet, ModelViewSet):
-    """Admin-managed `.docx` letter templates (§6.6). Any authed user may read them (to pick one
-    for a bulk letter); only an admin may upload, edit or remove."""
+class DocumentTemplateViewSet(ReadOnlyModelViewSet):
+    """Letter templates, **read-only** (§6.6, UC-010).
+
+    Templates are installed by a developer with `manage.py install_templates`, not uploaded from
+    the running app: the active letter is a reviewed, version-controlled artifact, and nobody can
+    break generation by uploading a wrong or corrupt file. Read-only here means read-only at the
+    boundary — `POST`/`PATCH`/`DELETE` are 405 — because hiding the buttons is never the boundary
+    (§7.2). Same treatment the audit trail already gets.
+    """
 
     serializer_class = DocumentTemplateSerializer
-    permission_classes = (IsAdminOrReadOnly,)
-    parser_classes = (MultiPartParser, FormParser, JSONParser)
-    audit_entity = "DocumentTemplate"
 
     def get_queryset(self):
         qs = DocumentTemplate.objects.select_related("uploaded_by").order_by("template_type")
         template_type = self.request.query_params.get("template_type")
         return qs.filter(template_type=template_type) if template_type else qs
 
-    def perform_destroy(self, instance):
-        # A deleted template is not "the active one". Leaving the flag set means restoring it
-        # later, after a replacement took over, collides with the partial-unique index (a 500).
-        if instance.is_active:
-            instance.is_active = False
-            instance.save(update_fields=["is_active"])
-        super().perform_destroy(instance)
+    @action(detail=True, methods=["get"])
+    def preview(self, request, pk=None):
+        """Render this `.docx` to PDF so the screen can show the letter, not just a filename.
 
-    def perform_update(self, serializer):
-        template = serializer.instance
-        # "Active" is exclusive per type (partial-unique index): activating one retires the rest,
-        # rather than letting the DB reject the write as a 500.
-        if serializer.validated_data.get("is_active") and not template.is_active:
-            DocumentTemplate.objects.filter(
-                template_type=template.template_type, is_active=True
-            ).exclude(pk=template.pk).update(is_active=False)
-        super().perform_update(serializer)
-
-    def create(self, request, *args, **kwargs):
-        payload = DocumentTemplateUploadSerializer(data=request.data)
-        payload.is_valid(raise_exception=True)
-        template = create_template(
-            template_type=payload.validated_data["template_type"],
-            name=payload.validated_data["name"],
-            upload=payload.validated_data["file"],
-            actor=request.user,
-            request=request,
+        Filled with clearly-marked **sample** data: a blank template renders empty gaps and an
+        empty beneficiary table, which reads as broken rather than as "this is the letter".
+        Rendered on demand — LibreOffice takes a second or two and this is an occasional click.
+        """
+        template = self.get_object()
+        try:
+            pdf = render_template_preview(template)
+        except RenderError as exc:
+            raise Http404(str(exc))
+        return FileResponse(
+            io.BytesIO(pdf),
+            as_attachment=False,
+            filename=f"{template.template_type}_preview.pdf",
+            content_type="application/pdf",
         )
-        return Response(DocumentTemplateSerializer(template).data, status=status.HTTP_201_CREATED)
 
 
 class GenerationJobViewSet(ReadOnlyModelViewSet):

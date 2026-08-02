@@ -342,6 +342,8 @@ class GenerationApiTests(APITestCase):
 
 @override_settings(LETTER_TEMPLATES_ROOT=Path(tempfile.mkdtemp()))
 class DocumentTemplateApiTests(APITestCase):
+    """Templates are read-only over the API (§6.6, UC-010) — installed from the repo, not uploaded."""
+
     def setUp(self):
         self.admin = User.objects.create_user("tadm", password="pw12345678", role=User.Role.ADMIN)
         self.lawyer = User.objects.create_user("tlw", password="pw12345678")
@@ -352,49 +354,56 @@ class DocumentTemplateApiTests(APITestCase):
             build_eligibility_single(path)
             return path.read_bytes()
 
-    def _upload(self, content=None, name="Letter"):
-        return self.client.post(
+    def test_even_an_admin_cannot_upload_a_template(self):
+        """The boundary moved, not just the buttons — hiding the UI is never the boundary (§7.2)."""
+        self.client.force_authenticate(self.admin)
+
+        resp = self.client.post(
             reverse("document-template-list"),
             {
                 "template_type": DocumentTemplate.TemplateType.ELIGIBILITY_SINGLE,
-                "name": name,
-                "file": SimpleUploadedFile("t.docx", content or self._docx_bytes()),
+                "name": "Letter",
+                "file": SimpleUploadedFile("t.docx", self._docx_bytes()),
             },
             format="multipart",
         )
 
-    def test_a_lawyer_cannot_upload_a_template(self):
+        self.assertEqual(resp.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+
+    def test_an_admin_cannot_edit_or_delete_a_template(self):
+        template = make_template(
+            DocumentTemplate.TemplateType.ELIGIBILITY_SINGLE, build_eligibility_single
+        )
+        self.client.force_authenticate(self.admin)
+        url = reverse("document-template-detail", args=[template.id])
+
+        self.assertEqual(
+            self.client.patch(url, {"name": "x"}, format="json").status_code,
+            status.HTTP_405_METHOD_NOT_ALLOWED,
+        )
+        self.assertEqual(
+            self.client.delete(url).status_code, status.HTTP_405_METHOD_NOT_ALLOWED
+        )
+
+    def test_anyone_authenticated_may_still_read_them(self):
+        make_template(DocumentTemplate.TemplateType.ELIGIBILITY_SINGLE, build_eligibility_single)
         self.client.force_authenticate(self.lawyer)
 
-        self.assertEqual(self._upload().status_code, status.HTTP_403_FORBIDDEN)
+        resp = self.client.get(reverse("document-template-list"))
 
-    def test_admin_upload_becomes_the_active_template(self):
-        self.client.force_authenticate(self.admin)
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
 
-        resp = self._upload()
+    def test_the_type_vocabulary_covers_every_backend_type(self):
+        """UC-008: the frontend kept its own copy and fell a whole type behind."""
+        self.client.force_authenticate(self.lawyer)
 
-        self.assertEqual(resp.status_code, status.HTTP_201_CREATED)
-        self.assertTrue(resp.data["is_active"])
+        resp = self.client.get(reverse("template-types"))
 
-    def test_a_new_upload_retires_the_previous_active_template(self):
-        """Exactly one template per type may be active, or generation could not choose."""
-        self.client.force_authenticate(self.admin)
-        first = self._upload(name="Old").data
-
-        second = self._upload(name="New").data
-
-        self.assertFalse(DocumentTemplate.objects.get(pk=first["id"]).is_active)
-        self.assertTrue(DocumentTemplate.objects.get(pk=second["id"]).is_active)
-
-    def test_a_file_that_is_not_a_word_document_is_rejected(self):
-        """Catching it at upload beats a generation failing hours later."""
-        self.client.force_authenticate(self.admin)
-
-        resp = self._upload(content=b"%PDF-1.4 definitely not a docx")
-
-        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("file", resp.data)
-
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            {row["code"] for row in resp.data},
+            set(DocumentTemplate.TemplateType.values),
+        )
 
 @unittest.skipUnless(HAS_LIBREOFFICE, "LibreOffice not installed (run inside the container)")
 @override_settings(
@@ -455,63 +464,50 @@ class GenerationAuditTests(APITestCase):
 
 
 @override_settings(LETTER_TEMPLATES_ROOT=Path(tempfile.mkdtemp()))
-class TemplateActivationTests(APITestCase):
+class TemplateInstallTests(APITestCase):
+    """`install_templates` is the supported install path now the API is read-only (§6.6, UC-010)."""
+
     def setUp(self):
         self.admin = User.objects.create_user("acadm", password="pw12345678", role=User.Role.ADMIN)
-        self.client.force_authenticate(self.admin)
 
-    def test_reactivating_a_retired_template_retires_the_current_one(self):
-        """Two active templates violate the unique index; that surfaced to the client as a 500."""
+    def test_installing_retires_the_previous_active_template(self):
+        """Exactly one template per type may be active, or generation could not choose."""
         first = make_template(
             DocumentTemplate.TemplateType.ELIGIBILITY_SINGLE, build_eligibility_single, name="A"
         )
+
         second = make_template(
             DocumentTemplate.TemplateType.ELIGIBILITY_SINGLE, build_eligibility_single, name="B"
         )
-        first.refresh_from_db()
 
-        resp = self.client.patch(
-            reverse("document-template-detail", args=[first.id]),
-            {"is_active": True, "version": first.version},
-            format="json",
-        )
-
-        self.assertEqual(resp.status_code, status.HTTP_200_OK)
         first.refresh_from_db()
         second.refresh_from_db()
-        self.assertTrue(first.is_active)
-        self.assertFalse(second.is_active)
+        self.assertFalse(first.is_active)
+        self.assertTrue(second.is_active)
 
-    def test_deleting_a_template_clears_its_active_flag(self):
-        """Otherwise restoring it beside its replacement violates the one-active-per-type index."""
-        active = make_template(
-            DocumentTemplate.TemplateType.ELIGIBILITY_SINGLE, build_eligibility_single, name="One"
+    def test_a_retired_template_is_kept_not_deleted(self):
+        """A regenerated letter must stay traceable to the exact file that produced the earlier one."""
+        first = make_template(
+            DocumentTemplate.TemplateType.ELIGIBILITY_SINGLE, build_eligibility_single, name="A"
+        )
+        make_template(
+            DocumentTemplate.TemplateType.ELIGIBILITY_SINGLE, build_eligibility_single, name="B"
         )
 
-        self.client.delete(reverse("document-template-detail", args=[active.id]))
+        first.refresh_from_db()
+        self.assertFalse(first.is_deleted)
 
-        active.refresh_from_db()
-        self.assertTrue(active.is_deleted)
-        self.assertFalse(active.is_active)
+    def test_the_command_skips_a_file_that_is_already_installed_unchanged(self):
+        """Reinstalling an identical file would churn the history for no change at all."""
+        from io import StringIO
 
-    def test_a_restored_template_does_not_collide_with_its_replacement(self):
-        active = make_template(
-            DocumentTemplate.TemplateType.ELIGIBILITY_SINGLE, build_eligibility_single, name="One"
-        )
-        self.client.delete(reverse("document-template-detail", args=[active.id]))
-        replacement = make_template(
-            DocumentTemplate.TemplateType.ELIGIBILITY_SINGLE, build_eligibility_single, name="Two"
-        )
+        from django.core.management import call_command
 
-        resp = self.client.post(reverse("document-template-restore", args=[active.id]))
+        out = StringIO()
+        call_command("install_templates", stdout=out)
+        first_pass = DocumentTemplate.objects.count()
 
-        self.assertEqual(resp.status_code, status.HTTP_200_OK)
-        # Restored as retired; the replacement stays the one generation uses.
-        self.assertEqual(
-            DocumentTemplate.objects.filter(
-                template_type=DocumentTemplate.TemplateType.ELIGIBILITY_SINGLE, is_active=True
-            ).count(),
-            1,
-        )
-        replacement.refresh_from_db()
-        self.assertTrue(replacement.is_active)
+        out2 = StringIO()
+        call_command("install_templates", stdout=out2)
+
+        self.assertEqual(DocumentTemplate.objects.count(), first_pass)

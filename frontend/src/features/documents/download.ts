@@ -24,10 +24,19 @@ export async function downloadGenerationJob(id: number, token: string | null) {
 }
 
 /** Blob URL for inline preview/print — the file needs the auth header, so it cannot be an <iframe src>. */
-export async function fetchDocumentBlobUrl(id: number, token: string | null) {
-  const res = await fetch(`/api/v1/documents/${id}/file/`, {
+export async function fetchBlobUrl(url: string, token: string | null) {
+  const res = await fetch(url, {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
   if (!res.ok) throw new Error("preview failed");
   return URL.createObjectURL(await res.blob());
+}
+
+export async function fetchDocumentBlobUrl(id: number, token: string | null) {
+  return fetchBlobUrl(`/api/v1/documents/${id}/file/`, token);
+}
+
+/** A template is a `.docx`; the server renders it to PDF with sample data first (§6.6). */
+export async function fetchTemplatePreviewUrl(id: number, token: string | null) {
+  return fetchBlobUrl(`/api/v1/document-templates/${id}/preview/`, token);
 }

@@ -972,6 +972,13 @@ A distinct **server-side** pipeline, chosen for offline reliability (D5):
 
 Running generation in Celery (not the request) keeps LibreOffice's startup cost off the request path and reuses the same notification/status plumbing as OCR.
 
+**Templates are installed by a developer, not uploaded by an admin** (It.7, UC-010 — this reverses the admin-upload model this section and §4.4 originally specified).
+
+- **The API is read-only.** `DocumentTemplateViewSet` is a `ReadOnlyModelViewSet`: `POST`/`PATCH`/`DELETE` return **405**, asserted by tests. Per the project's own invariant — *UI hiding is never the boundary* — hiding the buttons would not have been enough; the boundary moved.
+- **The install path is `manage.py install_templates`**, which registers a `.docx` from **`backend/documents/letter_templates/` in the repo** and activates it (retiring the previous active one for that type, as before). In-repo is the point of "changed in programming": the active letter becomes a reviewed, version-controlled artifact rather than mutable runtime state.
+- **The screen previews the letter as a PDF.** `GET /document-templates/{id}/preview/` renders the `.docx` through the existing `docx_to_pdf` (§6.6 step 3) **filled with clearly-marked sample data** — a blank template renders empty gaps and an empty beneficiary table, which reads as broken rather than as "this is the letter". Rendered **on demand**; no cache until it measurably needs one.
+- **The trade the office accepted:** they can no longer update their own letters. When a ministry changes wording or a letterhead, someone with the codebase installs the new file on the office's own hardware, offline. In exchange nobody can break letter generation by uploading a wrong or corrupt file. Government letters change rarely, so the trade is defensible — but **template changes become a site visit**.
+
 ### 6.7 Document file-store directory layout & file naming (category → person → document)
 
 Two things here: the **folder hierarchy** (category → person → documents, mirroring the paper archive) and the **file name**. Per your requirement, files are named for humans in the pattern:

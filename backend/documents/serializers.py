@@ -85,14 +85,6 @@ class DocumentTemplateSerializer(serializers.ModelSerializer):
         )
 
 
-class DocumentTemplateUploadSerializer(serializers.Serializer):
-    """Admin upload of a `.docx` letter template (§6.6)."""
-
-    template_type = serializers.ChoiceField(choices=DocumentTemplate.TemplateType.choices)
-    name = serializers.CharField(max_length=120)
-    file = serializers.FileField()
-
-
 class GenerationJobSerializer(serializers.ModelSerializer):
     class Meta:
         model = GenerationJob

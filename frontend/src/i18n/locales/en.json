@@ -332,7 +332,7 @@
   },
   "templates": {
     "title": "Letter templates",
-    "subtitle": "Word templates the system fills in to produce letters.",
+    "subtitle": "The letters the system fills in. Installed by a developer — view only.",
     "upload": "Upload template",
     "name": "Name",
     "type": "Letter",
@@ -344,14 +344,21 @@
     "retired": "Retired",
     "activate": "Make active",
     "activated": "Template activated.",
-    "empty": "No templates uploaded yet.",
+    "empty": "No templates installed yet.",
     "deleteTitle": "Delete template",
     "deleteConfirm": "Delete template “{{name}}”? It can be restored later.",
     "types": {
       "eligibility_single": "Eligibility letter (one beneficiary)",
-      "process_list": "Beneficiary list letter"
+      "process_list": "Beneficiary list letter",
+      "case_summary": "Compiled case cover sheet"
     },
-    "deleteActiveConfirm": "Delete template “{{name}}”? It is the ACTIVE template — letters cannot be generated until another one is activated."
+    "deleteActiveConfirm": "Delete template “{{name}}”? It is the ACTIVE template — letters cannot be generated until another one is activated.",
+    "preview": "View letter",
+    "previewTitle": "Letter preview (sample data)",
+    "previewHint": "Rendered with sample values, not a real beneficiary.",
+    "readOnlyNote": "Templates are installed from the codebase and cannot be changed here.",
+    "showRetired": "Show previous versions ({{count}})",
+    "hideRetired": "Hide previous versions"
   },
   "reports": {
     "subtitle": "Throughput and workload over a date range.",

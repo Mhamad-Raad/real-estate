@@ -40,3 +40,25 @@ class DocumentTypesView(APIView):
 
     def get(self, _request):
         return Response(document_types_as_dicts())
+
+
+class TemplateTypesView(APIView):
+    """The letter-template types the backend actually supports — read-only (§6.6, UC-008).
+
+    Served rather than hard-coded because the frontend kept its own copy in three places and fell
+    a whole type behind when `case_summary` was added in It.4: the compiled-case cover sheet could
+    not be chosen at all, and its label rendered as the raw i18n key. Same shape as
+    `/institutes/` — machine `code` plus an i18n `display_key`, so labels stay translatable.
+    """
+
+    permission_classes = (IsAuthenticated,)
+
+    def get(self, _request):
+        from documents.models import DocumentTemplate
+
+        return Response(
+            [
+                {"code": value, "display_key": f"templates.types.{value}"}
+                for value in DocumentTemplate.TemplateType.values
+            ]
+        )

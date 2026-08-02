@@ -1,47 +1,23 @@
 import { baseApi } from "@/services/baseApi";
 import type { Paginated } from "@/services/types";
 
-import type { DocumentTemplate, TemplateType } from "./types";
+import type { DocumentTemplate, TemplateTypeOption } from "./types";
 
-// Admin-managed .docx letter templates (§6.6). Uploading is multipart, so the body is FormData;
-// everything else is ordinary JSON.
+// Letter templates are **read-only** over the API (§6.6, UC-010) — installed from the repo with
+// `manage.py install_templates`, never uploaded from the running app. There is deliberately no
+// upload/activate/delete mutation here: the server returns 405 for all three.
 export const templatesApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
     listTemplates: builder.query<Paginated<DocumentTemplate>, { page?: number }>({
       query: (params) => ({ url: "document-templates/", params }),
       providesTags: ["Template"],
     }),
-    uploadTemplate: builder.mutation<
-      DocumentTemplate,
-      { template_type: TemplateType; name: string; file: File }
-    >({
-      query: ({ template_type, name, file }) => {
-        const body = new FormData();
-        body.append("template_type", template_type);
-        body.append("name", name);
-        body.append("file", file);
-        return { url: "document-templates/", method: "POST", body };
-      },
-      invalidatesTags: ["Template"],
-    }),
-    activateTemplate: builder.mutation<DocumentTemplate, { id: number; version: number }>({
-      query: ({ id, version }) => ({
-        url: `document-templates/${id}/`,
-        method: "PATCH",
-        body: { is_active: true, version },
-      }),
-      invalidatesTags: ["Template"],
-    }),
-    deleteTemplate: builder.mutation<void, number>({
-      query: (id) => ({ url: `document-templates/${id}/`, method: "DELETE" }),
-      invalidatesTags: ["Template"],
+    // The vocabulary the backend owns. Fetched rather than hard-coded because three frontend
+    // copies of it fell a whole type behind when `case_summary` was added (UC-008).
+    listTemplateTypes: builder.query<TemplateTypeOption[], void>({
+      query: () => "template-types/",
     }),
   }),
 });
 
-export const {
-  useListTemplatesQuery,
-  useUploadTemplateMutation,
-  useActivateTemplateMutation,
-  useDeleteTemplateMutation,
-} = templatesApi;
+export const { useListTemplatesQuery, useListTemplateTypesQuery } = templatesApi;
