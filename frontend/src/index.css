@@ -8,24 +8,33 @@
   over warm-neutral surfaces. Deliberately not the default shadcn look (§0 top priority).
   Colors in oklch for perceptually even light/dark pairs.
 */
+/* ---- Palette knobs -----------------------------------------------------------------------
+   A theme is four numbers. **Every** token below derives from them — the surfaces and borders
+   as well as the accent — so switching palette moves the whole screen, not just the buttons
+   (UC-032). `--neutral-tint` scales how much colour the greys carry: 1 keeps the tint, 0 makes
+   them true neutrals.
+
+   Deriving rather than redeclaring is what keeps this safe. `:root[data-accent="x"]` has
+   specificity (0,2,0) and `.dark` has (0,1,0), so a preset that declared `--primary` itself
+   would out-specify dark mode and silently break it. Presets set only these four; the light and
+   dark ramps below each read them and stay in charge of their own values.
+
+   These live on `:root` alone, **never** on the preview scopes — a preview card overrides the
+   hue on its own subtree, and a ramp that re-declared the knobs would undo that. */
 :root {
   --radius: 0.65rem;
 
-  /* ---- Palette ---------------------------------------------------------------------------
-     A theme is four numbers. **Every** token below derives from them — the surfaces and borders
-     as well as the accent — so switching palette moves the whole screen, not just the buttons
-     (UC-032). `--neutral-tint` scales how much colour the greys carry: 1 keeps the tint, 0 makes
-     them true neutrals.
-
-     Deriving rather than redeclaring is what keeps this safe. `:root[data-accent="x"]` has
-     specificity (0,2,0) and `.dark` has (0,1,0), so a preset that declared `--primary` itself
-     would out-specify dark mode and silently break it. Presets set only these four; `:root` and
-     `.dark` each read them and stay in charge of their own light/dark values. */
   --accent-hue: 178;
   --accent-chroma: 0.1;
   --neutral-hue: 160;
   --neutral-tint: 1;
+}
 
+/* The light ramp. `.preview-light` shares it so a card can render a whole screen in a palette or
+   mode that is not the active one: every Tailwind colour utility is `@theme inline`, i.e. it
+   reads the token at the element, so re-declaring the tokens on a subtree is enough (UC-033). */
+:root,
+.preview-light {
   --background: oklch(0.99 calc(0.004 * var(--neutral-tint)) var(--neutral-hue));
   --foreground: oklch(0.22 calc(0.02 * var(--neutral-tint)) var(--neutral-hue));
 
@@ -61,7 +70,10 @@
   --sidebar-border: oklch(0.9 calc(0.01 * var(--neutral-tint)) var(--neutral-hue));
 }
 
-.dark {
+/* The dark ramp. Must stay **after** the light one: `.dark` and `:root` are both (0,1,0), so on
+   `<html class="dark">` it is source order that decides. */
+.dark,
+.preview-dark {
   --background: oklch(0.2 calc(0.02 * var(--neutral-tint)) var(--neutral-hue));
   --foreground: oklch(0.95 calc(0.01 * var(--neutral-tint)) var(--neutral-hue));
 
@@ -134,26 +146,28 @@
 }
 
 
-/* ---- Accent presets (UC-015) -------------------------------------------------------------
-   One line each: every themed token derives from the hue/chroma pair above, and both light and
-   dark follow automatically. Purely CSS, so ten themes cost a few hundred bytes and carry none
-   of the glyph risk that adding fonts does. */
-/* A swatch previews its own preset. `--primary` is declared on :root, so custom-property
-   substitution resolves it there once — setting `--accent-hue` on a descendant does NOT re-derive
-   it. The colour therefore has to be declared on the swatch itself, where its own hue is in scope.
-   (Adding `--primary` to the presets instead would out-specify `.dark` and break dark mode.) */
-.accent-swatch {
-  background: oklch(0.58 var(--accent-chroma) var(--accent-hue));
-  color: oklch(0.99 0.01 var(--accent-hue));
-}
-
-/* Four palettes rather than ten hue shifts: each one has to hold up in light, in dark and in RTL,
-   and a few well-made ones beat a long thin list. Each is the full screen — surfaces, borders and
-   sidebar move with the accent (UC-032). */
+/* ---- Accent presets (UC-015, widened UC-033) ----------------------------------------------
+   Four numbers each: every themed token derives from the hue/chroma pair, and both light and dark
+   follow automatically. Purely CSS, so nine palettes cost a few hundred bytes and carry none of
+   the glyph risk that adding fonts does. Each is the full screen — surfaces, borders and sidebar
+   move with the accent (UC-032). Ordered around the hue wheel, warm to cool, so the settings grid
+   reads as a spectrum. */
 [data-accent="teal"] {
   --accent-hue: 178;
   --accent-chroma: 0.1;
   --neutral-hue: 160;
+  --neutral-tint: 1;
+}
+[data-accent="emerald"] {
+  --accent-hue: 152;
+  --accent-chroma: 0.12;
+  --neutral-hue: 150;
+  --neutral-tint: 1;
+}
+[data-accent="sky"] {
+  --accent-hue: 232;
+  --accent-chroma: 0.12;
+  --neutral-hue: 235;
   --neutral-tint: 1;
 }
 [data-accent="indigo"] {
@@ -161,6 +175,24 @@
   --accent-chroma: 0.13;
   --neutral-hue: 285;
   --neutral-tint: 1;
+}
+[data-accent="violet"] {
+  --accent-hue: 305;
+  --accent-chroma: 0.12;
+  --neutral-hue: 310;
+  --neutral-tint: 0.9;
+}
+[data-accent="rose"] {
+  --accent-hue: 12;
+  --accent-chroma: 0.14;
+  --neutral-hue: 15;
+  --neutral-tint: 0.9;
+}
+[data-accent="copper"] {
+  --accent-hue: 45;
+  --accent-chroma: 0.13;
+  --neutral-hue: 50;
+  --neutral-tint: 1.1;
 }
 [data-accent="amber"] {
   --accent-hue: 68;
@@ -176,15 +208,18 @@
   --neutral-tint: 0.25;
 }
 
-/* ---- Font presets (UC-015) ----------------------------------------------------------------
-   **Every face here was verified glyph-by-glyph against the Sorani alphabet** (ە ڕ ۆ ێ ڵ پ چ ژ گ)
-   before being offered. Cairo was a candidate and was REJECTED: it is missing five of them, and a
-   missing glyph renders as tofu on a government document. The list is short for that reason, and
-   because each family is bundled into `dist` — there is no CDN (§12). */
-/* Each preset sets **both** variables, so the choice is system-wide. Setting only `--font-arabic`
+/* ---- Font presets (UC-015, widened UC-033) ------------------------------------------------
+   **Every face here was verified glyph-by-glyph against the Sorani alphabet** (ە ڕ ۆ ێ ڵ ڤ پ چ ژ گ)
+   by reading the cmap of the shipped woff2 files, not by trusting the family name. Cairo was a
+   candidate and was REJECTED — it is missing ە ڕ ۆ ێ ڵ — and so were Almarai, Changa, Alexandria,
+   El Messiri, Markazi Text, Tajawal, Readex Pro, Rubik, Gulzar and Baloo Bhaijaan 2, for the same
+   reason. A missing glyph renders as tofu on a government document. The list is exactly the set
+   that passed, and every family is bundled into `dist` — there is no CDN (§12).
+
+   Each preset sets **both** variables, so the choice is system-wide. Setting only `--font-arabic`
    (what this did before) left the English UI on Inter and the setting looked dead — it is Latin
-   text that renders from `--font-sans` (UC-031). All four families ship a Latin subset, so each is
-   its own pairing; Inter stays as the fallback for anything a family does not cover. */
+   text that renders from `--font-sans` (UC-031). Every family below ships a Latin subset, so each
+   is its own pairing; Inter stays as the fallback for anything a family does not cover. */
 [data-font="vazirmatn"] {
   --font-sans: "Vazirmatn Variable", "Inter Variable", system-ui, sans-serif;
   --font-arabic: "Vazirmatn Variable", "Inter Variable", system-ui, sans-serif;
@@ -193,13 +228,33 @@
   --font-sans: "Noto Sans Arabic Variable", "Inter Variable", system-ui, sans-serif;
   --font-arabic: "Noto Sans Arabic Variable", "Inter Variable", system-ui, sans-serif;
 }
-[data-font="lateef"] {
-  --font-sans: "Lateef", "Inter Variable", system-ui, serif;
-  --font-arabic: "Lateef", "Inter Variable", system-ui, serif;
+[data-font="plex"] {
+  --font-sans: "IBM Plex Sans Arabic", "Inter Variable", system-ui, sans-serif;
+  --font-arabic: "IBM Plex Sans Arabic", "Inter Variable", system-ui, sans-serif;
+}
+[data-font="naskh"] {
+  --font-sans: "Noto Naskh Arabic Variable", "Inter Variable", system-ui, serif;
+  --font-arabic: "Noto Naskh Arabic Variable", "Inter Variable", system-ui, serif;
+}
+[data-font="amiri"] {
+  --font-sans: "Amiri", "Inter Variable", system-ui, serif;
+  --font-arabic: "Amiri", "Inter Variable", system-ui, serif;
+}
+[data-font="scheherazade"] {
+  --font-sans: "Scheherazade New", "Inter Variable", system-ui, serif;
+  --font-arabic: "Scheherazade New", "Inter Variable", system-ui, serif;
+}
+[data-font="notokufi"] {
+  --font-sans: "Noto Kufi Arabic Variable", "Inter Variable", system-ui, sans-serif;
+  --font-arabic: "Noto Kufi Arabic Variable", "Inter Variable", system-ui, sans-serif;
 }
 [data-font="reemkufi"] {
   --font-sans: "Reem Kufi Variable", "Inter Variable", system-ui, sans-serif;
   --font-arabic: "Reem Kufi Variable", "Inter Variable", system-ui, sans-serif;
+}
+[data-font="lateef"] {
+  --font-sans: "Lateef", "Inter Variable", system-ui, serif;
+  --font-arabic: "Lateef", "Inter Variable", system-ui, serif;
 }
 
 @layer base {

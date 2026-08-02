@@ -22,7 +22,9 @@ This section records where the **built system intentionally differs** from the d
 | **`version` field** | not shown in the `SoftDeleteModel` snippet (§3.1) | Present on every soft-deletable model incl. `User` | Required by the optimistic-locking invariant (§4.1, §12) |
 | **UI component library** | shadcn/ui (§8) | Hand-built shadcn-*style* primitives (Dialog/Select/Accordion have **zero** Radix deps) | Offline footprint + avoid dependency churn; same look and behavior |
 | **Step sequencing** | no forced sequence; `current_step` is informational and "not a gate" (§5.2) | `current_step` is the **highest step a lawyer has unlocked**. Steps above it render locked; an explicit **Proceed** (confirm dialog → `POST /processes/{id}/advance-step/`) unlocks the next one. Forward-only. Admins bypass it entirely and see all five | Product decision (It.2.5) — lawyers asked to walk one step at a time instead of facing all five at once. Unlocked steps stay editable, so non-linear work within them is unaffected |
-| **Where a case begins** (2026-08-02, It.7 — UC-024) | §5's START node requires an **existing** Client, set before Step 1 | **Creating a process *is* Step 1.** `/processes/new` opens the Step-1 form itself: the beneficiary is **created there** — by scanning their ID (§6.5), by finding someone already on file, or by typing the details — alongside category and land. Nothing is written until one **Create** submit, which creates client + case (+ the scanned ID document) in **one transaction** | The spec contradicted itself: §5.1 already lists "all gov-ID client fields" as **Step-1 inputs**, and §6 states reading is **scan-first** — the card creates the person. Only the START node said otherwise, and the build followed it. Real-data testing (It.7) found the result unusable: opening a case meant leaving Processes, creating the client on another screen, and searching them back out of a dropdown. **User decisions:** the case row is written *only* on submit, so an abandoned form leaves no draft case in a register where nothing can be hard-deleted (§11.1); and the standalone `/scan-card` entry point is **removed**, so exactly one path creates a case |
+| **Where a case begins** (2026-08-02, It.7 — UC-024, amended UC-028) | §5's START node requires an **existing** Client, set before Step 1 | **Creating a process *is* Step 1.** `/processes/new` opens the Step-1 form itself: the beneficiary is **created there** — by scanning their ID (§6.5) or by typing the details — alongside category and land. **Amended the same day (UC-028): there is no third "find someone already on file" mode.** One person holds one live allocation (§3.7), so anyone already on file already has a case and cannot be the beneficiary of a new one; offering the choice only invited the lawyer to look for a record that must not be reusable. Nothing is written until one **Create** submit, which creates client + case (+ the scanned ID document) in **one transaction** | The spec contradicted itself: §5.1 already lists "all gov-ID client fields" as **Step-1 inputs**, and §6 states reading is **scan-first** — the card creates the person. Only the START node said otherwise, and the build followed it. Real-data testing (It.7) found the result unusable: opening a case meant leaving Processes, creating the client on another screen, and searching them back out of a dropdown. **User decisions:** the case row is written *only* on submit, so an abandoned form leaves no draft case in a register where nothing can be hard-deleted (§11.1); and the standalone `/scan-card` entry point is **removed**, so exactly one path creates a case |
+| **The Clients screen** (2026-08-02, It.7 — UC-026, UC-027, UC-029, UC-030) | §8.3 gives Clients full CRUD, and the duplicate dialog lives on its create form | **Clients is search-only** — it finds a beneficiary and opens their case; it neither creates, edits nor deletes. Creation belongs to the Step-1 intake form, and a beneficiary is edited from inside their own case. The **duplicate check + admin override moved with it**, and now guards **both** branches of the intake submit (typed *and* scan-confirm); the scan branch shows the client fields beside the staged card, so every field is reachable and checkable before the record exists | Follows UC-024: if exactly one path creates a person, every guard that path needs must live on it. Two create screens meant two dedup implementations, and the one the office actually used (scan) was the one that had none |
+| **Appearance settings** (2026-08-02, It.7 — UC-015, UC-031, UC-032, UC-033) | §9 assumes one bundled face and a light/dark theme | Settings offers **mode** (light / dark / **system**), **9 palettes** and **9 typefaces**, all client-only (localStorage, per machine). A palette is **four numbers** every token derives from, so switching one moves the whole screen; a typeface sets Latin **and** Arabic, so the setting is visible in every language. See §9.1 | The office asked for a real palette change rather than an accent tint (UC-032), a font setting that does something in English (UC-031), and more than four of each (UC-033). Deriving tokens from a hue/chroma pair keeps nine palettes at a few hundred bytes and safe in light, dark and RTL |
 
 ### Temporary simplifications (revisit when the named iteration lands)
 
@@ -706,7 +708,7 @@ GET /api/v1/processes/?search=<name>&pid=<exact>&date_from=2026-01-01&date_to=20
 
 Creating a Process starts a **5-step data-entry flow rendered as collapsible accordion sections**. Any step can be saved incomplete and returned to at any time — partial saves are the **norm**, because lawyers wait on external institutes. The process-wide responsible lawyer is set **at creation** and drives edit/soft-delete permission; per-institute lawyers are assigned inside Steps 2–4. A **Lawyer Notes** free-text field is available across all steps, editable anytime by the assignee or an admin, and every change is audited.
 
-**A case begins *inside* Step 1 (It.7, UC-024 — see §0).** There is no separate "create process" gate that demands a client who already exists: `/processes/new` **is** the Step-1 form. The beneficiary is created there — by **scanning their ID** (§6.5, the card creates the person), by **finding someone already on file**, or by **typing the details** — together with the category and the land. That ordering is the office's real one: the person and their case are a single act, and the ID card in the lawyer's hand is where both start.
+**A case begins *inside* Step 1 (It.7, UC-024 — see §0).** There is no separate "create process" gate that demands a client who already exists: `/processes/new` **is** the Step-1 form. The beneficiary is created there — by **scanning their ID** (§6.5, the card creates the person) or by **typing the details** — together with the category and the land. That ordering is the office's real one: the person and their case are a single act, and the ID card in the lawyer's hand is where both start. **Those two modes are the whole list (UC-028):** picking an existing client was removed, because one person holds one live allocation, so a client already on file already has a case.
 
 Nothing is persisted until a single **Create** submit, which writes the client, the case (and the scanned ID document, when the scan path was used) in **one transaction**. Abandoning the form therefore leaves **nothing** behind — deliberate, because §11.1 forbids hard deletes, so a half-created case would be permanent clutter in a government register. The duplicate check still runs **before** anything is written, so a second allocation is refused at the same point it always was.
 
@@ -794,12 +796,14 @@ Checking `out_of_city_flag` reveals a **dynamic array** of `(custom institute na
 
 ### 5.7 Duplicate warning → admin override flow
 
-When attaching/creating a client on a process, `POST /clients/duplicate-check/` runs **before save**, matching on **PID exact**, the **household rule**, or **mother's full name (fuzzy trigram)**. On a match:
+When creating a client on a process, `POST /clients/duplicate-check/` runs **before save**, matching on **PID exact**, the **household rule**, or **mother's full name (fuzzy trigram)**. On a match:
 
 1. A **strong, blocking warning** shows the matched client/allocation.
 2. The process can be saved as a **`draft`** (so it gets an id and the entered data isn't lost) but is **flagged and blocked from advancing** past Step 1.
 3. Only an **Admin** can clear the block via `POST /processes/{id}/override-duplicate/` with a mandatory reason — or, if it truly is a duplicate, the draft is abandoned/soft-deleted.
 4. The override writes a `DuplicateOverride` row **and** an `ActivityLog` entry (who, when, reason) — fully auditable.
+
+**It runs in exactly one place: the Step-1 intake form (It.7, UC-027 — see §0).** That screen is now the only way a beneficiary is created, so the check moved there with it and guards **both** of its branches — typed entry and scan-confirm. The scan branch is the one the office actually uses and the one a second copy of this logic would have been forgotten on; the household rule in particular has **no DB backstop**, so the dialog is the only thing standing in front of it.
 
 **The three match types are not equivalent, and the design treats them differently:**
 
@@ -1106,7 +1110,7 @@ sequenceDiagram
 | Process — force-complete with missing files | ❌ | ✅ |
 | Home dashboard | ✅ | ✅ |
 | Reports | ❌ | ✅ |
-| Settings (own profile, language, theme) | ✅ | ✅ |
+| Settings (language, appearance — client-only, §9.1) | ✅ | ✅ |
 | Users — CRUD | ❌ | ✅ |
 | Categories — CRUD | ❌ (read) | ✅ |
 | Document templates — manage (`.docx`) | ❌ (use only) | ✅ |
@@ -1124,7 +1128,7 @@ A **React SPA**, **feature-based** folders, **Redux Toolkit** with **RTK Query f
 ### 8.1 State strategy
 
 - **RTK Query** owns every server interaction — fetching, caching, invalidation — split into **API slices per domain** (`authApi`, `clientsApi`, `processesApi`, `documentsApi`, `institutesApi`, `reportsApi`, `activitiesApi`, `usersApi`). **Tag-based invalidation**: e.g. a step `PATCH` invalidates `['Process', id]` so the accordion, badges, and rollup refetch consistently. OCR/generation status use **RTK Query polling** (`pollingInterval`) that stops on `done`/`failed`.
-- **Redux slices** hold **only** global UI state: `auth` (current user, role, tokens-in-memory), `ui` (theme, language, sidebar), `notifications` (in-app toasts + persistent list). No server entities are duplicated into slices.
+- **Redux slices** hold **only** global UI state: `auth` (current user, role, tokens-in-memory), `ui` (theme mode + resolved theme, palette, typeface, sidebar — §9.1), `notifications` (in-app toasts + persistent list). Language is i18next's, not the slice's. No server entities are duplicated into slices.
 
 ### 8.2 Feature-based structure
 
@@ -1148,7 +1152,7 @@ src/
 │   ├── reports/  dashboard/  activities/  users/  settings/
 ├── components/ui/               # shadcn components
 ├── i18n/                        # i18next config + dir handling
-├── locales/{ckb,ar,en}/*.json
+├── i18n/locales/{ckb,ar,en}.json
 ├── lib/                         # pdf assembly, format utils
 ├── hooks/  routes/  styles/
 ```
@@ -1163,6 +1167,8 @@ src/
 - **Shared institute enum** — `institutesApi` fetches `GET /institutes/` once and caches it; every institute dropdown/label reads from that cache, so the frontend never hard-codes the list.
 - **Processes-list multi-select → generate document (§6.8)** — a checkbox column on the processes table with filter-aware select-all; the selected rows drive a **"Generate document"** toolbar action that picks a `process_list` template and calls `POST /processes/generate-document/`, then opens the resulting PDF to print/save (progress via the same generation polling).
 - **Notifications** — a `notifications` slice + shadcn/sonner toasts for OCR-finished, document-generated, approval/stage change, missing-document reminders, and the duplicate warning.
+- **Clients — a finder, not a register (It.7, UC-026)** — one search box over name/PID that opens the person's case. No create, no edit, no delete on this screen: a beneficiary is born in the Step-1 intake form and edited from inside their own case, so there is exactly one screen per verb.
+- **Settings — appearance (§9.1)** — three single-select card grids (mode, palette, typeface). Each card previews *itself*: the mode and palette cards render a miniature of the app with the design tokens re-declared on that subtree, and the typeface cards render a Sorani specimen in the face itself. Nothing here reaches the server.
 
 ### 8.4 Auth handling on the client
 
@@ -1172,13 +1178,26 @@ src/
 
 ## 9. Internationalization & RTL
 
-Three languages — **Kurdish Sorani (`ckb`, primary), Arabic (`ar`), English (`en`)** — with full **RTL/LTR** and **per-user** switching (persisted on the User profile).
+Three languages — **Kurdish Sorani (`ckb`, primary), Arabic (`ar`), English (`en`)** — with full **RTL/LTR** and **per-machine** switching (localStorage; the `User.language` field was removed — see §0).
 
-- **i18next** with one namespace per feature; language resolved from the logged-in user's `language` field, changeable in Settings. Institute names, document types, statuses are **i18n keys**, so the same stable codes render in any language.
+- **i18next** with one JSON per language (`src/i18n/locales/{ckb,ar,en}.json`, nested keys, single default namespace); language is read from localStorage and switched in the header. Institute names, document types, statuses are **i18n keys**, so the same stable codes render in any language.
+- **Key parity is a test, not a habit** — `i18n.test.ts` fails if `ar` or `ckb` is missing any key `en` has, or if any value is empty. A screen built in one language only cannot reach `main`.
 - **Direction** — on language change, set `document.documentElement.dir = (lang==='en'?'ltr':'rtl')` and `lang`. Layout uses **Tailwind logical utilities** (`ps-*`, `pe-*`, `ms-*`, `me-*`, `text-start`) and `rtl:`/`ltr:` variants so components mirror automatically instead of hard-coded left/right.
 - **Mixed-direction content** — Latin PIDs/numbers inside RTL text are wrapped with Unicode bidi isolation (`<bdi>` / `dir="auto"`) so PIDs, dates, and parcel numbers don't scramble inside Sorani/Arabic sentences.
-- **Fonts (offline)** — bundle Arabic/Kurdish-capable fonts **locally** (e.g. Noto Naskh Arabic / Noto Sans Arabic / Vazirmatn / a Kurdish-tuned face) served by Nginx — **no Google Fonts CDN**.
+- **Fonts (offline)** — every face is an `@fontsource*` npm package imported in `main.tsx`, so Vite fingerprints it into `dist/assets/` and Nginx serves it from the same origin as the app. **No Google Fonts CDN, and no `public/fonts/` directory** — nothing is fetched at runtime. Static families are imported at the two weights the UI uses (400/700) rather than by package root, which would ship seven weights of each.
 - **RTL / multilingual printed output** — the risky part. Browser print (dashboard/report screens) uses `@media print` with explicit `direction`. The **compiled case export and eligibility PDFs are produced server-side via LibreOffice** (§6.6, §10), which lays out RTL Sorani/Arabic reliably — avoiding the well-known RTL breakage of lightweight HTML-to-PDF engines. **Flagged risk:** verify RTL numerals, mixed-script lines, and table mirroring on real documents early.
+
+### 9.1 Appearance — mode, palette, typeface
+
+Three per-machine preferences, saved in `localStorage` and applied to `<html>` before first paint (`applyThemeClass` / `applyAccent` / `applyFont` run in `main.tsx`, or the app flashes the defaults). Nothing reaches the server; there is no `theme` column to reach (§0).
+
+- **Mode** — `light`, `dark` or `system`. `system` resolves through `matchMedia('(prefers-color-scheme: dark)')` and keeps following it while the app is open, so a machine that flips at sunset flips with it. The slice keeps the *choice* and the *resolved* theme separately, because only the resolved one may drive `<html class="dark">`.
+- **Palette — a theme is four numbers.** `--accent-hue`, `--accent-chroma`, `--neutral-hue` and `--neutral-tint` are all a preset declares; **every** token derives from them in oklch — surfaces, borders and sidebar as well as the accent — so switching a palette moves the whole screen rather than recolouring the buttons (UC-032). Nine palettes therefore cost a few hundred bytes, and light and dark each stay in charge of their own values.
+  > **The trap this shape exists to avoid.** `:root[data-accent="x"]` has specificity (0,2,0) and `.dark` has (0,1,0), so a preset that declared `--primary` itself would out-specify dark mode and silently break it. Presets declare **only** the four knobs; the light and dark ramps read them. Anything tempted to add a colour to a preset must not.
+- **Typeface** — each preset sets `--font-sans` **and** `--font-arabic`, so the choice is visible in English too; setting only the Arabic variable left the Latin UI on Inter and the setting looked dead (UC-031).
+  > **Every offered face is glyph-audited against the Sorani alphabet** (ە ڕ ۆ ێ ڵ ڤ پ چ ژ گ) by reading the cmap of the shipped `woff2`, never by trusting the family name — a missing glyph renders as tofu on a government document. Cairo, Almarai, Tajawal, Changa, Alexandria, El Messiri, Markazi Text, Readex Pro, Rubik, Gulzar and Baloo Bhaijaan 2 all **fail** this check; the nine offered faces are exactly the set that passed. **Re-run the audit before adding a family.**
+- **Previews** — a card shows the theme it offers by re-declaring the design tokens on its own subtree (`.preview-light` / `.preview-dark`, plus `data-accent` for a palette). Every Tailwind colour utility is `@theme inline`, i.e. it reads the token at the element, so the miniature inside needs no theme knowledge at all. The light and dark ramps are each written **once** and shared by the app and the previews via a grouped selector — the app's dark mode and a dark preview cannot drift apart.
+- **Generated letters are unaffected.** These settings style the screen only; a `.docx` template carries the typeface the office fixed in Word (§6.6).
 
 ---
 
@@ -1385,10 +1404,10 @@ frontend/
 │   │   ├── activities/  users/  settings/
 │   │   │   └── (each: api/  components/  hooks/  types.ts  index.ts)
 │   ├── components/ui/ (shadcn)
-│   ├── i18n/  locales/{ckb,ar,en}/
+│   ├── i18n/  locales/{ckb,ar,en}.json
 │   ├── lib/ (pdfAssembly.ts, bidi.ts, format.ts)
 │   ├── hooks/  routes/  styles/
-├── public/fonts/               # bundled Arabic/Kurdish fonts (offline)
+│                               # fonts are @fontsource packages, bundled by Vite (§9)
 ├── index.html  vite.config.ts  tailwind.config.ts  Dockerfile (build → static)
 ```
 

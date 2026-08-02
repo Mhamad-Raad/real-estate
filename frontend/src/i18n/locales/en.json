@@ -498,23 +498,67 @@
   "settings": {
     "title": "Settings",
     "subtitle": "How the app looks on this computer.",
+    "appearance": "Mode",
+    "appearanceHint": "Light, dark, or whatever this computer is set to.",
     "accent": "Palette",
     "accentHint": "Changes the colours across the whole app — surfaces, borders and highlights, in light and dark.",
     "font": "Typeface",
     "fontHint": "Changes the font across the whole app, in every language.",
-    "fontVerified": "Every font offered here was checked to contain the Sorani letters (ە ڕ ۆ ێ ڵ). Faces missing them are deliberately not listed.",
+    "fontVerified": "Every font offered here was checked letter by letter to contain the Sorani alphabet (⁨ە ڕ ۆ ێ ڵ ڤ⁩). Faces missing them are deliberately not listed.",
     "localOnly": "Saved on this computer only, and never applied to generated letters — those keep the typeface the office fixed in Word.",
+    "modes": {
+      "light": "Light",
+      "dark": "Dark",
+      "system": "System"
+    },
+    "modeDesc": {
+      "light": "Bright surfaces, for daytime work.",
+      "dark": "Dark surfaces, easier at night.",
+      "system": "Follows the computer's own setting."
+    },
     "accents": {
       "teal": "Teal",
+      "emerald": "Emerald",
+      "sky": "Sky",
       "indigo": "Indigo",
+      "violet": "Violet",
+      "rose": "Rose",
+      "copper": "Copper",
       "amber": "Amber",
       "slate": "Slate"
     },
+    "accentDesc": {
+      "teal": "Calm blue-green — the default.",
+      "emerald": "Fresh, natural green.",
+      "sky": "Clear, open blue.",
+      "indigo": "Deep blue-violet.",
+      "violet": "Soft purple.",
+      "rose": "Warm red-pink.",
+      "copper": "Earthy orange-brown.",
+      "amber": "Warm golden yellow.",
+      "slate": "Plain greys, colour only on the controls."
+    },
     "fonts": {
-      "vazirmatn": "Vazirmatn (default)",
+      "vazirmatn": "Vazirmatn",
       "noto": "Noto Sans Arabic",
-      "lateef": "Lateef",
-      "reemkufi": "Reem Kufi"
+      "plex": "IBM Plex Sans Arabic",
+      "naskh": "Noto Naskh Arabic",
+      "amiri": "Amiri",
+      "scheherazade": "Scheherazade New",
+      "notokufi": "Noto Kufi Arabic",
+      "reemkufi": "Reem Kufi",
+      "lateef": "Lateef"
+    },
+    "fontDesc": {
+      "vazirmatn": "Modern sans — the default.",
+      "noto": "Neutral sans, very legible.",
+      "plex": "Technical sans, wide and even.",
+      "naskh": "Traditional naskh, built for reading.",
+      "amiri": "Classical naskh, formal.",
+      "scheherazade": "Traditional, widest letter coverage.",
+      "notokufi": "Geometric kufi, strong shapes.",
+      "reemkufi": "Decorative kufi.",
+      "lateef": "Light traditional, compact."
     }
   }
 }

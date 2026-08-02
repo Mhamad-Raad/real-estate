@@ -1,87 +1,114 @@
-import { Check } from "lucide-react";
+import { Monitor, Moon, Palette, Sun, Type } from "lucide-react";
+import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
-import { Card } from "@/components/ui/card";
 import { FormSection } from "@/components/ui/separator";
 import { PageHeader } from "@/features/common/PageHeader";
+import { FontSpecimen } from "@/features/settings/FontSpecimen";
+import { OptionCard } from "@/features/settings/OptionCard";
+import { ThemePreview } from "@/features/settings/ThemePreview";
 import {
   ACCENTS,
   FONTS,
+  THEME_MODES,
   setAccent,
   setFont,
-  type Accent,
-  type FontChoice,
+  setThemeMode,
+  type ThemeMode,
 } from "@/features/ui/uiSlice";
-import { cn } from "@/lib/utils";
+
+const MODE_ICONS: Record<ThemeMode, ReactNode> = {
+  light: <Sun className="size-4" />,
+  dark: <Moon className="size-4" />,
+  system: <Monitor className="size-4" />,
+};
+
+// Each section is one single-select group; the radiogroup wrapper is what makes arrow keys walk
+// the cards, and `FormSection` keeps the headings identical to the rest of the app.
+function OptionGroup({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div role="radiogroup" aria-label={label} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {children}
+    </div>
+  );
+}
 
 // Screen preferences, saved per machine in localStorage (§0 already records theme/language as
 // deliberately client-only, so this follows the same deviation). Nothing here reaches the server.
 export function SettingsPage() {
   const { t } = useTranslation();
   const dispatch = useAppDispatch();
-  const accent = useAppSelector((s) => s.ui.accent);
-  const font = useAppSelector((s) => s.ui.font);
+  const { mode, theme, accent, font } = useAppSelector((s) => s.ui);
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
+    <div className="mx-auto max-w-5xl space-y-8">
       <PageHeader title={t("settings.title")} description={t("settings.subtitle")} />
 
-      <Card className="p-4">
-        <FormSection title={t("settings.accent")} description={t("settings.accentHint")}>
-          <div className="flex flex-wrap gap-2">
-            {ACCENTS.map((name) => (
-              <button
-                key={name}
-                type="button"
-                onClick={() => dispatch(setAccent(name as Accent))}
-                aria-pressed={accent === name}
-                aria-label={t(`settings.accents.${name}`)}
-                title={t(`settings.accents.${name}`)}
-                // Each swatch previews itself by scoping the preset to its own subtree.
-                data-accent={name}
-                className={cn(
-                  "flex size-10 items-center justify-center rounded-full border-2 transition-transform hover:scale-105",
-                  accent === name ? "border-foreground" : "border-transparent",
-                )}
-              >
-                <span className="accent-swatch flex size-7 items-center justify-center rounded-full">
-                  {accent === name && <Check className="size-4" strokeWidth={3} />}
-                </span>
-              </button>
-            ))}
-          </div>
-        </FormSection>
-      </Card>
+      <FormSection title={t("settings.appearance")} description={t("settings.appearanceHint")}>
+        <OptionGroup label={t("settings.appearance")}>
+          {THEME_MODES.map((option) => (
+            <OptionCard
+              key={option}
+              name="theme-mode"
+              value={option}
+              selected={mode === option}
+              onSelect={() => dispatch(setThemeMode(option))}
+              title={t(`settings.modes.${option}`)}
+              description={t(`settings.modeDesc.${option}`)}
+              icon={MODE_ICONS[option]}
+            >
+              <ThemePreview mode={option} />
+            </OptionCard>
+          ))}
+        </OptionGroup>
+      </FormSection>
 
-      <Card className="p-4">
-        <FormSection title={t("settings.font")} description={t("settings.fontHint")}>
-          <div className="grid gap-2 sm:grid-cols-2">
-            {FONTS.map((name) => (
-              <button
-                key={name}
-                type="button"
-                onClick={() => dispatch(setFont(name as FontChoice))}
-                aria-pressed={font === name}
-                data-font={name}
-                className={cn(
-                  "flex flex-col items-start gap-1 rounded-md border p-3 text-start transition-colors",
-                  font === name ? "border-primary bg-primary/5" : "border-border hover:bg-accent/50",
-                )}
-              >
-                <span className="text-sm font-medium">{t(`settings.fonts.${name}`)}</span>
-                {/* The specimen carries the Sorani letters that rule most Arabic faces out. */}
-                <span className="text-lg" style={{ fontFamily: "var(--font-arabic)" }} lang="ckb">
-                  ئەم نووسینە ڕەنگە پۆلێ گەورە بێت
-                </span>
-              </button>
-            ))}
-          </div>
-          <p className="text-xs text-muted-foreground">{t("settings.fontVerified")}</p>
-        </FormSection>
-      </Card>
+      <FormSection title={t("settings.accent")} description={t("settings.accentHint")}>
+        <OptionGroup label={t("settings.accent")}>
+          {ACCENTS.map((option) => (
+            <OptionCard
+              key={option}
+              name="accent"
+              value={option}
+              selected={accent === option}
+              onSelect={() => dispatch(setAccent(option))}
+              title={t(`settings.accents.${option}`)}
+              description={t(`settings.accentDesc.${option}`)}
+              icon={<Palette className="size-4" />}
+            >
+              {/* The preview re-scopes the palette, so each card shows its own on a whole screen. */}
+              <div data-accent={option}>
+                <ThemePreview mode={theme} />
+              </div>
+            </OptionCard>
+          ))}
+        </OptionGroup>
+      </FormSection>
 
-      <p className="text-xs text-muted-foreground">{t("settings.localOnly")}</p>
+      <FormSection title={t("settings.font")} description={t("settings.fontHint")}>
+        <OptionGroup label={t("settings.font")}>
+          {FONTS.map((option) => (
+            <OptionCard
+              key={option}
+              name="font"
+              value={option}
+              selected={font === option}
+              onSelect={() => dispatch(setFont(option))}
+              title={t(`settings.fonts.${option}`)}
+              description={t(`settings.fontDesc.${option}`)}
+              icon={<Type className="size-4" />}
+            >
+              <FontSpecimen font={option} />
+            </OptionCard>
+          ))}
+        </OptionGroup>
+      </FormSection>
+
+      <div className="space-y-1 text-xs text-muted-foreground">
+        <p>{t("settings.fontVerified")}</p>
+        <p>{t("settings.localOnly")}</p>
+      </div>
     </div>
   );
 }
