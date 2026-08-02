@@ -11,6 +11,11 @@
 :root {
   --radius: 0.65rem;
 
+  /* Accent theme. Every themed token derives from this hue/chroma pair, so a preset is one
+     line rather than a duplicated block per light/dark mode (§9, UC-015). */
+  --accent-hue: 178;
+  --accent-chroma: 0.1;
+
   --background: oklch(0.99 0.004 120);
   --foreground: oklch(0.22 0.02 160);
 
@@ -19,8 +24,8 @@
   --popover: oklch(1 0 0);
   --popover-foreground: var(--foreground);
 
-  --primary: oklch(0.58 0.1 178);
-  --primary-foreground: oklch(0.99 0.01 180);
+  --primary: oklch(0.58 var(--accent-chroma) var(--accent-hue));
+  --primary-foreground: oklch(0.99 0.01 var(--accent-hue));
 
   --secondary: oklch(0.96 0.01 160);
   --secondary-foreground: oklch(0.3 0.03 165);
@@ -28,8 +33,8 @@
   --muted: oklch(0.96 0.008 150);
   --muted-foreground: oklch(0.52 0.02 160);
 
-  --accent: oklch(0.93 0.04 180);
-  --accent-foreground: oklch(0.3 0.05 180);
+  --accent: oklch(0.93 0.04 var(--accent-hue));
+  --accent-foreground: oklch(0.3 0.05 var(--accent-hue));
 
   --destructive: oklch(0.58 0.2 25);
   --destructive-foreground: oklch(0.99 0.01 25);
@@ -39,7 +44,7 @@
 
   --border: oklch(0.9 0.01 160);
   --input: oklch(0.9 0.01 160);
-  --ring: oklch(0.58 0.1 178);
+  --ring: oklch(0.58 var(--accent-chroma) var(--accent-hue));
 
   --sidebar: oklch(0.985 0.006 160);
   --sidebar-foreground: var(--foreground);
@@ -55,8 +60,8 @@
   --popover: oklch(0.24 0.02 175);
   --popover-foreground: var(--foreground);
 
-  --primary: oklch(0.7 0.11 178);
-  --primary-foreground: oklch(0.2 0.03 178);
+  --primary: oklch(0.7 calc(var(--accent-chroma) + 0.01) var(--accent-hue));
+  --primary-foreground: oklch(0.2 0.03 var(--accent-hue));
 
   --secondary: oklch(0.3 0.02 172);
   --secondary-foreground: oklch(0.92 0.01 160);
@@ -64,8 +69,8 @@
   --muted: oklch(0.3 0.02 172);
   --muted-foreground: oklch(0.7 0.02 160);
 
-  --accent: oklch(0.34 0.04 178);
-  --accent-foreground: oklch(0.92 0.02 178);
+  --accent: oklch(0.34 0.04 var(--accent-hue));
+  --accent-foreground: oklch(0.92 0.02 var(--accent-hue));
 
   --destructive: oklch(0.62 0.2 25);
   --destructive-foreground: oklch(0.98 0.01 25);
@@ -75,7 +80,7 @@
 
   --border: oklch(0.32 0.02 172);
   --input: oklch(0.35 0.02 172);
-  --ring: oklch(0.7 0.11 178);
+  --ring: oklch(0.7 calc(var(--accent-chroma) + 0.01) var(--accent-hue));
 
   --sidebar: oklch(0.23 0.02 175);
   --sidebar-foreground: var(--foreground);
@@ -117,6 +122,41 @@
   --font-sans: "Inter Variable", system-ui, sans-serif;
   --font-arabic: "Vazirmatn Variable", "Inter Variable", system-ui, sans-serif;
 }
+
+
+/* ---- Accent presets (UC-015) -------------------------------------------------------------
+   One line each: every themed token derives from the hue/chroma pair above, and both light and
+   dark follow automatically. Purely CSS, so ten themes cost a few hundred bytes and carry none
+   of the glyph risk that adding fonts does. */
+/* A swatch previews its own preset. `--primary` is declared on :root, so custom-property
+   substitution resolves it there once — setting `--accent-hue` on a descendant does NOT re-derive
+   it. The colour therefore has to be declared on the swatch itself, where its own hue is in scope.
+   (Adding `--primary` to the presets instead would out-specify `.dark` and break dark mode.) */
+.accent-swatch {
+  background: oklch(0.58 var(--accent-chroma) var(--accent-hue));
+  color: oklch(0.99 0.01 var(--accent-hue));
+}
+
+[data-accent="teal"]     { --accent-hue: 178; --accent-chroma: 0.1; }
+[data-accent="blue"]     { --accent-hue: 255; --accent-chroma: 0.11; }
+[data-accent="indigo"]   { --accent-hue: 285; --accent-chroma: 0.11; }
+[data-accent="violet"]   { --accent-hue: 305; --accent-chroma: 0.1; }
+[data-accent="rose"]     { --accent-hue: 15;  --accent-chroma: 0.11; }
+[data-accent="amber"]    { --accent-hue: 70;  --accent-chroma: 0.12; }
+[data-accent="green"]    { --accent-hue: 145; --accent-chroma: 0.11; }
+[data-accent="emerald"]  { --accent-hue: 160; --accent-chroma: 0.1; }
+[data-accent="slate"]    { --accent-hue: 250; --accent-chroma: 0.03; }
+[data-accent="graphite"] { --accent-hue: 200; --accent-chroma: 0.015; }
+
+/* ---- Font presets (UC-015) ----------------------------------------------------------------
+   **Every face here was verified glyph-by-glyph against the Sorani alphabet** (ە ڕ ۆ ێ ڵ پ چ ژ گ)
+   before being offered. Cairo was a candidate and was REJECTED: it is missing five of them, and a
+   missing glyph renders as tofu on a government document. The list is short for that reason, and
+   because each family is bundled into `dist` — there is no CDN (§12). */
+[data-font="vazirmatn"] { --font-arabic: "Vazirmatn Variable", "Inter Variable", system-ui, sans-serif; }
+[data-font="noto"]      { --font-arabic: "Noto Sans Arabic Variable", "Inter Variable", system-ui, sans-serif; }
+[data-font="lateef"]    { --font-arabic: "Lateef", "Inter Variable", system-ui, serif; }
+[data-font="reemkufi"]  { --font-arabic: "Reem Kufi Variable", "Inter Variable", system-ui, sans-serif; }
 
 @layer base {
   * {

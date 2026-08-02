@@ -15,8 +15,8 @@ import { ReportsPage } from "@/features/reports/ReportsPage";
 import { ProcessDetailPage } from "@/features/processes/detail/ProcessDetailPage";
 import { UsersPage } from "@/features/users/UsersPage";
 import { DashboardPage } from "@/features/dashboard/DashboardPage";
+import { SettingsPage } from "@/features/settings/SettingsPage";
 import { NotFoundPage } from "@/pages/NotFoundPage";
-import { PlaceholderPage } from "@/pages/PlaceholderPage";
 
 export default function App() {
   return (
@@ -40,7 +40,7 @@ export default function App() {
               <Route path="templates" element={<TemplatesPage />} />
               <Route path="users" element={<UsersPage />} />
             </Route>
-            <Route path="settings" element={<PlaceholderPage titleKey="nav.settings" />} />
+            <Route path="settings" element={<SettingsPage />} />
           </Route>
           <Route path="*" element={<NotFoundPage />} />
         </Route>

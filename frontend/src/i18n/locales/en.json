@@ -73,7 +73,6 @@
     "title": "Dashboard",
     "welcome": "Welcome, {{name}}",
     "subtitle": "Overview of allocations, workload and outstanding paperwork.",
-    "comingSoon": "Coming soon",
     "ofTotal": "of {{total}} in total",
     "casesMissingFiles": "Cases missing files",
     "acrossSteps": "across {{steps}} step(s)",
@@ -497,5 +496,33 @@
     "noClients": "No matching beneficiaries",
     "showingSome": "Showing {{shown}} of {{total}} — keep typing to narrow the list",
     "create": "Create case"
+  },
+  "settings": {
+    "title": "Settings",
+    "subtitle": "How the app looks on this computer.",
+    "accent": "Accent colour",
+    "accentHint": "Applies to buttons, links and highlights, in both light and dark.",
+    "font": "Kurdish / Arabic font",
+    "fontHint": "Changes the on-screen typeface for Sorani and Arabic text.",
+    "fontVerified": "Every font offered here was checked to contain the Sorani letters (ە ڕ ۆ ێ ڵ). Faces missing them are deliberately not listed.",
+    "localOnly": "Saved on this computer only, and never applied to generated letters — those keep the typeface the office fixed in Word.",
+    "accents": {
+      "teal": "Teal",
+      "blue": "Blue",
+      "indigo": "Indigo",
+      "violet": "Violet",
+      "rose": "Rose",
+      "amber": "Amber",
+      "green": "Green",
+      "emerald": "Emerald",
+      "slate": "Slate",
+      "graphite": "Graphite"
+    },
+    "fonts": {
+      "vazirmatn": "Vazirmatn (default)",
+      "noto": "Noto Sans Arabic",
+      "lateef": "Lateef",
+      "reemkufi": "Reem Kufi"
+    }
   }
 }
