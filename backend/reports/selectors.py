@@ -10,6 +10,7 @@ from datetime import timedelta
 from django.db.models import Count, Q
 from django.utils import timezone
 
+from accounts.models import User
 from clients.models import Client
 from common.models import ActivityLog
 from processes.models import Process, ProcessStep
@@ -132,23 +133,43 @@ def process_report(*, date_from=None, date_to=None, category=None) -> dict:
 
 
 def user_report(*, date_from=None, date_to=None, category=None) -> list[dict]:
-    """Per-lawyer workload: how much they were assigned in the range, and how much is finished."""
-    qs = _apply_range(Process.objects.all(), date_from, date_to)
+    """Per-lawyer workload: how much they were assigned in the range, and how much is finished.
+
+    Counted **from the user side**, so a lawyer with nothing in range still appears with zeros
+    (It.7, UC-003). Grouping processes instead silently dropped them, which meant the report could
+    show who is busy but never who is idle — and "who is idle" is half of what a workload report
+    is for. Deactivated users are excluded: they are not idle, they are gone.
+    """
+    filters = Q(assigned_processes__is_deleted=False)
+    if date_from:
+        filters &= Q(assigned_processes__created_at__date__gte=date_from)
+    if date_to:
+        filters &= Q(assigned_processes__created_at__date__lte=date_to)
     if category:
-        qs = qs.filter(category_id=category)
+        filters &= Q(assigned_processes__category_id=category)
+
     rows = (
-        qs.values("assigned_lawyer_id", "assigned_lawyer__username")
+        User.objects.filter(is_active=True, is_deleted=False)
         .annotate(
-            assigned=Count("id"),
-            completed=Count("id", filter=Q(overall_status=Process.OverallStatus.COMPLETE)),
-            in_progress=Count("id", filter=Q(overall_status=Process.OverallStatus.IN_PROGRESS)),
+            assigned=Count("assigned_processes", filter=filters, distinct=True),
+            completed=Count(
+                "assigned_processes",
+                filter=filters & Q(assigned_processes__overall_status=Process.OverallStatus.COMPLETE),
+                distinct=True,
+            ),
+            in_progress=Count(
+                "assigned_processes",
+                filter=filters & Q(assigned_processes__overall_status=Process.OverallStatus.IN_PROGRESS),
+                distinct=True,
+            ),
         )
-        .order_by("-assigned", "assigned_lawyer__username")
+        .order_by("-assigned", "username")
+        .values("id", "username", "assigned", "completed", "in_progress")
     )
     return [
         {
-            "lawyer_id": row["assigned_lawyer_id"],
-            "username": row["assigned_lawyer__username"],
+            "lawyer_id": row["id"],
+            "username": row["username"],
             "assigned": row["assigned"],
             "completed": row["completed"],
             "in_progress": row["in_progress"],

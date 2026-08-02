@@ -51,6 +51,8 @@ export function DashboardPage() {
     value,
   }));
   const hasStatusData = statusData.some((row) => row.value > 0);
+  // Relative scale for the per-lawyer bars; guarded so an all-zero list cannot divide by zero.
+  const busiest = Math.max(1, ...(data?.by_lawyer_handled ?? []).map((row) => row.count));
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -108,7 +110,7 @@ export function DashboardPage() {
         />
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-4 lg:grid-cols-3">
         <Card>
           <CardHeader>
             <CardTitle className="text-sm font-medium">{t("dashboard.byStatus")}</CardTitle>
@@ -199,30 +201,41 @@ export function DashboardPage() {
             )}
           </CardContent>
         </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm font-medium">{t("dashboard.byLawyer")}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <Skeleton className="h-40 w-full" />
+            ) : !data?.by_lawyer_handled.length ? (
+              <p className="py-16 text-center text-sm text-muted-foreground">
+                {t("common.noData")}
+              </p>
+            ) : (
+              <ul className="space-y-2">
+                {data.by_lawyer_handled.map((row) => (
+                  <li key={row.lawyer_id} className="space-y-1">
+                    <div className="flex items-center gap-2 text-sm">
+                      <Users className="size-4 shrink-0 text-muted-foreground" />
+                      <span className="flex-1 truncate">{row.username}</span>
+                      <span className="font-medium tabular-nums">{num(row.count)}</span>
+                    </div>
+                    {/* A bar makes two rows comparable at a glance where bare numbers do not,
+                        and fills a panel that stays short in a two-lawyer office. */}
+                    <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+                      <div
+                        className="h-full rounded-full bg-primary"
+                        style={{ inlineSize: `${Math.round((row.count / busiest) * 100)}%` }}
+                      />
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
       </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm font-medium">{t("dashboard.byLawyer")}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <Skeleton className="h-20 w-full" />
-          ) : !data?.by_lawyer_handled.length ? (
-            <p className="py-6 text-center text-sm text-muted-foreground">{t("common.noData")}</p>
-          ) : (
-            <ul className="divide-y divide-border">
-              {data.by_lawyer_handled.map((row) => (
-                <li key={row.lawyer_id} className="flex items-center gap-3 py-2 text-sm">
-                  <Users className="size-4 shrink-0 text-muted-foreground" />
-                  <span className="flex-1 truncate">{row.username}</span>
-                  <span className="font-medium tabular-nums">{num(row.count)}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </CardContent>
-      </Card>
     </div>
   );
 }

@@ -183,9 +183,36 @@ class ReportFilterTests(ReportsTestBase):
     def test_user_report_splits_assigned_from_completed(self):
         self._process("401")
         self._process("402", status=Process.OverallStatus.COMPLETE)
-        rows = user_report()
-        self.assertEqual(len(rows), 1)
-        self.assertEqual((rows[0]["assigned"], rows[0]["completed"]), (2, 1))
+        rows = {row["username"]: row for row in user_report()}
+        self.assertEqual((rows["lw"]["assigned"], rows["lw"]["completed"]), (2, 1))
+
+    def test_user_report_lists_a_lawyer_with_nothing_in_range(self):
+        """UC-003's mirror image: grouping processes hid idle staff, so it could not answer
+        "who is free?" — which is half of what a workload report is for."""
+        self._process("403")
+
+        rows = {row["username"]: row for row in user_report()}
+
+        # `adm` was assigned nothing, and must still appear — at zero, not absent.
+        self.assertIn("adm", rows)
+        self.assertEqual(rows["adm"]["assigned"], 0)
+
+    def test_user_report_excludes_a_deactivated_user(self):
+        """Someone who has left is not idle, and would otherwise pad the report forever."""
+        User.objects.create_user(username="gone", password="pw12345678", is_active=False)
+
+        self.assertNotIn("gone", {row["username"] for row in user_report()})
+
+    def test_a_lawyer_with_no_cases_in_range_still_appears_at_zero(self):
+        """The date filter must narrow the counts, never drop the person from the report."""
+        old = self._process("404")
+        Process.objects.filter(pk=old.pk).update(created_at=timezone.now() - timedelta(days=60))
+
+        today = timezone.localtime().date().isoformat()
+        rows = {row["username"]: row for row in user_report(date_from=today)}
+
+        self.assertIn("lw", rows)
+        self.assertEqual(rows["lw"]["assigned"], 0)
 
     def test_csv_neutralises_formula_injection(self):
         """A name Excel would execute must be exported as text (§12 input safety)."""
