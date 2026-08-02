@@ -3,6 +3,8 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "@/components/ui/toaster";
@@ -56,6 +58,9 @@ export function ScanIntakePanel({
 
   const [married, setMarried] = useState(false);
   const [spouse, setSpouse] = useState<SpouseValues>(EMPTY_SPOUSE);
+  // The card carries four fields; the record has more. Typed beside the scan so a scanned
+  // beneficiary is complete on creation rather than missing details forever (UC-029, UC-030).
+  const [details, setDetails] = useState({ place_of_birth: "", address: "", phone: "" });
 
   const [stage, { isLoading: staging }] = useStageCardScanMutation();
   const [confirmSpouse] = useConfirmCardScanMutation();
@@ -172,6 +177,7 @@ export function ScanIntakePanel({
               category,
               land_id: landId,
               land_address: landAddress,
+              ...details,
               marital_status: married ? "married" : "single",
               ...(married
                 ? {
@@ -184,14 +190,33 @@ export function ScanIntakePanel({
             };
           }}
           extra={
-            married ? (
-              <SpouseSection
-                scan={spouseSettled}
-                reading={readingSpouse}
-                values={spouse}
-                onChange={setSpouse}
-              />
-            ) : null
+            <div className="space-y-4">
+              <div className="grid gap-3 sm:grid-cols-2">
+                {(["place_of_birth", "address", "phone"] as const).map((name) => (
+                  <div key={name} className={name === "address" ? "sm:col-span-2" : undefined}>
+                    <Label htmlFor={`sc-${name}`} className="text-xs">
+                      {t(`clients.${name === "place_of_birth" ? "placeOfBirth" : name}`)}
+                    </Label>
+                    <Input
+                      id={`sc-${name}`}
+                      className="mt-1.5 h-9"
+                      value={details[name]}
+                      onChange={(e) =>
+                        setDetails((current) => ({ ...current, [name]: e.target.value }))
+                      }
+                    />
+                  </div>
+                ))}
+              </div>
+              {married ? (
+                <SpouseSection
+                  scan={spouseSettled}
+                  reading={readingSpouse}
+                  values={spouse}
+                  onChange={setSpouse}
+                />
+              ) : null}
+            </div>
           }
         />
         <Button type="button" variant="ghost" size="sm" onClick={restart}>

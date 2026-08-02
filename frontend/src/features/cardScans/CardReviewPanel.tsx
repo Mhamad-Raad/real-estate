@@ -1,5 +1,6 @@
 import { AlertTriangle } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { Maximize2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { useAppSelector } from "@/app/hooks";
@@ -112,20 +113,37 @@ export function CardReviewPanel({
 
   return (
     <form onSubmit={submit} className="grid gap-6 lg:grid-cols-2">
-      {/* Left: the card itself. */}
-      <div className="space-y-2">
-        <p className="text-xs text-muted-foreground">{t("cardScan.scannedCard")}</p>
+      {/* Left: the card itself. Sticky, because the fields pane is now the longer of the two and
+          the whole point is comparing them — a scan that scrolls out of view cannot be compared.
+          This image is also the archived government record, so it has to be judged for legibility
+          and not merely read: "open full size" exists for that (UC-029). */}
+      <div className="space-y-2 lg:sticky lg:top-4 lg:self-start">
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-xs text-muted-foreground">{t("cardScan.scannedCard")}</p>
+          {previewUrl && (
+            <a
+              href={previewUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+            >
+              <Maximize2 className="size-3.5" />
+              {t("cardScan.openFullSize")}
+            </a>
+          )}
+        </div>
         {previewUrl ? (
           <iframe
             src={previewUrl}
             title={t("cardScan.scannedCard")}
-            className="h-[32rem] w-full rounded-md border border-border bg-white"
+            className="h-[36rem] w-full rounded-md border border-border bg-white"
           />
         ) : (
-          <div className="flex h-[32rem] items-center justify-center rounded-md border border-border">
+          <div className="flex h-[36rem] items-center justify-center rounded-md border border-border">
             <Spinner />
           </div>
         )}
+        <p className="text-xs text-muted-foreground">{t("cardScan.qualityHint")}</p>
       </div>
 
       {/* Right: what it says, editable. */}

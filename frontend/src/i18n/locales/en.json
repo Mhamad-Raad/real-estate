@@ -455,7 +455,9 @@
     "spouseSection": "The spouse's card",
     "spousePidHint": "The spouse's card number is not printed on any letter — it only stops a couple being allocated land twice.",
     "spouseIncomplete": "The spouse's name, birth date and mother's name are all needed.",
-    "spouseFileError": "The beneficiary was saved, but the spouse's card could not be filed. Try attaching it from the case."
+    "spouseFileError": "The beneficiary was saved, but the spouse's card could not be filed. Try attaching it from the case.",
+    "openFullSize": "Open full size",
+    "qualityHint": "Check the scan is sharp and complete — this image is the archived record."
   },
   "scan": {
     "action": "Scan",

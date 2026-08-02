@@ -30,6 +30,9 @@ from .models import CardScan
 # The client fields a card can fill. Anything outside this set is ignored, so a future change to
 # the draft shape can never quietly start writing to a column nobody reviewed.
 CLIENT_FIELDS = ("pid", "full_name", "mother_full_name", "date_of_birth")
+# Not on the card, and not required — the lawyer types them beside the scan if they have them.
+# Kept apart from CLIENT_FIELDS so they can never become a condition of confirming a reading.
+EXTRA_CLIENT_FIELDS = ("place_of_birth", "address", "phone")
 # `SpouseID` fills the spouse columns instead of the client's own. The spouse's PID is stored
 # too — not for the letter, which never prints it, but because a household may hold only one
 # allocation and that rule needs the spouse to be identifiable (§3.7, §5.7).
@@ -244,6 +247,7 @@ def _create_from_card(
     assert_pid_is_free(values["pid"])
 
     data = {name: values[name] for name in CLIENT_FIELDS}
+    data.update({name: values[name] for name in EXTRA_CLIENT_FIELDS if values.get(name)})
     data.update(_marital_details(values))
     process = intake_process(
         client_data=data,

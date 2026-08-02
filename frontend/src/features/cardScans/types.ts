@@ -52,6 +52,10 @@ export type ConfirmPayload = {
   // so it commits in the same transaction rather than a follow-up PATCH (§5).
   land_id?: string;
   land_address?: string;
+  // Not on the card; typed beside it so the whole record is created in one place (UC-029/UC-030).
+  place_of_birth?: string;
+  address?: string;
+  phone?: string;
   // Not on the card. Marital status decides whether Step 1 owes a spouse ID and whether the
   // letter prints a spouse row, and the letter needs the spouse's three printed fields together;
   // `spouse_pid` is never printed and exists only for the household duplicate rule (§5.7, §6.6).

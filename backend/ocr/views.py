@@ -108,6 +108,12 @@ class ConfirmSerializer(serializers.Serializer):
     category = serializers.PrimaryKeyRelatedField(
         queryset=Category.objects.all(), required=False, allow_null=True
     )
+    # Details the card does not carry but the lawyer has in front of them. Optional, and only read
+    # when creating: without these a scanned beneficiary had no screen anywhere that could set them
+    # (UC-030), and the review pane showed only a third of the record it was creating (UC-029).
+    place_of_birth = serializers.CharField(required=False, allow_blank=True, max_length=120)
+    address = serializers.CharField(required=False, allow_blank=True, max_length=300)
+    phone = serializers.CharField(required=False, allow_blank=True, max_length=30)
     # Also only used when creating: the Step-1 intake form asks for the land alongside the card, so
     # it rides the same transaction rather than a follow-up PATCH that could fail on its own (§5).
     land_id = serializers.CharField(required=False, allow_blank=True, max_length=100)
