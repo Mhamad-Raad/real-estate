@@ -228,7 +228,7 @@ class Command(BaseCommand):
 
     @transaction.atomic
     def _seed(self):
-        s2, s3, s4 = ["INST_S2_A", "INST_S2_B"], ["INST_S3_A", "INST_S3_B", "INST_S3_C"], [
+        s2, s3, s4 = ["INST_S2_A"], ["INST_S3_A", "INST_S3_B", "INST_S3_C"], [
             "INST_S4_A",
             "INST_S4_B",
         ]

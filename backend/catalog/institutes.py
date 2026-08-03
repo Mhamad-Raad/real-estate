@@ -6,10 +6,11 @@ the machine `code` is stable in the DB while ckb/ar/en labels come from the tran
 Names are placeholders per the spec.
 """
 
+# The codes are opaque and permanent — they are stored on every entry row, so renaming the body
+# behind one is a translation change, never a data migration. See §3.4 for what each one is.
 # (code, i18n display key, step)
 INSTITUTES: list[tuple[str, str, int]] = [
-    ("INST_S2_A", "institute.s2_a", 2),
-    ("INST_S2_B", "institute.s2_b", 2),
+    ("INST_S2_A", "institute.s2_a", 2),  # Step 2 = ONE institute (UC-040)
     ("INST_S3_A", "institute.s3_a", 3),
     ("INST_S3_B", "institute.s3_b", 3),
     ("INST_S3_C", "institute.s3_c", 3),  # Step 3 = three fixed institutes

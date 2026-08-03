@@ -19,6 +19,8 @@ from clients.models import Client
 
 from .models import ProcessInstituteEntry, ProcessStep
 from .services import create_process
+from catalog.institutes import codes_for_step
+
 from .status import missing_requirements
 from clients.factories import make_client
 
@@ -100,6 +102,32 @@ class WorkflowApiTests(APITestCase):
         step2 = ProcessStep.objects.get(process=self.process, step_number=2)
         self.assertIsNotNone(step2.end_date)  # auto-set on approval (§5.8)
 
+    def test_step_2_completes_on_its_single_institute(self):
+        """Step 2 demanded two institutes when only one exists, so it could never complete (UC-040)."""
+        self.assertEqual(codes_for_step(2), ["INST_S2_A"])
+        entry = self.client.post(
+            reverse("institute-entry-list"),
+            {"process": self.process.id, "step_number": 2, "institute_code": "INST_S2_A",
+             "assigned_lawyer": self.lawyer.id, "approval_status": "approved"},
+            format="json",
+        )
+        self._upload(2, "InstituteDoc", entry=entry.data["id"])
+        step2 = ProcessStep.objects.get(process=self.process, step_number=2)
+        self.client.patch(
+            reverse("process-steps", args=[self.process.id, 2]),
+            {"start_date": "2026-07-01", "version": step2.version}, format="json",
+        )
+        step2.refresh_from_db()
+        self.assertEqual(step2.status, ProcessStep.Status.COMPLETE)
+
+    def test_the_retired_step_2_code_is_refused(self):
+        resp = self.client.post(
+            reverse("institute-entry-list"),
+            {"process": self.process.id, "step_number": 2, "institute_code": "INST_S2_B"},
+            format="json",
+        )
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+
     def test_step4_completes_on_institutes_plus_the_land_id_and_real_estate_paper(self):
         for code in ("INST_S4_A", "INST_S4_B"):
             e = self.client.post(
@@ -148,7 +176,7 @@ class WorkflowApiTests(APITestCase):
         # …then triple the rows it has to walk. A prefetched read stays flat; an N+1 grows.
         for doc_type in ("RealEstate", "SignedAgreement"):
             self._upload(1, doc_type)
-        add(2, "INST_S2_B", "InstituteDoc")
+        add(3, "INST_S3_A", "InstituteDoc")
         add(4, "INST_S4_A", "InstituteDoc")
         add(4, "INST_S4_B", "InstituteDoc")
 
