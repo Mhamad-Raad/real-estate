@@ -539,17 +539,13 @@ erDiagram
 
 ### 3.4 The shared institute enum (single source of truth)
 
-The Step 2–4 institutes are **defined once in Python** and consumed by both sides — the backend validates `institute_code` against it, and the frontend fetches it read-only (see §4). Names are placeholders per the spec.
+The Step 2–4 institutes are **defined once in Python** and consumed by both sides — the backend validates `institute_code` against it, and the frontend fetches it read-only (see §4).
 
 ```python
 # catalog/institutes.py — the ONE definition
-class InstituteStep(models.IntegerChoices):
-    STEP_2 = 2; STEP_3 = 3; STEP_4 = 4
-
 INSTITUTES = [
     # code,           display_key (i18n),   step
-    ("INST_S2_A",     "institute.s2_a",     2),
-    ("INST_S2_B",     "institute.s2_b",     2),
+    ("INST_S2_A",     "institute.s2_a",     2),   # Step 2 = ONE institute
     ("INST_S3_A",     "institute.s3_a",     3),
     ("INST_S3_B",     "institute.s3_b",     3),
     ("INST_S3_C",     "institute.s3_c",     3),   # Step 3 = three fixed institutes
@@ -557,6 +553,30 @@ INSTITUTES = [
     ("INST_S4_B",     "institute.s4_b",     4),   # Step 4 = two fixed institutes
 ]
 ```
+
+**The real bodies these codes stand for** (supplied and confirmed by the business, 2026-08-03 — UC-046).
+The codes themselves are deliberately opaque and permanent: they are stored on every
+`ProcessInstituteEntry` row, so a body being renamed must never be a data migration.
+
+| Code | Kurdish (ckb) | English |
+|---|---|---|
+| `INST_S2_A` | سەرۆکایەتیی شارەوانیی سلێمانی | Slemani Municipality Presidency |
+| `INST_S3_A` | بەڕێوەبەرایەتیی تۆماری خانووبەرە ١ | Real Estate Registration Directorate 1 |
+| `INST_S3_B` | بەڕێوەبەرایەتیی تۆماری خانووبەرە ٢ | Real Estate Registration Directorate 2 |
+| `INST_S3_C` | بەڕێوەبەرایەتیی گشتیی شارەوانییەکان | General Directorate of Municipalities |
+| `INST_S4_A` | لایەنی پەیوەندیدار | The relevant authority |
+| `INST_S4_B` | *(still a placeholder — see below)* | Institute S4-B |
+
+> **Deviation (2026-08-03, the business's review — UC-040, UC-046).** **Step 2 has exactly one
+> institute, not two.** `INST_S2_B` never existed as a real body, and because
+> `_missing_fixed_institutes` required *every* code for the step, **Step 2 could never complete** —
+> the same class of defect as Step 1's in §3.6. The code is removed from the enum and the
+> `ProcessInstituteEntry` rows that referenced it are **soft-deleted** by `processes/0008`, not
+> hard-deleted (§11.1), then step 2 is re-derived for every case.
+>
+> **`INST_S4_B` is deliberately left untouched.** The business named every other institute and did
+> not mention it, and "unmentioned" is not "delete" — removing a Step-4 body on an inference would
+> silently drop real rows. It keeps its placeholder label until they say what it is.
 
 The frontend never hard-codes this list — it reads `GET /api/institutes/`. Institute **display names** are i18n keys, not literals, so Sorani/Arabic/English labels come from the translation files while the stable machine `code` lives in the DB. `ProcessInstituteEntry.institute_code` stores the enum code for fixed institutes; `is_custom=True` + `custom_name` covers Step 3's out-of-city rows (which have no enum code).
 
