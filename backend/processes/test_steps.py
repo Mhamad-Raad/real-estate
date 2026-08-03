@@ -100,7 +100,7 @@ class WorkflowApiTests(APITestCase):
         step2 = ProcessStep.objects.get(process=self.process, step_number=2)
         self.assertIsNotNone(step2.end_date)  # auto-set on approval (§5.8)
 
-    def test_step4_completes_when_both_institutes_have_doc_and_lawyer(self):
+    def test_step4_completes_on_institutes_plus_the_land_id_and_real_estate_paper(self):
         for code in ("INST_S4_A", "INST_S4_B"):
             e = self.client.post(
                 reverse("institute-entry-list"),
@@ -110,6 +110,18 @@ class WorkflowApiTests(APITestCase):
             )
             self._upload(4, "InstituteDoc", entry=e.data["id"])
         step4 = ProcessStep.objects.get(process=self.process, step_number=4)
+        # The institutes alone are no longer enough — the land number and the paper they produce
+        # are Step-4 requirements now (UC-037, UC-041).
+        self.assertEqual(step4.status, ProcessStep.Status.IN_PROGRESS)
+
+        self.process.refresh_from_db()
+        self.client.patch(
+            reverse("process-detail", args=[self.process.id]),
+            {"land_id": "PLOT-1", "version": self.process.version},
+            format="json",
+        )
+        self._upload(4, "RealEstate")
+        step4.refresh_from_db()
         self.assertEqual(step4.status, ProcessStep.Status.COMPLETE)
 
     def test_detail_query_count_does_not_grow_with_the_case(self):
@@ -149,20 +161,19 @@ class WorkflowApiTests(APITestCase):
         )
 
     def test_editing_the_header_re_derives_step_1_status(self):
-        # Step 1 completes on header fields + the three client papers…
-        self.process.land_id = "PLOT-1"
-        self.process.save(update_fields=["land_id"])
-        for doc_type in ("ClientID", "RealEstate", "SignedAgreement"):
+        # Step 1 completes on the category + the client papers. `land_id` and the real-estate
+        # paper are NOT among them — they belong to Step 4 now (UC-037, UC-041).
+        for doc_type in ("ClientID", "SignedAgreement"):
             self._upload(1, doc_type)
         step1 = ProcessStep.objects.get(process=self.process, step_number=1)
         self.assertEqual(step1.status, ProcessStep.Status.COMPLETE)
 
-        # …so clearing land_id through the header PATCH must un-complete it, not leave a stale
-        # green badge contradicting the step's own `missing` list.
+        # …so clearing the category through the header PATCH must un-complete it, not leave a
+        # stale green badge contradicting the step's own `missing` list.
         self.process.refresh_from_db()
         resp = self.client.patch(
             reverse("process-detail", args=[self.process.id]),
-            {"land_id": "", "version": self.process.version},
+            {"category": None, "version": self.process.version},
             format="json",
         )
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
@@ -170,14 +181,56 @@ class WorkflowApiTests(APITestCase):
         self.assertEqual(step1.status, ProcessStep.Status.IN_PROGRESS)
         detail = self.client.get(reverse("process-detail", args=[self.process.id]))
         missing = [s["missing"] for s in detail.data["steps"] if s["step_number"] == 1][0]
+        self.assertIn("category", missing)
+
+    def test_step_1_completes_without_a_land_id_or_a_real_estate_paper(self):
+        """The office does not hold either when a case opens — demanding them blocked every case."""
+        for doc_type in ("ClientID", "SignedAgreement"):
+            self._upload(1, doc_type)
+        step1 = ProcessStep.objects.get(process=self.process, step_number=1)
+        self.assertEqual(step1.status, ProcessStep.Status.COMPLETE)
+        self.assertEqual(self.process.land_id, "")
+        missing = missing_requirements(self.process, 1, step1)
+        self.assertNotIn("land_id", missing)
+        self.assertNotIn("doc:RealEstate", missing)
+
+    def test_step_4_now_owns_the_land_id_and_the_real_estate_paper(self):
+        step4 = ProcessStep.objects.get(process=self.process, step_number=4)
+        missing = missing_requirements(self.process, 4, step4)
         self.assertIn("land_id", missing)
+        self.assertIn("doc:RealEstate", missing)
+
+        self.process.land_id = "PLOT-1"
+        self.process.save(update_fields=["land_id"])
+        self._upload(4, "RealEstate")
+        self.process.refresh_from_db()
+        missing = missing_requirements(self.process, 4, step4)
+        self.assertNotIn("land_id", missing)
+        self.assertNotIn("doc:RealEstate", missing)
+        # The institutes are still required — the new rules add to Step 4, they do not replace it.
+        self.assertIn("institute:INST_S4_A", missing)
+
+    def test_clearing_the_land_id_re_derives_step_4_not_step_1(self):
+        """The header PATCH must recompute Step 4 too, or its badge goes stale (UC-041)."""
+        self.process.land_id = "PLOT-1"
+        self.process.save(update_fields=["land_id"])
+        self.process.refresh_from_db()
+        resp = self.client.patch(
+            reverse("process-detail", args=[self.process.id]),
+            {"land_id": "", "version": self.process.version},
+            format="json",
+        )
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        detail = self.client.get(reverse("process-detail", args=[self.process.id]))
+        missing = {s["step_number"]: s["missing"] for s in detail.data["steps"]}
+        self.assertIn("land_id", missing[4])
+        self.assertNotIn("land_id", missing[1])
 
     def test_override_re_derives_step_1_status(self):
         # A fired duplicate warning blocks Step 1; clearing it can be the last missing piece.
-        self.process.land_id = "PLOT-1"
         self.process.duplicate_flagged = True
-        self.process.save(update_fields=["land_id", "duplicate_flagged"])
-        for doc_type in ("ClientID", "RealEstate", "SignedAgreement"):
+        self.process.save(update_fields=["duplicate_flagged"])
+        for doc_type in ("ClientID", "SignedAgreement"):
             self._upload(1, doc_type)
         step1 = ProcessStep.objects.get(process=self.process, step_number=1)
         self.assertNotEqual(step1.status, ProcessStep.Status.COMPLETE)
@@ -278,10 +331,13 @@ class AdvanceStepTests(APITestCase):
     def test_detail_lists_what_each_step_still_needs(self):
         resp = self.client.get(reverse("process-detail", args=[self.process.id]))
         missing = {s["step_number"]: s["missing"] for s in resp.data["steps"]}
-        # Category and land_id come from the header; the three client papers are not uploaded yet.
-        self.assertIn("land_id", missing[1])
+        # The category comes from the header; the client papers are not uploaded yet. `land_id`
+        # and the real-estate paper now belong to Step 4 (UC-037, UC-041).
+        self.assertNotIn("land_id", missing[1])
         self.assertNotIn("category", missing[1])
         self.assertIn("doc:ClientID", missing[1])
+        self.assertIn("land_id", missing[4])
+        self.assertIn("doc:RealEstate", missing[4])
         self.assertIn("start_date", missing[2])
         self.assertIn("institute:INST_S4_A", missing[4])
 
@@ -329,10 +385,8 @@ class ClientChangeRecomputesStepTests(APITestCase):
             client=self.client_row, assigned_lawyer=self.lawyer, actor=self.lawyer,
             category=self.category,
         )
-        self.process.land_id = "L-1"
-        self.process.save(update_fields=["land_id"])
         self.client.force_authenticate(self.lawyer)
-        for doc_type in ("ClientID", "RealEstate", "SignedAgreement"):
+        for doc_type in ("ClientID", "SignedAgreement"):
             self.client.post(
                 reverse("document-list"),
                 {

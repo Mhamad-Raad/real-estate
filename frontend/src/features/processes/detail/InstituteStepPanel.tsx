@@ -14,6 +14,8 @@ import { apiErrorMessage } from "@/lib/apiError";
 import { useCreateEntryMutation, useSaveStepMutation } from "../processesApi";
 import type { ProcessDetail } from "../types";
 import { InstituteEntryCard } from "./InstituteEntryCard";
+import { LandDetailsForm } from "./LandDetailsForm";
+import { StepDocumentSlots } from "./StepDocumentSlots";
 
 // Steps 2–4: fixed institutes from the shared enum, plus Step-3 out-of-city custom rows (§5.1, §5.6).
 export function InstituteStepPanel({
@@ -132,6 +134,21 @@ export function InstituteStepPanel({
           </div>
         );
       })}
+
+      {/* Step 4 is the only institute step that also owns a field and a document: the registration
+          institutes are what produce the land number and the real-estate paper (UC-037, UC-041). */}
+      {step === 4 && (
+        <div className="space-y-4 rounded-lg bg-muted/40 p-3">
+          <LandDetailsForm
+            process={process}
+            canEdit={canEdit}
+            idPrefix="s4"
+            fields={["land_id"]}
+            landIdRequired
+          />
+          <StepDocumentSlots process={process} step={4} canEdit={canEdit} />
+        </div>
+      )}
 
       {step === 3 && (
         <div className="space-y-3 rounded-lg bg-muted/40 p-3">

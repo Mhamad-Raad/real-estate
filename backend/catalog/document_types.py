@@ -34,7 +34,9 @@ IDENTITY_TYPE_CODES = (CLIENT_ID, SPOUSE_ID)
 DOCUMENT_TYPES: list[DocumentType] = [
     DocumentType(CLIENT_ID, "workflow.docType.ClientID", 1, True),
     DocumentType(SPOUSE_ID, "workflow.docType.SpouseID", 1, True, only_when_married=True),
-    DocumentType("RealEstate", "workflow.docType.RealEstate", 1, True),
+    # Produced by the Step-4 registration institutes, so it cannot be demanded when a case opens
+    # (UC-037). Step 4 is the first institute step that also carries a named-document requirement.
+    DocumentType("RealEstate", "workflow.docType.RealEstate", 4, True),
     DocumentType("SignedAgreement", "workflow.docType.SignedAgreement", 1, True),
     DocumentType(
         "EligibilityLetter", "workflow.docType.EligibilityLetter", 1, False, generated=True

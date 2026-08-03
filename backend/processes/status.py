@@ -59,8 +59,8 @@ def missing_requirements(process, step_number, step_row) -> list[str]:
     """
     if step_number == 1:
         missing = []
-        if not process.land_id:
-            missing.append("land_id")
+        # `land_id` is offered here but required in Step 4 — the office does not know the land
+        # number when the case opens; the registration institutes produce it (UC-041).
         if not process.category_id:
             missing.append("category")
         if process.duplicate_flagged:
@@ -84,7 +84,12 @@ def missing_requirements(process, step_number, step_row) -> list[str]:
                 missing.append("custom_entries")
         return missing
     if step_number == 4:
-        return _missing_fixed_institutes(process, 4)
+        # The only institute step that also owns field + document requirements: the land number
+        # and the real-estate paper are both outputs of these institutes (UC-037, UC-041).
+        missing = [] if process.land_id else ["land_id"]
+        present = _present_doc_types(process, 4)
+        missing += [f"doc:{doc}" for doc in required_codes_for_step(4) if doc not in present]
+        return missing + _missing_fixed_institutes(process, 4)
     if step_number == 5:
         prior = sorted(
             (s for s in process.steps.all() if s.step_number < 5), key=lambda s: s.step_number

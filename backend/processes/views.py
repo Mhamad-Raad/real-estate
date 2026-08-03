@@ -85,9 +85,10 @@ class ProcessViewSet(AuditedSoftDeleteViewSet, ModelViewSet):
 
     def perform_update(self, serializer):
         super().perform_update(serializer)
-        # Step 1's requirements include header fields (land_id, category) edited through here, so
-        # its stored status would otherwise go stale against the live requirement list (§3.6).
+        # Both steps read header fields edited through here — Step 1 the category, Step 4 the
+        # `land_id` (UC-041) — so both would otherwise go stale against the live rules (§3.6).
         recompute_step(serializer.instance, 1)
+        recompute_step(serializer.instance, 4)
         # The category is the top-level folder of the document store, so changing it moves every
         # file this case owns (§6.7).
         refile_client_documents(
