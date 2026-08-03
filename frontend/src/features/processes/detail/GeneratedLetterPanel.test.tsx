@@ -50,22 +50,23 @@ function renderPanel(props: Partial<Parameters<typeof GeneratedLetterPanel>[0]> 
       documents={[]}
       generatedTypes={[LETTER_TYPE]}
       canGenerate
-      stepComplete
+      hasNames
       {...props}
     />,
   );
 }
 
 describe("GeneratedLetterPanel", () => {
-  it("will not generate until Step 1 is complete", () => {
-    // Generation is a result of finishing Step 1, never a requirement of it.
-    renderPanel({ stepComplete: false });
+  it("will not generate before the beneficiary has a name", () => {
+    // The letter renders names; without them it would print an empty form (UC-038).
+    renderPanel({ hasNames: false });
 
     expect(screen.getByRole("button", { name: /generate document/i })).toBeDisabled();
-    expect(screen.getByText(/finish step 1/i)).toBeInTheDocument();
   });
 
-  it("offers generation once the step has nothing missing", () => {
+  it("offers generation on the names alone, with the rest of Step 1 unfinished", () => {
+    // The regression this pins: the button used to wait for the whole step, and Step 1 could not
+    // be completed at all until UC-037/UC-041 moved land_id and the real-estate paper to Step 4.
     renderPanel();
 
     expect(screen.getByRole("button", { name: /generate document/i })).toBeEnabled();

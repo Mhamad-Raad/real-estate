@@ -9,20 +9,20 @@ import { newestFirst } from "@/features/documents/documentOrder";
 
 import { GeneratedDocumentPanel } from "./GeneratedDocumentPanel";
 
-// The letter the system produces for Step 1 (§6.6). Generating is a *result* of finishing Step 1,
-// never a requirement of it — so the button unlocks once the step has nothing missing.
+// The letter the system produces for Step 1 (§6.6). Generation was never gated server-side; the
+// button now unlocks on the names alone, which is all the letter renders (UC-038).
 export function GeneratedLetterPanel({
   processId,
   documents,
   generatedTypes,
   canGenerate,
-  stepComplete,
+  hasNames,
 }: {
   processId: number;
   documents: DocumentMeta[];
   generatedTypes: DocumentType[];
   canGenerate: boolean;
-  stepComplete: boolean;
+  hasNames: boolean;
 }) {
   const { t } = useTranslation();
   const [generate, { isLoading }] = useGenerateEligibilityMutation();
@@ -37,7 +37,7 @@ export function GeneratedLetterPanel({
       icon={FileSignature}
       title={t("workflow.generatedSection")}
       canGenerate={canGenerate}
-      unlocked={stepComplete}
+      unlocked={hasNames}
       starting={isLoading}
       onStart={() => generate({ process: processId }).unwrap()}
       labels={{
