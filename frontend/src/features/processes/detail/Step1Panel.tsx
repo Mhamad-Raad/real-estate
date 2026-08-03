@@ -31,7 +31,7 @@ export function Step1Panel({
   canEdit: boolean;
 }) {
   const { t } = useTranslation();
-  const { data: categories } = useListCategoriesQuery({});
+  const { data: categories } = useListCategoriesQuery();
   const { data: documentTypes } = useListDocumentTypesQuery();
   const [update, { isLoading }] = useUpdateProcessMutation();
   const docs = process.documents.filter((d) => d.step_number === 1);
@@ -104,7 +104,7 @@ export function Step1Panel({
             onChange={(e) => setCategory(e.target.value)}
           >
             <option value="">{t("common.none")}</option>
-            {(categories?.results ?? []).map((c) => (
+            {(categories ?? []).map((c) => (
               <option key={c.id} value={c.id}>
                 {c.code} — {c.name}
               </option>

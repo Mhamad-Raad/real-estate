@@ -24,7 +24,7 @@ export function ClientFields({
   showCategory?: boolean;
 }) {
   const { t } = useTranslation();
-  const { data: categories } = useListCategoriesQuery({}, { skip: !showCategory });
+  const { data: categories } = useListCategoriesQuery(undefined, { skip: !showCategory });
 
   const set = (key: keyof ClientInput) => (e: { target: { value: string } }) =>
     onChange({ ...form, [key]: e.target.value });
@@ -130,7 +130,7 @@ export function ClientFields({
             }
           >
             <option value="">{t("common.none")}</option>
-            {(categories?.results ?? []).map((c) => (
+            {(categories ?? []).map((c) => (
               <option key={c.id} value={c.id}>
                 {c.code} — {c.name}
               </option>

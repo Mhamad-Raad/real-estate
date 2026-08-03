@@ -1,12 +1,12 @@
 import { baseApi } from "@/services/baseApi";
-import type { Paginated } from "@/services/types";
 
 import type { Category, CategoryInput } from "./types";
 
 export const categoriesApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
-    listCategories: builder.query<Paginated<Category>, { page?: number }>({
-      query: (params) => ({ url: "categories/", params }),
+    // Unpaginated on purpose — every consumer is a dropdown that needs the whole vocabulary.
+    listCategories: builder.query<Category[], void>({
+      query: () => "categories/",
       providesTags: ["Category"],
     }),
     createCategory: builder.mutation<Category, CategoryInput>({

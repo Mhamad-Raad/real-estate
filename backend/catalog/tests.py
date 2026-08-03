@@ -85,3 +85,32 @@ class CategoryDeleteProtectionTests(APITestCase):
                 action=ActivityLog.Action.DELETE,
             ).exists()
         )
+
+
+class CategoryListIsWholeTests(APITestCase):
+    """The category list fills five dropdowns, so it may never be truncated to a page (UC-036).
+
+    While it was paged, every picker in the app silently stopped at the 25th category and no UI
+    offered a way to reach the rest.
+    """
+
+    def setUp(self):
+        self.user = User.objects.create_user("cat_reader", password="pw12345678")
+        self.client.force_authenticate(self.user)
+
+    def test_every_category_is_returned_past_the_page_size(self):
+        Category.objects.bulk_create(
+            [Category(code=f"C{i:03d}", name=f"Category {i}") for i in range(30)]
+        )
+        resp = self.client.get(reverse("category-list"))
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        # A plain list, not a paginated envelope — no `count`/`next` to mistake for the whole set.
+        self.assertIsInstance(resp.data, list)
+        self.assertEqual(len(resp.data), 30)
+
+    def test_soft_deleted_categories_stay_out_of_the_list(self):
+        Category.objects.create(code="LIVE", name="Live")
+        Category.objects.create(code="GONE", name="Gone", is_deleted=True)
+        codes = [row["code"] for row in self.client.get(reverse("category-list")).data]
+        self.assertIn("LIVE", codes)
+        self.assertNotIn("GONE", codes)

@@ -15,7 +15,7 @@ vi.mock("@/features/clients/clientsApi", () => ({
 // The panel renders the shared `ClientFields`, which calls this hook even when the category select
 // is hidden — an RTK Query hook still needs a store when it is skipped.
 vi.mock("@/features/categories/categoriesApi", () => ({
-  useListCategoriesQuery: () => ({ data: { results: [] } }),
+  useListCategoriesQuery: () => ({ data: [] }),
 }));
 vi.mock("@/components/ui/toaster", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
