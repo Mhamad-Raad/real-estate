@@ -201,7 +201,7 @@
         "mother_name": "Similar mother's name (sibling)"
       }
     },
-    "selectedCount": "{{count}} selected",
+    "selectedCount": "{{total}} selected",
     "selectAll": "Select all",
     "selectRow": "Select allocation",
     "pickLawyer": "Choose the responsible lawyer first.",
@@ -356,7 +356,7 @@
     "previewTitle": "Letter preview (sample data)",
     "previewHint": "Rendered with sample values, not a real beneficiary.",
     "readOnlyNote": "Templates are installed from the codebase and cannot be changed here.",
-    "showRetired": "Show previous versions ({{count}})",
+    "showRetired": "Show previous versions ({{total}})",
     "hideRetired": "Hide previous versions"
   },
   "reports": {

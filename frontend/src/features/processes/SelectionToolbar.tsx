@@ -8,6 +8,7 @@ import { toast } from "@/components/ui/toaster";
 import { downloadDocument, downloadGenerationJob } from "@/features/documents/download";
 import { useGenerateProcessListMutation } from "@/features/documents/generationApi";
 import { useGenerationRun } from "@/features/documents/useGenerationRun";
+import { useNum } from "@/hooks/useNum";
 import { apiErrorMessage } from "@/lib/apiError";
 
 // The letter for the rows ticked on the Processes page (§6.8, UC-016). **One** row produces that
@@ -21,6 +22,7 @@ export function SelectionToolbar({
   onClear: () => void;
 }) {
   const { t } = useTranslation();
+  const num = useNum();
   const token = useAppSelector((s) => s.auth.access);
   const [generate, { isLoading: starting }] = useGenerateProcessListMutation();
   const { start, busy: running } = useGenerationRun((job) => {
@@ -50,7 +52,7 @@ export function SelectionToolbar({
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border bg-muted/40 px-3 py-2">
-      <span className="text-sm">{t("processes.selectedCount", { count: selected.length })}</span>
+      <span className="text-sm">{t("processes.selectedCount", { total: num(selected.length) })}</span>
       <div className="flex items-center gap-2">
         <Button variant="outline" size="sm" onClick={onClear} disabled={busy}>
           {t("common.cancel")}

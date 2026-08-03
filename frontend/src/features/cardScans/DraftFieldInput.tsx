@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useNum } from "@/hooks/useNum";
 import { cn } from "@/lib/utils";
 
 import type { DraftField } from "./types";
@@ -70,6 +71,7 @@ export function DraftFieldInput({
 
 function SourceMark({ draft, corrected }: { draft: DraftField; corrected: boolean }) {
   const { t } = useTranslation();
+  const num = useNum();
 
   if (corrected) {
     return (
@@ -91,7 +93,7 @@ function SourceMark({ draft, corrected }: { draft: DraftField; corrected: boolea
   return (
     <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
       <AlertTriangle className="size-3.5" />
-      {t("cardScan.fromOcr", { confidence: draft.confidence })}
+      {t("cardScan.fromOcr", { confidence: num(draft.confidence) })}
     </span>
   );
 }

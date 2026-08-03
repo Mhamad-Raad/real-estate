@@ -17,7 +17,8 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAppSelector } from "@/app/hooks";
 import { Skeleton } from "@/components/ui/skeleton";
-import { formatDate, formatNumber } from "@/lib/format";
+import { useNum } from "@/hooks/useNum";
+import { formatDate } from "@/lib/format";
 
 import { useGetDashboardQuery } from "./dashboardApi";
 import { StatCard } from "./StatCard";
@@ -37,7 +38,7 @@ export function DashboardPage() {
 
   const name =
     [user?.first_name, user?.last_name].filter(Boolean).join(" ") || user?.username || "";
-  const num = (n: number) => formatNumber(n, i18n.language);
+  const num = useNum();
   // Recharts hands the formatter a loose ValueType; only numbers reach these charts.
   const tooltipNumber = (value: unknown) => num(Number(value ?? 0));
 

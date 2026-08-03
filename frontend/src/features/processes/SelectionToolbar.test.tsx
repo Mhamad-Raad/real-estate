@@ -36,7 +36,8 @@ describe("SelectionToolbar", () => {
   it("shows how many rows the letter will cover", () => {
     render(<SelectionToolbar selected={[1, 2, 3]} onClear={vi.fn()} />);
 
-    expect(screen.getByText("3 selected")).toBeInTheDocument();
+    // The tally is locale-formatted (UC-034), so it carries bidi isolates around the digit.
+    expect(screen.getByText(/3.?\s*selected/)).toBeInTheDocument();
   });
 
   it("sends exactly the selected ids to the server", async () => {

@@ -8,6 +8,8 @@ import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/features/common/PageHeader";
 import { Skeleton } from "@/components/ui/skeleton";
 
+import { useNum } from "@/hooks/useNum";
+
 import { TemplatePreviewDialog } from "./TemplatePreviewDialog";
 import { useListTemplateTypesQuery, useListTemplatesQuery } from "./templatesApi";
 import type { DocumentTemplate } from "./types";
@@ -20,6 +22,7 @@ const kb = (bytes: number) => `${Math.max(1, Math.round(bytes / 1024))} KB`;
 // dozen of them inline buried the two rows that matter (UC-009).
 export function TemplatesPage() {
   const { t } = useTranslation();
+  const num = useNum();
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [previewing, setPreviewing] = useState<DocumentTemplate | null>(null);
 
@@ -113,7 +116,7 @@ export function TemplatesPage() {
                   )}
                   {expanded[code]
                     ? t("templates.hideRetired")
-                    : t("templates.showRetired", { count: retired.length })}
+                    : t("templates.showRetired", { total: num(retired.length) })}
                 </button>
                 {expanded[code] && (
                   <ul className="mt-2 space-y-1">

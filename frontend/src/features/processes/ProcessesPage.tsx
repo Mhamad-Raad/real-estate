@@ -26,6 +26,7 @@ import { SelectionToolbar } from "./SelectionToolbar";
 import { Pagination } from "@/features/common/Pagination";
 import { TableStateRows } from "@/features/common/TableStateRows";
 import { apiErrorMessage } from "@/lib/apiError";
+import { useNum } from "@/hooks/useNum";
 import { formatDate } from "@/lib/format";
 
 import { OverrideDialog } from "./OverrideDialog";
@@ -42,7 +43,8 @@ const STATUS_VARIANT: Record<OverallStatus, BadgeProps["variant"]> = {
 export function ProcessesPage() {
   const { t, i18n } = useTranslation();
   const isAdmin = useAppSelector((s) => s.auth.user?.is_admin ?? false);
-  const { data: categories } = useListCategoriesQuery({});
+  const num = useNum();
+  const { data: categories } = useListCategoriesQuery();
 
   // Seeded from the URL so a link can land here pre-filtered — the Clients page sends a national
   // ID this way (UC-026). Read once: after that the box owns its own value.
@@ -139,7 +141,7 @@ export function ProcessesPage() {
           onChange={(e) => setCategory(e.target.value ? Number(e.target.value) : "")}
         >
           <option value="">{t("processes.filters.allCategories")}</option>
-          {(categories?.results ?? []).map((c) => (
+          {(categories ?? []).map((c) => (
             <option key={c.id} value={c.id}>
               {c.code} — {c.name}
             </option>
@@ -163,7 +165,7 @@ export function ProcessesPage() {
           <option value="">{t("processes.filters.allSteps")}</option>
           {[1, 2, 3, 4, 5].map((n) => (
             <option key={n} value={n}>
-              {t("processes.stepShort", { n })}
+              {t("processes.stepShort", { n: num(n) })}
             </option>
           ))}
         </Select>
@@ -227,7 +229,7 @@ export function ProcessesPage() {
                   <TableCell>{process.client_pid}</TableCell>
                   <TableCell>
                     <Badge variant="neutral">
-                      {t("processes.stepShort", { n: process.current_step })}
+                      {t("processes.stepShort", { n: num(process.current_step) })}
                     </Badge>
                   </TableCell>
                   <TableCell>

@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { formatNumber } from "@/lib/format";
+import { useNum } from "@/hooks/useNum";
 import { cn } from "@/lib/utils";
 
 interface StatCardProps {
@@ -27,8 +27,8 @@ export function StatCard({
   tone = "default",
   previous,
 }: StatCardProps) {
-  const { t, i18n } = useTranslation();
-  const num = (n: number) => formatNumber(n, i18n.language);
+  const { t } = useTranslation();
+  const num = useNum();
 
   // "13 new cases" says nothing on its own; against the previous 30 days it says whether the
   // office is busier or quieter. Only rendered when the caller has a comparable earlier figure.

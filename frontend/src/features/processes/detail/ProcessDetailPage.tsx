@@ -11,6 +11,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { toast } from "@/components/ui/toaster";
 import { useMeQuery } from "@/features/auth/authApi";
 import { PageHeader } from "@/features/common/PageHeader";
+import { useNum } from "@/hooks/useNum";
 import { apiErrorMessage, apiErrorStatus } from "@/lib/apiError";
 
 import { useCreateProcessMutation, useGetProcessQuery } from "../processesApi";
@@ -39,6 +40,7 @@ export function ProcessDetailPage() {
   const { data: user } = useMeQuery();
   const { data: process, isLoading, isError } = useGetProcessQuery(processId);
   const navigate = useNavigate();
+  const num = useNum();
   const [createProcess, { isLoading: reapplying }] = useCreateProcessMutation();
 
   if (isLoading) {
@@ -106,7 +108,7 @@ export function ProcessDetailPage() {
               {t(`processes.status.${process.overall_status}`)}
             </Badge>
             <span className="text-sm text-muted-foreground">
-              {t("workflow.rollup", { done: summary.completed, total: summary.total })}
+              {t("workflow.rollup", { done: num(summary.completed), total: num(summary.total) })}
             </span>
           </div>
         }

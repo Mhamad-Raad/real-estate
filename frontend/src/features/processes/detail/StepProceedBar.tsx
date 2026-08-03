@@ -7,6 +7,7 @@ import { Dialog, DialogFooter } from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "@/components/ui/toaster";
 import { useListInstitutesQuery } from "@/features/institutes/institutesApi";
+import { useNum } from "@/hooks/useNum";
 import { apiErrorMessage } from "@/lib/apiError";
 
 import { useAdvanceStepMutation } from "../processesApi";
@@ -24,6 +25,7 @@ export function StepProceedBar({
   missing: string[];
 }) {
   const { t } = useTranslation();
+  const num = useNum();
   const [open, setOpen] = useState(false);
   const { data: institutes } = useListInstitutesQuery();
   const [advance, { isLoading }] = useAdvanceStepMutation();
@@ -45,7 +47,7 @@ export function StepProceedBar({
   const confirm = async () => {
     try {
       await advance({ id: process.id, version: process.version }).unwrap();
-      toast.success(t("workflow.proceeded", { n: step + 1 }));
+      toast.success(t("workflow.proceeded", { n: num(step + 1) }));
       setOpen(false);
     } catch (err) {
       toast.error(apiErrorMessage(err, t("common.saveError")));
@@ -56,7 +58,7 @@ export function StepProceedBar({
     <>
       <div className="mt-4 flex justify-end border-t border-border pt-4">
         <Button onClick={() => setOpen(true)}>
-          {t("workflow.proceedTo", { n: step + 1 })}
+          {t("workflow.proceedTo", { n: num(step + 1) })}
           <ArrowRight className="size-4 rtl:rotate-180" />
         </Button>
       </div>
@@ -64,14 +66,14 @@ export function StepProceedBar({
       <Dialog
         open={open}
         onClose={() => setOpen(false)}
-        title={t("workflow.proceedTitle", { n: step + 1 })}
+        title={t("workflow.proceedTitle", { n: num(step + 1) })}
         className="max-w-md"
       >
         {missing.length > 0 ? (
           <div className="space-y-3 text-sm">
             <div className="flex items-start gap-2 text-amber-700 dark:text-amber-400">
               <TriangleAlert className="mt-0.5 size-4 shrink-0" />
-              <span>{t("workflow.proceedIncomplete", { n: step })}</span>
+              <span>{t("workflow.proceedIncomplete", { n: num(step) })}</span>
             </div>
             <ul className="list-disc space-y-1 ps-6 text-muted-foreground">
               {missing.map((code) => (
@@ -82,7 +84,7 @@ export function StepProceedBar({
           </div>
         ) : (
           <p className="text-sm text-muted-foreground">
-            {t("workflow.proceedConfirm", { n: step + 1 })}
+            {t("workflow.proceedConfirm", { n: num(step + 1) })}
           </p>
         )}
 

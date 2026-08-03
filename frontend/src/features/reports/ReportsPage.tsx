@@ -23,13 +23,13 @@ import { TableStateRows } from "@/features/common/TableStateRows";
 import { downloadFile } from "@/features/documents/download";
 import { useDebounced } from "@/hooks/useDebounced";
 import { lastNDays } from "@/lib/dateRange";
-import { formatNumber } from "@/lib/format";
+import { useNum } from "@/hooks/useNum";
 
 import { reportCsvUrl, useGetProcessReportQuery, useGetUserReportQuery } from "./reportsApi";
 import type { ReportFilters } from "./types";
 
 export function ReportsPage() {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const token = useAppSelector((s) => s.auth.access);
   // Defaults to the same rolling window as the dashboard; category stays unset = all (UC-017).
   const [filters, setFilters] = useState<ReportFilters>(() => lastNDays());
@@ -38,9 +38,9 @@ export function ReportsPage() {
 
   const processReport = useGetProcessReportQuery(applied);
   const userReport = useGetUserReportQuery(applied);
-  const { data: categories } = useListCategoriesQuery({});
+  const { data: categories } = useListCategoriesQuery();
 
-  const num = (n: number) => formatNumber(n, i18n.language);
+  const num = useNum();
   const set = (key: keyof ReportFilters, value: string) =>
     setFilters((prev) => ({ ...prev, [key]: value }));
 
@@ -86,7 +86,7 @@ export function ReportsPage() {
               onChange={(e) => set("category", e.target.value)}
             >
               <option value="">{t("processes.filters.allCategories")}</option>
-              {(categories?.results ?? []).map((c) => (
+              {(categories ?? []).map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
                 </option>
