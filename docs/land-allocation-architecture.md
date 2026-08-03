@@ -572,11 +572,28 @@ The frontend never hard-codes this list — it reads `GET /api/institutes/`. Ins
 
 | Step | Required for "complete" |
 |------|-------------------------|
-| 1 | Client + land (`land_id`) + category + marital status set; client-ID, real-estate and signed-agreement docs present, **plus a spouse ID when the client is married**; duplicate check cleared/overridden. The generated letter is **output of** completing this step, not a requirement of it (§0, §6.6) |
+| 1 | Client + category + marital status set; client-ID and signed-agreement docs present, **plus a spouse ID when the client is married**; duplicate check cleared/overridden. The generated letter is **output of** completing this step, not a requirement of it (§0, §6.6) |
 | 2 | Every Step-2 institute entry has a document + assigned lawyer; start_date set; approval recorded (sets end_date) |
 | 3 | All three Step-3 institute entries complete; each out-of-city row (if flag on) has name + doc + lawyer; approved/rejected + date recorded |
-| 4 | Both Step-4 institute entries have a document + assigned lawyer |
+| 4 | Every Step-4 institute entry has a document + assigned lawyer; **`land_id` recorded; the real-estate document present** |
 | 5 | All prior steps complete (no missing files) unless admin-forced; final status recorded |
+
+> **Deviation (2026-08-03, the business's own review — UC-037, UC-041, UC-038).** Step 1 used to
+> demand two things the office does not possess when a case is opened: the **`land_id`** and the
+> **real-estate document**. Both are produced by the Step-4 registration institutes, so Step 1 could
+> never be completed honestly and every case sat blocked at the first step.
+>
+> Both moved to **Step 4**. `land_id` is **one field with one stored value** (`Process.land_id`) —
+> it is still *offered* in Step 1, because a lawyer who happens to know it should be able to record
+> it early, but it is only *required* in Step 4. The real-estate document likewise moved
+> (`catalog/document_types.py`, `step=4`), which made Step 4 the first institute-shaped step that
+> also carries a named-document requirement — `missing_requirements` handles both there now.
+>
+> **Consequence that made this urgent:** the eligibility letter's button was unlocked by
+> `stepComplete`, so a Step 1 that could never complete meant the letter could never be generated.
+> Per the business, generation now unlocks on **the names being present** (the beneficiary's, plus
+> the spouse's when married) — which is all the letter actually renders (§6.6, `row_for_process`).
+> The backend never gated generation at all; this was a frontend lock only.
 
 Status values: `not_started` (no data), `in_progress` (some data, some required items missing), `missing` (explicitly flagged outstanding files), `complete`. These drive the accordion badge colors (§5, §8).
 
