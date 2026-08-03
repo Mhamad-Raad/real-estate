@@ -5,6 +5,23 @@ from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 from .models import User
+from .selectors import assignable_lawyers
+
+
+class AssignableLawyerField(serializers.PrimaryKeyRelatedField):
+    """A lawyer a case may actually be given to — deactivated and soft-deleted users are refused.
+
+    `assigned_lawyer` is deliberately not editable afterwards (§7.2), so accepting someone who has
+    left would strand the case with an assignee who can never open it. The queryset is evaluated
+    per request because a user may be deactivated while a form sits open.
+    """
+
+    def __init__(self, **kwargs):
+        kwargs.setdefault("queryset", assignable_lawyers())
+        super().__init__(**kwargs)
+
+    def get_queryset(self):
+        return assignable_lawyers()
 
 
 class UserSerializer(serializers.ModelSerializer):

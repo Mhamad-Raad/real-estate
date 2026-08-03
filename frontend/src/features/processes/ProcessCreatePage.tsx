@@ -18,7 +18,7 @@ import { DuplicateWarningDialog } from "@/features/clients/DuplicateWarningDialo
 import { EMPTY_CLIENT, type ClientDraft } from "@/features/clients/clientForm";
 import { useCheckDuplicateMutation } from "@/features/clients/clientsApi";
 import type { DuplicateCheckResult } from "@/features/clients/types";
-import { useListUsersQuery } from "@/features/users/usersApi";
+import { useListLawyersQuery } from "@/features/users/lawyersApi";
 import { apiErrorMessage, apiErrorStatus } from "@/lib/apiError";
 
 import { useCreateProcessMutation } from "./processesApi";
@@ -43,8 +43,9 @@ export function ProcessCreatePage() {
 
   const [draft, setDraft] = useState<ClientDraft>(EMPTY_CLIENT);
 
-  const { data: categories } = useListCategoriesQuery({});
-  const { data: users } = useListUsersQuery({}, { skip: !isAdmin });
+  const { data: categories } = useListCategoriesQuery();
+  // `/lawyers/`, not the paginated `/users/`: that one stops at 25 and lists people who have left.
+  const { data: lawyers } = useListLawyersQuery(undefined, { skip: !isAdmin });
   const [create, { isLoading }] = useCreateProcessMutation();
   const [checkDuplicate] = useCheckDuplicateMutation();
 
@@ -141,7 +142,7 @@ export function ProcessCreatePage() {
         <Label htmlFor="i-category">{t("processes.category")}</Label>
         <Select id="i-category" value={category} onChange={(e) => setCategory(e.target.value)}>
           <option value="">{t("common.none")}</option>
-          {(categories?.results ?? []).map((c) => (
+          {(categories ?? []).map((c) => (
             <option key={c.id} value={c.id}>
               {c.code} — {c.name}
             </option>
@@ -153,9 +154,9 @@ export function ProcessCreatePage() {
           <Label htmlFor="i-lawyer">{t("processes.assignedLawyer")}</Label>
           <Select id="i-lawyer" value={lawyer} onChange={(e) => setLawyer(e.target.value)}>
             <option value="">{t("cardScan.selectLawyer")}</option>
-            {(users?.results ?? []).map((u) => (
-              <option key={u.id} value={u.id}>
-                {u.username}
+            {(lawyers ?? []).map((l) => (
+              <option key={l.id} value={l.id}>
+                {l.username}
               </option>
             ))}
           </Select>

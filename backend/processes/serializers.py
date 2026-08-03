@@ -1,5 +1,6 @@
 from rest_framework import serializers
 
+from accounts.serializers import AssignableLawyerField
 from catalog.institutes import INSTITUTE_CODES, STEP_FOR_CODE
 from clients.serializers import ClientSerializer
 
@@ -33,6 +34,8 @@ class ProcessStepSerializer(serializers.ModelSerializer):
 class InstituteEntrySerializer(serializers.ModelSerializer):
     """A Step 2–4 institute submission (§3.4, §5.1). Fixed institutes validate their code
     against the shared enum + step; custom (Step-3 out-of-city) rows require a name instead."""
+
+    assigned_lawyer = AssignableLawyerField(required=False, allow_null=True)
 
     class Meta:
         model = ProcessInstituteEntry
@@ -142,6 +145,7 @@ class ProcessCreateSerializer(serializers.ModelSerializer):
     # Creating the person here is the whole point of the intake form — reuse `ClientSerializer` so
     # the married-spouse rules and field validation cannot drift from the Clients API (§14.2).
     client_data = ClientSerializer(required=False, write_only=True)
+    assigned_lawyer = AssignableLawyerField(required=False, allow_null=True)
 
     class Meta:
         model = Process

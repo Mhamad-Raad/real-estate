@@ -19,6 +19,7 @@ from common.services import record_activity
 from common.viewsets import AuditedSoftDeleteViewSet
 
 from .models import User
+from .selectors import assignable_lawyers
 from .serializers import AdminUserSerializer, LoginSerializer, UserSerializer
 
 
@@ -90,12 +91,7 @@ class AssignableLawyersView(APIView):
     permission_classes = (IsAuthenticated,)
 
     def get(self, request):
-        users = (
-            User.objects.filter(is_deleted=False, is_active=True)
-            .order_by("username")
-            .values("id", "username")
-        )
-        return Response(list(users))
+        return Response(list(assignable_lawyers().values("id", "username")))
 
 
 class UserViewSet(AuditedSoftDeleteViewSet, ModelViewSet):
