@@ -39,7 +39,7 @@ export function SelectionToolbar({
     const download =
       job.kind === "eligibility" && job.document
         ? downloadDocument(job.document, `letter_${job.document}.pdf`, token)
-        : downloadGenerationJob(job.id, token);
+        : downloadGenerationJob(job.id, token, job.kind);
     download.then(onClear).catch(() => toast.error(t("workflow.downloadError")));
   });
 

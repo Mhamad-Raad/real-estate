@@ -97,26 +97,32 @@ def run_eligibility_job(job_id: int) -> None:
         raise
 
 
-def run_process_list_job(job_id: int) -> None:
-    """Generate the multi-beneficiary list letter as a standalone downloadable file."""
+def _run_bulk_job(job_id: int, *, build_context, stem: str) -> None:
+    """Render a multi-case document to a standalone downloadable file (§6.8).
+
+    Shared by the list letter and the code list: they differ only in which context the template is
+    filled from and what the output file is called. Everything else — re-reading the rows in the
+    order requested, the failure handling, where the file lands — is the same, and was duplicated
+    line for line until this was extracted.
+    """
     job = GenerationJob.objects.select_related("template").get(pk=job_id)
     job.status = GenerationJob.Status.RUNNING
     job.save(update_fields=["status", "updated_at"])
 
     try:
-        # Re-read the rows here, in the order requested, so the letter reflects the data as it is
-        # now rather than as it was when the button was pressed.
+        # Re-read the rows here, in the order requested, so the document reflects the data as it
+        # is now rather than as it was when the button was pressed.
         by_id = Process.objects.select_related("client").in_bulk(job.process_ids)
         processes = [by_id[pid] for pid in job.process_ids if pid in by_id]
         if not processes:
             raise RenderError("None of the selected allocations are available any more.")
 
         with tempfile.TemporaryDirectory(prefix="gen-") as work:
-            pdf = render_to_pdf(job.template, process_list_context(processes), Path(work))
+            pdf = render_to_pdf(job.template, build_context(processes), Path(work))
 
         destination = Path(settings.DOCUMENTS_ROOT) / GENERATED_LISTS_DIR
         destination.mkdir(parents=True, exist_ok=True)
-        out_file = destination / f"list_{job.id}.pdf"
+        out_file = destination / f"{stem}_{job.id}.pdf"
         out_file.write_bytes(pdf)
 
         job.output_path = f"{GENERATED_LISTS_DIR}/{out_file.name}"
@@ -125,35 +131,16 @@ def run_process_list_job(job_id: int) -> None:
     except Exception as exc:
         _fail(job, str(exc))
         raise
+
+
+def run_process_list_job(job_id: int) -> None:
+    """Generate the multi-beneficiary list letter as a standalone downloadable file."""
+    _run_bulk_job(job_id, build_context=process_list_context, stem="list")
 
 
 def run_process_codes_job(job_id: int) -> None:
     """Generate the code list (§6.8, UC-057) — the office's own form of number/name/code/land."""
-    job = GenerationJob.objects.select_related("template").get(pk=job_id)
-    job.status = GenerationJob.Status.RUNNING
-    job.save(update_fields=["status", "updated_at"])
-
-    try:
-        # Re-read in the order requested, so the form reflects the data as it is now.
-        by_id = Process.objects.select_related("client").in_bulk(job.process_ids)
-        processes = [by_id[pid] for pid in job.process_ids if pid in by_id]
-        if not processes:
-            raise RenderError("None of the selected allocations are available any more.")
-
-        with tempfile.TemporaryDirectory(prefix="gen-") as work:
-            pdf = render_to_pdf(job.template, process_codes_context(processes), Path(work))
-
-        destination = Path(settings.DOCUMENTS_ROOT) / GENERATED_LISTS_DIR
-        destination.mkdir(parents=True, exist_ok=True)
-        out_file = destination / f"codes_{job.id}.pdf"
-        out_file.write_bytes(pdf)
-
-        job.output_path = f"{GENERATED_LISTS_DIR}/{out_file.name}"
-        job.status = GenerationJob.Status.DONE
-        job.save(update_fields=["output_path", "status", "updated_at"])
-    except Exception as exc:
-        _fail(job, str(exc))
-        raise
+    _run_bulk_job(job_id, build_context=process_codes_context, stem="codes")
 
 
 def _template_or_400(template_type: str, template_id=None) -> DocumentTemplate:

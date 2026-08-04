@@ -18,9 +18,24 @@ export async function downloadDocument(id: number, filename: string, token: stri
   return downloadFile(`/api/v1/documents/${id}/file/`, filename, token);
 }
 
-/** A generated list letter is a job output, not a Document, so it has its own endpoint. */
-export async function downloadGenerationJob(id: number, token: string | null) {
-  return downloadFile(`/api/v1/generation-jobs/${id}/file/`, `list_${id}.pdf`, token);
+// Matches the stem the server gives the file on disk, so what the office opens is called what
+// the system calls it. Naming a code list `list_29.pdf` is the same complaint they raised about
+// the compiled case arriving as a blob id (UC-058).
+const JOB_FILE_STEM: Record<string, string> = {
+  process_list: "list",
+  process_codes: "codes",
+  compiled_case: "case",
+  eligibility: "letter",
+};
+
+/** A generated list is a job output, not a Document, so it has its own endpoint. */
+export async function downloadGenerationJob(
+  id: number,
+  token: string | null,
+  kind = "process_list",
+) {
+  const stem = JOB_FILE_STEM[kind] ?? "document";
+  return downloadFile(`/api/v1/generation-jobs/${id}/file/`, `${stem}_${id}.pdf`, token);
 }
 
 /** Blob URL for inline preview/print — the file needs the auth header, so it cannot be an <iframe src>. */

@@ -7,7 +7,10 @@ export type GenerationStatus = "pending" | "running" | "done" | "failed";
 
 export interface GenerationJob {
   id: number;
-  kind: "eligibility" | "process_list";
+  // Every kind the backend can produce (`GenerationJob.Kind`). Kept complete on purpose: this
+  // union fell behind once already, and a missing member makes the download-name switch below
+  // silently fall through to the wrong branch.
+  kind: "eligibility" | "process_list" | "compiled_case" | "process_codes";
   status: GenerationStatus;
   template: number;
   process: number | null;
