@@ -1,4 +1,4 @@
-import { Printer } from "lucide-react";
+import { Download, Printer } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "@/components/ui/toaster";
 
-import { fetchDocumentBlobUrl } from "./download";
+import { downloadDocument, fetchDocumentBlobUrl } from "./download";
 
 // Inline PDF preview + print. The bytes need an auth header, so they are fetched as a blob and
 // handed to the iframe as an object URL — a plain <iframe src> would come back 401.
@@ -49,16 +49,35 @@ export function DocumentPreview({
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-2">
         <p className="text-xs text-muted-foreground">{t("workflow.preview")}</p>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={!url}
-          onClick={() => frame.current?.contentWindow?.print()}
-        >
-          <Printer className="size-4" />
-          {t("workflow.print")}
-        </Button>
+        <div className="flex items-center gap-2">
+          {/* Without this the only download on the page is the PDF viewer's own, inside the
+              iframe — and that names the file after the blob URL, so a signed case file
+              arrives as `af85281c-….pdf` instead of the composed name (UC-058). */}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={!url}
+            onClick={() =>
+              downloadDocument(documentId, title, token).catch(() =>
+                toast.error(t("workflow.downloadError")),
+              )
+            }
+          >
+            <Download className="size-4" />
+            {t("common.download")}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={!url}
+            onClick={() => frame.current?.contentWindow?.print()}
+          >
+            <Printer className="size-4" />
+            {t("workflow.print")}
+          </Button>
+        </div>
       </div>
 
       {url ? (
