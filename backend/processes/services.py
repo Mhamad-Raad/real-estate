@@ -128,8 +128,11 @@ def intake_process(
         process.land_id = land_id
         process.land_address = land_address
         process.save(update_fields=["land_id", "land_address", "updated_at"])
-        # The land fields are part of what Step 1 requires, so its stored status must catch up (§3.6).
+        # Both steps read these: Step 1 the address, Step 4 the `land_id` (UC-041). Recomputing
+        # only Step 1 leaves Step 4 stored under the pre-save inputs — harmless while `land_id`
+        # alone cannot change its status, but it is the same asymmetry the header PATCH had.
         recompute_step(process, 1)
+        recompute_step(process, 4)
     return process
 
 
