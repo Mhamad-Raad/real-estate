@@ -32,6 +32,7 @@ const LETTER_TYPE: DocumentType = {
   required: false,
   only_when_married: false,
   generated: true,
+  expected_files: 1,
 };
 
 const doc = (over = {}) => ({

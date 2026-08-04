@@ -9,6 +9,7 @@ export interface DocumentType {
   required: boolean;
   only_when_married: boolean; // e.g. the spouse ID — no spouse, no slot
   generated: boolean; // produced by the system — shown as output, never an upload slot
+  expected_files: number; // how many the office files here; a hint only, never a completion rule
 }
 
 export const documentTypesApi = baseApi.injectEndpoints({

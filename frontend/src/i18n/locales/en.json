@@ -255,6 +255,7 @@
     "download": "Download",
     "downloadError": "Could not download the file.",
     "noFile": "No file yet",
+    "filesExpected": "{{have}} of {{want}} files",
     "assignedLawyer": "Assigned lawyer",
     "approval": "Approval",
     "approvalDate": "Approval date",
@@ -325,7 +326,7 @@
     "s3_b": "Real Estate Registration Directorate 2",
     "s3_c": "General Directorate of Municipalities",
     "s4_a": "The relevant authority",
-    "s4_b": "Institute S4-B"
+    "s4_b": "Land map"
   },
   "notFound": {
     "title": "Page not found",

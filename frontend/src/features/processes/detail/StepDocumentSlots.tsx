@@ -4,6 +4,7 @@ import { Label } from "@/components/ui/label";
 import { DocumentRow } from "@/features/documents/DocumentRow";
 import { DocumentUpload } from "@/features/documents/DocumentUpload";
 import { useListDocumentTypesQuery } from "@/features/documents/documentTypesApi";
+import { useNum } from "@/hooks/useNum";
 
 import type { ProcessDetail } from "../types";
 
@@ -22,6 +23,7 @@ export function StepDocumentSlots({
   canEdit: boolean;
 }) {
   const { t } = useTranslation();
+  const num = useNum();
   const { data: documentTypes } = useListDocumentTypesQuery();
   const docs = process.documents.filter((d) => d.step_number === step);
 
@@ -40,12 +42,24 @@ export function StepDocumentSlots({
               process.client_detail.is_married ||
               docs.some((d) => d.document_type === dt.code)),
         )
-        .map(({ code: type, display_key }) => {
+        .map(({ code: type, display_key, expected_files: expected }) => {
           const forType = docs.filter((d) => d.document_type === type);
           return (
             <div key={type} className="space-y-2">
               <div className="flex items-center justify-between gap-2">
-                <Label>{t(display_key)}</Label>
+                <Label>
+                  {t(display_key)}
+                  {/* Only where the office files more than one paper — it says how many are
+                      wanted and how many are in, without blocking the step (UC-055). */}
+                  {expected > 1 && (
+                    <span className="ms-2 text-xs font-normal text-muted-foreground">
+                      {t("workflow.filesExpected", {
+                        have: num(forType.length),
+                        want: num(expected),
+                      })}
+                    </span>
+                  )}
+                </Label>
                 {canEdit && (
                   <DocumentUpload
                     process={process.id}
