@@ -7,7 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/components/ui/toaster";
-import { useListInstitutesQuery } from "@/features/institutes/institutesApi";
+import { instituteLabel, useListInstitutesQuery } from "@/features/institutes/institutesApi";
 import { useListLawyersQuery } from "@/features/users/lawyersApi";
 import { apiErrorMessage } from "@/lib/apiError";
 
@@ -113,7 +113,7 @@ export function InstituteStepPanel({
               key={inst.code}
               process={process}
               entry={entry}
-              label={t(inst.display_key)}
+              label={instituteLabel(inst)}
               lawyers={lawyerList}
               canEdit={canEdit}
             />
@@ -124,7 +124,7 @@ export function InstituteStepPanel({
             key={inst.code}
             className="flex items-center justify-between rounded-lg border border-dashed border-border px-3 py-2.5 text-sm"
           >
-            <span className="text-muted-foreground">{t(inst.display_key)}</span>
+            <span className="text-muted-foreground">{instituteLabel(inst)}</span>
             {canEdit && (
               <Button type="button" variant="outline" size="sm" onClick={() => addFixed(inst.code)}>
                 <Plus className="size-4" />

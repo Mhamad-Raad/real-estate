@@ -99,9 +99,11 @@ export function ProcessDetailPage() {
         {t("workflow.backToList")}
       </Link>
 
+      {/* The page is titled for what it is, not for whose it is (UC-053) — the beneficiary moves
+          into the subtitle rather than being dropped, since it is how a lawyer recognises the case. */}
       <PageHeader
-        title={process.client_full_name}
-        description={`${t("clients.pid")}: ${process.client_pid}`}
+        title={t("processes.permitProcess")}
+        description={`${process.client_full_name} · ${t("clients.pid")}: ${process.client_pid}`}
         action={
           <div className="flex items-center gap-2">
             <Badge variant={OVERALL_VARIANT[process.overall_status]}>

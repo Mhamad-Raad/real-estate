@@ -38,9 +38,23 @@ INSTITUTE_NAMES_CKB: dict[str, str] = {
 }
 
 
+INSTITUTE_NAMES_EN: dict[str, str] = {
+    "INST_S2_A": "Slemani Municipality Presidency",
+    "INST_S3_A": "Real Estate Registration Directorate 1",
+    "INST_S3_B": "Real Estate Registration Directorate 2",
+    "INST_S3_C": "General Directorate of Municipalities",
+    "INST_S4_A": "The relevant authority",
+    "INST_S4_B": "Land map",
+}
+
+
 def name_ckb(code: str) -> str:
     """The Sorani name for a code, falling back to the code so a document never prints blank."""
     return INSTITUTE_NAMES_CKB.get(code, code or "")
+
+
+def name_en(code: str) -> str:
+    return INSTITUTE_NAMES_EN.get(code, code or "")
 
 
 def codes_for_step(step: int) -> list[str]:
@@ -48,4 +62,19 @@ def codes_for_step(step: int) -> list[str]:
 
 
 def institutes_as_dicts() -> list[dict]:
-    return [{"code": code, "display_key": key, "step": step} for code, key, step in INSTITUTES]
+    """Both names travel with every institute — the case screens print them together (UC-054).
+
+    The pair is the same whatever language the interface is in, so it is served once from here
+    rather than duplicated into all three translation files. `display_key` stays for anything that
+    still wants a single localised name.
+    """
+    return [
+        {
+            "code": code,
+            "display_key": key,
+            "step": step,
+            "name_ckb": name_ckb(code),
+            "name_en": name_en(code),
+        }
+        for code, key, step in INSTITUTES
+    ]

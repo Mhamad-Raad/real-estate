@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogFooter } from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "@/components/ui/toaster";
-import { useListInstitutesQuery } from "@/features/institutes/institutesApi";
+import { instituteLabel, useListInstitutesQuery } from "@/features/institutes/institutesApi";
 import { useNum } from "@/hooks/useNum";
 import { apiErrorMessage } from "@/lib/apiError";
 
@@ -38,7 +38,7 @@ export function StepProceedBar({
     const [kind, value] = code.split(":");
     if (kind === "institute") {
       const inst = institutes?.find((i) => i.code === value);
-      return inst ? t(inst.display_key) : value;
+      return inst ? instituteLabel(inst) : value;
     }
     if (kind === "doc") return t(`workflow.docType.${value}`, { defaultValue: value });
     return t(`workflow.missing.${code}`, { defaultValue: code });

@@ -578,6 +578,14 @@ The codes themselves are deliberately opaque and permanent: they are stored on e
 > not mention it, and "unmentioned" is not "delete" — removing a Step-4 body on an inference would
 > silently drop real rows. It keeps its placeholder label until they say what it is.
 
+`GET /api/v1/institutes/` also carries **`name_ckb` and `name_en`** for each code. The case screens
+print the two together — `<Kurdish> — <English>` (UC-054) — because the office deals with bodies
+known by their Kurdish name on paper and their English one in the ministry's own correspondence.
+That pair is identical in every interface language, so it is served with the institute rather than
+duplicated into all three translation files; `display_key` remains for anything wanting a single
+localised name. **The compiled cover sheet stays Kurdish-only** — its institute table has four
+columns and no room for both (§10.3).
+
 The frontend never hard-codes this list — it reads `GET /api/institutes/`. Institute **display names** are i18n keys, not literals, so Sorani/Arabic/English labels come from the translation files while the stable machine `code` lives in the DB. `ProcessInstituteEntry.institute_code` stores the enum code for fixed institutes; `is_custom=True` + `custom_name` covers Step 3's out-of-city rows (which have no enum code).
 
 **Document types work the same way.** `catalog/document_types.py` is the one definition of the controlled `Document.document_type` vocabulary — `(code, i18n key, step, required)` — exposed read-only at `GET /api/v1/document-types/`. `processes/status.py` derives Step 1's required papers from it and `Step1Panel` lays out its upload slots from it, so a step can never require a document the UI offers no slot for. The vocabulary is deliberately partial (Steps 2–4 use a generic `InstituteDoc`; generated types arrive with It.3 — see §0).

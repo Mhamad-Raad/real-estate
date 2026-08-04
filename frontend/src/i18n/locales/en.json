@@ -157,6 +157,7 @@
   },
   "processes": {
     "title": "Processes",
+    "permitProcess": "Permit process",
     "subtitle": "Land-allocation cases.",
     "add": "New allocation",
     "addSubtitle": "Create a case and its five workflow steps.",
@@ -483,7 +484,7 @@
     "tooLarge": "The scan is too large. Remove some pages and try again."
   },
   "intake": {
-    "title": "New allocation",
+    "title": "Permit process",
     "subtitle": "Create the beneficiary and open their case — nothing is saved until you submit.",
     "back": "Back to processes",
     "beneficiary": "Beneficiary",
