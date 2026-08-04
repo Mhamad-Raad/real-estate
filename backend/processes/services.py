@@ -107,8 +107,18 @@ def create_process(
                 duplicate_flagged=duplicate_flagged,
                 similar_name_flagged=similar_name_flagged,
             )
+            # Step 1 is never "proceeded into" — opening the case *is* starting it — so it takes
+            # its start date here; the rest are stamped by `advance_step` (UC-050).
+            today = timezone.now().date()
             ProcessStep.objects.bulk_create(
-                [ProcessStep(process=process, step_number=n) for n in STEP_NUMBERS]
+                [
+                    ProcessStep(
+                        process=process,
+                        step_number=n,
+                        start_date=today if n == 1 else None,
+                    )
+                    for n in STEP_NUMBERS
+                ]
             )
     except IntegrityError:  # lost the race against the other computer — same clean 409
         raise DuplicateAllocation()
@@ -322,6 +332,17 @@ def advance_step(*, process, actor, expected_version=None, request=None) -> Proc
     process.current_step = before + 1
     process.version += 1
     process.save(update_fields=["current_step", "version", "updated_at"])
+
+    # Proceeding into a step is the moment work on it starts, so that is when its start date is
+    # stamped (UC-050) — the office was typing it by hand, and only step 2 even offered the field,
+    # which is why the compiled cover sheet printed dates for step 2 alone (UC-058a).
+    # **Only when blank**: a date entered by hand is usually a correction (the papers actually went
+    # out last Tuesday), and overwriting it silently would discard that.
+    opened = process.steps.filter(step_number=process.current_step).first()
+    if opened is not None and opened.start_date is None:
+        opened.start_date = timezone.now().date()
+        opened.save(update_fields=["start_date", "updated_at"])
+
     record_activity(
         actor=actor,
         action=ActivityLog.Action.UPDATE,

@@ -73,30 +73,32 @@ export function InstituteStepPanel({
 
   return (
     <div className="space-y-4">
-      {step === 2 && (
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="space-y-1">
-            <Label className="text-xs">{t("workflow.startDate")}</Label>
-            <Input
-              type="date"
-              value={stepRow.start_date ?? ""}
-              disabled={!canEdit}
-              className="h-9"
-              onChange={(e) => saveStepField({ start_date: e.target.value || null })}
-            />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs">{t("workflow.endDate")}</Label>
-            <Input
-              type="date"
-              value={stepRow.end_date ?? ""}
-              disabled={!canEdit}
-              className="h-9"
-              onChange={(e) => saveStepField({ end_date: e.target.value || null })}
-            />
-          </div>
+      {/* Every institute step carries dates, not just step 2 (UC-050). The start is stamped when
+          the lawyer proceeds into the step and stays editable, since a date typed by hand is
+          usually a correction. Without these the compiled cover sheet had nothing to print for
+          steps 3 and 4 (UC-058a). */}
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="space-y-1">
+          <Label className="text-xs">{t("workflow.startDate")}</Label>
+          <Input
+            type="date"
+            value={stepRow.start_date ?? ""}
+            disabled={!canEdit}
+            className="h-9"
+            onChange={(e) => saveStepField({ start_date: e.target.value || null })}
+          />
         </div>
-      )}
+        <div className="space-y-1">
+          <Label className="text-xs">{t("workflow.endDate")}</Label>
+          <Input
+            type="date"
+            value={stepRow.end_date ?? ""}
+            disabled={!canEdit}
+            className="h-9"
+            onChange={(e) => saveStepField({ end_date: e.target.value || null })}
+          />
+        </div>
+      </div>
 
       {loadingVocabulary && (
         <div className="space-y-2">

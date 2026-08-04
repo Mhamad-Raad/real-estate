@@ -1,5 +1,7 @@
 """Per-step save, institute-entry validation, end-date auto-set, and Step-5 completion (§5)."""
 
+from datetime import date
+
 import tempfile
 from pathlib import Path
 
@@ -7,6 +9,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 
 from documents.factories import make_pdf
 from django.db import connection
+from django.utils import timezone
 from django.test import override_settings
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
@@ -462,3 +465,56 @@ class ClientChangeRecomputesStepTests(APITestCase):
 
         step1.refresh_from_db()
         self.assertEqual(step1.status, ProcessStep.Status.IN_PROGRESS)
+
+
+@override_settings(DOCUMENTS_ROOT=Path(tempfile.mkdtemp()))
+class StepStartDateTests(APITestCase):
+    """Proceeding into a step stamps its start date — the office was typing them (UC-050)."""
+
+    def setUp(self):
+        self.lawyer = User.objects.create_user("date_lw", password="pw12345678")
+        self.category = Category.objects.create(code="A", name="A")
+        self.process = create_process(
+            client=make_client(pid="197712120001", category=self.category),
+            assigned_lawyer=self.lawyer,
+            actor=self.lawyer,
+            category=self.category,
+        )
+        self.client.force_authenticate(self.lawyer)
+
+    def _proceed(self):
+        self.process.refresh_from_db()
+        return self.client.post(
+            reverse("process-advance-step", args=[self.process.id]),
+            {"version": self.process.version},
+            format="json",
+        )
+
+    def _step(self, n):
+        return ProcessStep.objects.get(process=self.process, step_number=n)
+
+    def test_step_1_is_started_when_the_case_is_opened(self):
+        """Step 1 is never proceeded *into* — opening the case is what starts it."""
+        self.assertIsNotNone(self._step(1).start_date)
+
+    def test_proceeding_stamps_the_step_it_opens(self):
+        self.assertIsNone(self._step(2).start_date)
+        self.assertEqual(self._proceed().status_code, status.HTTP_200_OK)
+        self.assertEqual(self._step(2).start_date, timezone.now().date())
+
+    def test_proceeding_does_not_overwrite_a_date_entered_by_hand(self):
+        """A typed date is usually a correction — the papers went out earlier than today."""
+        earlier = date(2026, 1, 5)
+        step2 = self._step(2)
+        step2.start_date = earlier
+        step2.save(update_fields=["start_date"])
+
+        self.assertEqual(self._proceed().status_code, status.HTTP_200_OK)
+        self.assertEqual(self._step(2).start_date, earlier)
+
+    def test_every_step_gets_a_start_date_as_the_case_walks_forward(self):
+        """Steps 3, 4 and 5 had no dates at all before this, so the cover sheet printed none."""
+        for _ in range(4):
+            self.assertEqual(self._proceed().status_code, status.HTTP_200_OK)
+        for n in (1, 2, 3, 4, 5):
+            self.assertIsNotNone(self._step(n).start_date, f"step {n} has no start date")
