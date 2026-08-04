@@ -77,7 +77,15 @@ export function ProcessDetailPage() {
   // one is rejected; anything else comes back 409, which is the guarantee doing its job.
   const reapply = async () => {
     try {
-      const created = await createProcess({ client: process.client }).unwrap();
+      // The category has to come across: it is fixed at creation now (UC-059) and the unique code
+      // is derived from it (§3.8), so a re-applied case that arrived without one could never
+      // acquire either. The land details follow for the same reason — it is the same allocation.
+      const created = await createProcess({
+        client: process.client,
+        category: process.category,
+        land_id: process.land_id,
+        land_address: process.land_address,
+      }).unwrap();
       toast.success(t("processes.created"));
       navigate(`/processes/${created.id}`);
     } catch (err) {

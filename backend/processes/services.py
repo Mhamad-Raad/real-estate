@@ -161,6 +161,13 @@ def intake_process(
         # reaches the lawyer as a 500 saying nothing (§3.7).
         assert_pid_is_free(client_data.get("pid"))
         client = create_client(data=client_data, actor=actor, request=request)
+    # Fall back to the beneficiary's own category when the caller did not name one — re-applying
+    # after a rejection (UC-028) posts only the client. Without this the new case would have no
+    # category, and since the category is fixed at creation (UC-059) and the unique code derives
+    # from it (§3.8), it could never acquire either. Not left to the caller: a case with no code
+    # is a data-integrity hole, so the guarantee belongs on this side of the boundary (§7.2).
+    if category is None:
+        category = client.category
     process = create_process(
         client=client,
         assigned_lawyer=assigned_lawyer,
@@ -342,6 +349,10 @@ def advance_step(*, process, actor, expected_version=None, request=None) -> Proc
     if opened is not None and opened.start_date is None:
         opened.start_date = timezone.now().date()
         opened.save(update_fields=["start_date", "updated_at"])
+        # A start date is step data, so the step is no longer `not_started` — re-derive it, or the
+        # badge contradicts the step's own contents (§3.6: status is re-derived wherever its
+        # inputs change, and this write is one of those inputs).
+        recompute_step(process, process.current_step)
 
     record_activity(
         actor=actor,
