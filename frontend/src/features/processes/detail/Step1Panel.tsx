@@ -2,6 +2,7 @@ import { AlertTriangle, Info } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { FormSection } from "@/components/ui/separator";
+import { SpouseCardPanel } from "@/features/cardScans/SpouseCardPanel";
 import { useListDocumentTypesQuery } from "@/features/documents/documentTypesApi";
 
 import { ClientDetailsPanel } from "./ClientDetailsPanel";
@@ -63,6 +64,18 @@ export function Step1Panel({
       <FormSection title={t("workflow.sectionPapers")}>
         <StepDocumentSlots process={process} step={1} canEdit={canEdit} />
       </FormSection>
+
+      {/* Only the intake form could read a spouse's card, so a couple who married after the case
+          opened had to have the details re-keyed from paper (UC-048). */}
+      {client.is_married && (
+        <FormSection title={t("cardScan.spouseSection")}>
+          <SpouseCardPanel
+            clientId={process.client}
+            clientVersion={client.version}
+            canEdit={canEdit}
+          />
+        </FormSection>
+      )}
 
       <FormSection title={t("workflow.sectionLetter")}>
         <GeneratedLetterPanel
