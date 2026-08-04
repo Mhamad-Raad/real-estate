@@ -3,7 +3,6 @@
 Backend validates `ProcessInstituteEntry.institute_code` against this; the frontend fetches it
 read-only via GET /api/v1/institutes/ and never hard-codes it. Display names are i18n keys, so
 the machine `code` is stable in the DB while ckb/ar/en labels come from the translation files.
-Names are placeholders per the spec.
 """
 
 # The codes are opaque and permanent — they are stored on every entry row, so renaming the body
@@ -23,6 +22,25 @@ INSTITUTE_CODES = frozenset(code for code, _key, _step in INSTITUTES)
 
 # Which step each code belongs to, and the fixed set of codes required to complete each step (§3.6).
 STEP_FOR_CODE = {code: step for code, _key, step in INSTITUTES}
+
+
+# The Sorani names, for the **generated documents only**. The screens resolve `display_key`
+# through i18next as before — this exists because a filed government document is written in
+# Sorani whatever language the lawyer's interface is in, the same reason `summary.LABELS` holds
+# Sorani status words. Printing the raw `INST_S3_A` on a signed cover sheet is what UC-058 hit.
+INSTITUTE_NAMES_CKB: dict[str, str] = {
+    "INST_S2_A": "سەرۆکایەتیی شارەوانیی سلێمانی",
+    "INST_S3_A": "بەڕێوەبەرایەتیی تۆماری خانووبەرە ١",
+    "INST_S3_B": "بەڕێوەبەرایەتیی تۆماری خانووبەرە ٢",
+    "INST_S3_C": "بەڕێوەبەرایەتیی گشتیی شارەوانییەکان",
+    "INST_S4_A": "لایەنی پەیوەندیدار",
+    "INST_S4_B": "نەخشەی زەوی",
+}
+
+
+def name_ckb(code: str) -> str:
+    """The Sorani name for a code, falling back to the code so a document never prints blank."""
+    return INSTITUTE_NAMES_CKB.get(code, code or "")
 
 
 def codes_for_step(step: int) -> list[str]:

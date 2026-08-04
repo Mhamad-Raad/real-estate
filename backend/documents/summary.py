@@ -5,7 +5,7 @@ the summary `.docx` binds to, so the office can restyle the cover sheet in Word 
 code change.
 """
 
-from catalog.institutes import INSTITUTES
+from catalog.institutes import INSTITUTES, name_ckb
 
 from .letters import to_arabic_indic
 
@@ -53,7 +53,9 @@ def _institute_rows(process) -> list[dict]:
         rows.append(
             {
                 "step": to_arabic_indic(entry.step_number),
-                "name": entry.custom_name if entry.is_custom else entry.institute_code,
+                # The Sorani name, not the machine code: this is printed on a signed document
+                # (UC-058). A custom out-of-city row has no code, so its free text stands.
+                "name": entry.custom_name if entry.is_custom else name_ckb(entry.institute_code),
                 # The i18n key so the summary can be localised; blank for custom entries,
                 # whose name is free text the office typed and must print verbatim.
                 "label_key": "" if entry.is_custom else DISPLAY_KEYS.get(entry.institute_code, ""),
