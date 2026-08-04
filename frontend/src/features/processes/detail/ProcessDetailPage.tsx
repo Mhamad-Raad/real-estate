@@ -129,12 +129,14 @@ export function ProcessDetailPage() {
 
       <LawyerNotes process={process} canEdit={canEdit} />
 
-      <Accordion>
+      {/* Single-open: working a step should not leave the previous ones expanded (UC-051). */}
+      <Accordion single>
         {[1, 2, 3, 4, 5].map((n) => {
           const locked = n > unlockedThrough;
           return (
             <AccordionItem
               key={n}
+              itemKey={String(n)}
               locked={locked}
               defaultOpen={n === (process.current_step || 1)}
               title={t(`workflow.step${n}`)}
