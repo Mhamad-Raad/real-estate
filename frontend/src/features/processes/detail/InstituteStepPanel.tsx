@@ -139,11 +139,13 @@ export function InstituteStepPanel({
           institutes are what produce the land number and the real-estate paper (UC-037, UC-041). */}
       {step === 4 && (
         <div className="space-y-4 rounded-lg bg-muted/40 p-3">
+          {/* The address rides along with the number (UC-049) — same stored value as Step 1,
+              shown here because this is where the registration institutes settle both. */}
           <LandDetailsForm
             process={process}
             canEdit={canEdit}
             idPrefix="s4"
-            fields={["land_id"]}
+            fields={["land_id", "land_address"]}
             landIdRequired
           />
           <StepDocumentSlots process={process} step={4} canEdit={canEdit} />
