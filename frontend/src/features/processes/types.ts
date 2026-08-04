@@ -10,6 +10,9 @@ export interface ProcessListItem {
   client_full_name: string;
   client_pid: string;
   category: number | null;
+  // The office's case number (`A102`), issued at creation and never editable (§3.8). Empty only
+  // for a case opened without a category.
+  unique_code: string;
   land_id: string;
   land_address: string;
   overall_status: OverallStatus;

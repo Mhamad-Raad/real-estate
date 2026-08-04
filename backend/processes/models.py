@@ -35,6 +35,11 @@ class Process(SoftDeleteModel):
         settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="assigned_processes"
     )
 
+    # The office's own case number — the category's letter plus a number that only ever counts up
+    # within that category (`A1`, `A102`, `G2005`). Allocated once at creation and never editable
+    # (§3.8). Blank only for a case opened without a category, which cannot complete Step 1 anyway.
+    unique_code = models.CharField(max_length=30, blank=True, default="")
+
     overall_status = models.CharField(
         max_length=12, choices=OverallStatus.choices, default=OverallStatus.DRAFT
     )
@@ -54,7 +59,15 @@ class Process(SoftDeleteModel):
                 fields=["client"],
                 condition=models.Q(is_deleted=False) & ~models.Q(overall_status="rejected"),
                 name="ix_process_active_alloc",
-            )
+            ),
+            # A code is never reissued (§3.8), so unlike `ix_client_pid_active` this is **not**
+            # scoped to live rows: a soft-deleted case keeps its number for good. The condition
+            # only lets the blank sit on many rows at once.
+            models.UniqueConstraint(
+                fields=["unique_code"],
+                condition=~models.Q(unique_code=""),
+                name="ix_process_unique_code",
+            ),
         ]
         indexes = [
             models.Index(fields=["created_at"], name="ix_process_created_at"),

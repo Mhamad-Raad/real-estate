@@ -38,6 +38,37 @@ class DuplicateAllocation(APIException):
     default_code = "duplicate_allocation"
 
 
+def allocate_unique_code(category) -> str:
+    """The next case number for `category` — `A1`, then `A2`, … (§3.8).
+
+    **Must be called inside a transaction.** Two office computers opening a case in the same
+    category would otherwise both read the same highest number and both write it; allocation is
+    serialised by taking a row lock on the **category** itself, so the second waits for the first.
+    `ix_process_unique_code` is the storage-level backstop if anything ever slips past — the same
+    belt-and-braces shape as the "no land twice" guarantee (§3.7).
+
+    Counts over `all_objects`, deliberately: a soft-deleted case keeps its number for ever, so the
+    sequence is "highest ever issued + 1", never a count of the live rows. Gaps are correct.
+    """
+    from catalog.models import Category
+
+    # The lock, not the value — this is what makes concurrent allocation safe.
+    Category.all_objects.select_for_update().filter(pk=category.pk).first()
+
+    prefix = category.code
+    used = Process.all_objects.filter(unique_code__startswith=prefix).values_list(
+        "unique_code", flat=True
+    )
+    highest = 0
+    for code in used:
+        tail = code[len(prefix) :]
+        # Only `<prefix><digits>` counts; a code from a longer category code that merely starts
+        # the same way (`A` vs `AB`) must not be read as this category's.
+        if tail.isdigit():
+            highest = max(highest, int(tail))
+    return f"{prefix}{highest + 1}"
+
+
 @transaction.atomic
 def create_process(
     *, client, assigned_lawyer, actor, category=None, request=None,
@@ -70,6 +101,9 @@ def create_process(
                 client=client,
                 assigned_lawyer=assigned_lawyer,
                 category=category,
+                # Issued here and never again: the category is fixed for the life of the case
+                # (UC-059), so the letter can be trusted for as long as the code exists.
+                unique_code=allocate_unique_code(category) if category else "",
                 duplicate_flagged=duplicate_flagged,
                 similar_name_flagged=similar_name_flagged,
             )

@@ -56,7 +56,7 @@ export function Step1Panel({
           process={process}
           canEdit={canEdit}
           idPrefix="s1"
-          fields={["category", "land_id", "land_address"]}
+          fields={["unique_code", "category", "land_id", "land_address"]}
         />
       </FormSection>
 

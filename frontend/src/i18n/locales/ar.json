@@ -222,6 +222,7 @@
     "optionalHere": "(اختياري هنا)",
     "requiredHere": "(مطلوب)",
     "fixedAtCreation": "(ثابت عند الإنشاء)",
+    "uniqueCode": "الرمز الفريد",
     "landAddress": "عنوان الأرض",
     "landAddressPlaceholder": "عنوان / موقع الأرض",
     "clientDetails": "بيانات المستفيد",

@@ -93,6 +93,7 @@ class ProcessListSerializer(serializers.ModelSerializer):
             "client_full_name",
             "client_pid",
             "category",
+            "unique_code",
             "land_id",
             "land_address",
             "overall_status",

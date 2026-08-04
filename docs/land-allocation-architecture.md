@@ -632,6 +632,37 @@ Two things keep this honest:
 - **The stored status is re-derived wherever its inputs change** — document upload/delete, institute-entry writes, per-step save, the process header `PATCH` (Step 1 reads `land_id`/`category` from it) and the admin duplicate override. Otherwise a green badge could contradict the step's own `missing` list.
 - **`processes/test_missing_codes.py` proves every code the API can emit has a label.** It builds a maximally-incomplete case, collects the real output of all five steps, and checks each code against the shipped `en.json` (the i18n parity test then covers ar/ckb). Compose mounts the locale files read-only at `/frontend_locales` so this runs inside the container too.
 
+### 3.8 The unique code — the office's own case number
+
+Every case carries a code the office recognises it by: the **category's letter** followed by a
+number that only ever counts **up within that category** — `A1`, `A102`, `G2005`. Added 2026-08-04
+(UC-056). It is `Process.unique_code`, allocated once at creation and **never editable** — it is
+absent from `ProcessUpdateSerializer` entirely.
+
+**Three rules, all decided by the office:**
+
+1. **One counter per category letter.** `A1…A102` and `G1…G7` are independent runs; the letter is
+   the category's own `code`, not a prefix on a shared sequence.
+2. **The category never changes** (§7.2 layer 5, UC-059), which is what lets the letter be trusted
+   for as long as the code exists.
+3. **A code is never reissued.** Soft-deleting a case does *not* release its number — the next case
+   in that category takes the following one, and gaps are correct. This matters because the office
+   moves a case between categories by deleting it and opening a new one, so deletion is routine; a
+   recycled number would put two different cases on the same figure already printed on letters that
+   have gone out.
+
+**Allocation is concurrency-safe by construction**, because two computers open cases at the same
+moment (§2). `services.allocate_unique_code` takes a **row lock on the Category** before reading the
+highest number, so a second allocation for the same category waits rather than reading the same
+value. `ix_process_unique_code` is the storage-level backstop — and note it is **deliberately not
+partial on `is_deleted`**, unlike `ix_client_pid_active`: a PID may be reused after a soft delete,
+a code may not. Allocation counts over `all_objects` for the same reason.
+
+**A case opened without a category gets no code** (the column is blank). Such a case cannot complete
+Step 1 anyway — `category` is in that step's `missing` list (§3.6) — and since the category is fixed
+at creation it will never acquire one. The unique constraint excludes the blank so several may
+coexist.
+
 ### 3.7 Search & indexing strategy
 
 Processes are searched/filtered **only** by structured fields — **date, client PID, client name** — plus list filters (category, status, assigned lawyer). No document/OCR full-text search. Mother's full name is a **duplicate-detection key only**, never a search field.

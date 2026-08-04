@@ -222,6 +222,7 @@
     "optionalHere": "(لێرە ئارەزوومەندانەیە)",
     "requiredHere": "(پێویستە)",
     "fixedAtCreation": "(لە دروستکردندا جێگیر دەبێت)",
+    "uniqueCode": "کۆدی تایبەت",
     "landAddress": "ناونیشانی زەوی",
     "landAddressPlaceholder": "ناونیشان / شوێنی زەوی",
     "clientDetails": "زانیاری سوودمەند",

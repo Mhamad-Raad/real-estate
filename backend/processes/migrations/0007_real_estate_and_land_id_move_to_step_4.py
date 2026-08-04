@@ -28,7 +28,11 @@ def move_requirements_to_step_4(apps, schema_editor):
     # first save after that re-derives the status anyway.
     # `steps__is_deleted=False`, not `steps__isnull=False`: the reverse relation is a plain join
     # that does not honour the active manager, so `isnull` would still match the deleted rows.
-    for process in LiveProcess.all_objects.filter(steps__is_deleted=False).distinct():
+    # `.defer("unique_code")`: this migration deliberately uses the LIVE model (the status rules
+    # live there and a historical model carries none of them), but the live class also declares
+    # every column added by LATER migrations — which do not exist in the database yet when this
+    # runs on a fresh install. Deferring keeps them out of the SELECT.
+    for process in LiveProcess.all_objects.defer("unique_code").filter(steps__is_deleted=False).distinct():
         recompute_step(process, 1)
         recompute_step(process, 4)
 
@@ -47,7 +51,11 @@ def move_requirements_back(apps, schema_editor):
     # first save after that re-derives the status anyway.
     # `steps__is_deleted=False`, not `steps__isnull=False`: the reverse relation is a plain join
     # that does not honour the active manager, so `isnull` would still match the deleted rows.
-    for process in LiveProcess.all_objects.filter(steps__is_deleted=False).distinct():
+    # `.defer("unique_code")`: this migration deliberately uses the LIVE model (the status rules
+    # live there and a historical model carries none of them), but the live class also declares
+    # every column added by LATER migrations — which do not exist in the database yet when this
+    # runs on a fresh install. Deferring keeps them out of the SELECT.
+    for process in LiveProcess.all_objects.defer("unique_code").filter(steps__is_deleted=False).distinct():
         recompute_step(process, 1)
         recompute_step(process, 4)
 

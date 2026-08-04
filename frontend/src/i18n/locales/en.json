@@ -222,6 +222,7 @@
     "optionalHere": "(optional here)",
     "requiredHere": "(required)",
     "fixedAtCreation": "(fixed at creation)",
+    "uniqueCode": "Unique code",
     "landAddress": "Land address",
     "landAddressPlaceholder": "Address / location of the land",
     "clientDetails": "Beneficiary details",
