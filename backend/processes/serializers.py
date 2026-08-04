@@ -174,10 +174,29 @@ class ProcessUpdateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Process
-        # Step-1 header edits: land details + category + notes (never assigned_lawyer/overall_status).
-        fields = ("lawyer_notes", "land_id", "land_address", "category", "version")
+        # Step-1 header edits: land details + notes. **Not the category** — see validate() below.
+        fields = ("lawyer_notes", "land_id", "land_address", "version")
         # Version is the optimistic-lock token the client echoes back; the service bumps it.
         read_only_fields = ("version",)
+
+    def validate(self, attrs):
+        """Refuse a category change outright rather than dropping it silently (UC-059).
+
+        The office's rule: a case's category is fixed at creation; moving one means deleting it and
+        opening a new case in the other category. Leaving `category` off `fields` would be enough to
+        ignore it, but a caller that sent it would get a 200 and believe it had worked. It matters
+        more once the unique code exists (UC-056), whose first letter *is* the category — a code
+        already printed on letters that have gone out must never come to contradict the case.
+        """
+        if "category" in self.initial_data:
+            incoming = self.initial_data["category"]
+            current = self.instance.category_id if self.instance else None
+            unchanged = incoming in (current, str(current) if current is not None else None)
+            if not unchanged:
+                raise serializers.ValidationError(
+                    {"category": "A case's category cannot be changed after it is created."}
+                )
+        return attrs
 
 
 class OverrideSerializer(serializers.Serializer):

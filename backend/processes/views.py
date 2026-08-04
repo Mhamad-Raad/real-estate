@@ -13,7 +13,6 @@ from common.permissions import IsAdmin, IsProcessAssigneeOrAdmin
 from common.viewsets import AuditedSoftDeleteViewSet
 from documents.compile import start_compile_case_job
 from documents.generation import start_eligibility_job, start_process_list_job
-from documents.refile import refile_client_documents
 from documents.serializers import GenerationJobSerializer
 
 from .models import Process, ProcessInstituteEntry
@@ -85,15 +84,13 @@ class ProcessViewSet(AuditedSoftDeleteViewSet, ModelViewSet):
 
     def perform_update(self, serializer):
         super().perform_update(serializer)
-        # Both steps read header fields edited through here — Step 1 the category, Step 4 the
-        # `land_id` (UC-041) — so both would otherwise go stale against the live rules (§3.6).
+        # Both steps read header fields edited through here (Step 4 the `land_id`, UC-041), so
+        # their stored status would otherwise go stale against the live rules (§3.6).
         recompute_step(serializer.instance, 1)
         recompute_step(serializer.instance, 4)
-        # The category is the top-level folder of the document store, so changing it moves every
-        # file this case owns (§6.7).
-        refile_client_documents(
-            serializer.instance.client, actor=self.request.user, request=self.request
-        )
+        # No refile here any more: the store path is composed from the category and the PID (§6.7),
+        # and neither can change through this endpoint — the category is now fixed for the life of
+        # the case (UC-059) and the PID belongs to the client, which refiles on its own update.
 
     @action(
         detail=True,

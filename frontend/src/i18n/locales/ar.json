@@ -221,6 +221,7 @@
     "landIdPlaceholder": "مثال: رقم القطعة / التسجيل",
     "optionalHere": "(اختياري هنا)",
     "requiredHere": "(مطلوب)",
+    "fixedAtCreation": "(ثابت عند الإنشاء)",
     "landAddress": "عنوان الأرض",
     "landAddressPlaceholder": "عنوان / موقع الأرض",
     "clientDetails": "بيانات المستفيد",

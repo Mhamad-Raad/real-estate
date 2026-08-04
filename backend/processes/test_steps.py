@@ -188,28 +188,43 @@ class WorkflowApiTests(APITestCase):
             f"detail grew from {len(small_case)} to {len(big_case)} queries as the case filled up",
         )
 
-    def test_editing_the_header_re_derives_step_1_status(self):
+    def test_uploading_a_paper_re_derives_step_1_status(self):
         # Step 1 completes on the category + the client papers. `land_id` and the real-estate
         # paper are NOT among them — they belong to Step 4 now (UC-037, UC-041).
+        step1 = ProcessStep.objects.get(process=self.process, step_number=1)
+        self.assertNotEqual(step1.status, ProcessStep.Status.COMPLETE)
         for doc_type in ("ClientID", "SignedAgreement"):
             self._upload(1, doc_type)
-        step1 = ProcessStep.objects.get(process=self.process, step_number=1)
+        step1.refresh_from_db()
         self.assertEqual(step1.status, ProcessStep.Status.COMPLETE)
 
-        # …so clearing the category through the header PATCH must un-complete it, not leave a
-        # stale green badge contradicting the step's own `missing` list.
+    def test_the_category_cannot_be_changed_after_the_case_is_created(self):
+        """The office moves a case by deleting it and opening a new one, never by re-categorising
+        it (UC-059). Refused outright rather than dropped, or the caller would get a 200 and
+        believe it worked — and after UC-056 the code's first letter *is* the category."""
+        other = Category.objects.create(code="Z", name="Z")
         self.process.refresh_from_db()
         resp = self.client.patch(
             reverse("process-detail", args=[self.process.id]),
-            {"category": None, "version": self.process.version},
+            {"category": other.id, "version": self.process.version},
+            format="json",
+        )
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("category", resp.data)
+        self.process.refresh_from_db()
+        self.assertEqual(self.process.category_id, self.category.id)
+
+    def test_resending_the_unchanged_category_is_not_treated_as_a_change(self):
+        """A client that echoes the whole header back must not be rejected for saying nothing new."""
+        self.process.refresh_from_db()
+        resp = self.client.patch(
+            reverse("process-detail", args=[self.process.id]),
+            {"category": self.category.id, "land_id": "PLOT-7", "version": self.process.version},
             format="json",
         )
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
-        step1.refresh_from_db()
-        self.assertEqual(step1.status, ProcessStep.Status.IN_PROGRESS)
-        detail = self.client.get(reverse("process-detail", args=[self.process.id]))
-        missing = [s["missing"] for s in detail.data["steps"] if s["step_number"] == 1][0]
-        self.assertIn("category", missing)
+        self.process.refresh_from_db()
+        self.assertEqual(self.process.land_id, "PLOT-7")
 
     def test_step_1_completes_without_a_land_id_or_a_real_estate_paper(self):
         """The office does not hold either when a case opens — demanding them blocked every case."""

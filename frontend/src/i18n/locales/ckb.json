@@ -221,6 +221,7 @@
     "landIdPlaceholder": "نموونە: ژمارەی پارچە / تۆمار",
     "optionalHere": "(لێرە ئارەزوومەندانەیە)",
     "requiredHere": "(پێویستە)",
+    "fixedAtCreation": "(لە دروستکردندا جێگیر دەبێت)",
     "landAddress": "ناونیشانی زەوی",
     "landAddressPlaceholder": "ناونیشان / شوێنی زەوی",
     "clientDetails": "زانیاری سوودمەند",

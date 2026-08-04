@@ -4,7 +4,6 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "@/components/ui/toaster";
 import { useListCategoriesQuery } from "@/features/categories/categoriesApi";
@@ -38,23 +37,21 @@ export function LandDetailsForm({
   const { data: categories } = useListCategoriesQuery(undefined, {
     skip: !fields.includes("category"),
   });
+  const own = (categories ?? []).find((c) => c.id === process.category);
+  const categoryLabel = own ? `${own.code} — ${own.name}` : "";
   const [update, { isLoading }] = useUpdateProcessMutation();
 
-  const initialCategory = process.category ? String(process.category) : "";
-  const [category, setCategory] = useState(initialCategory);
   const [landId, setLandId] = useState(process.land_id);
   const [landAddress, setLandAddress] = useState(process.land_address);
 
   useEffect(() => {
-    setCategory(process.category ? String(process.category) : "");
     setLandId(process.land_id);
     setLandAddress(process.land_address);
-  }, [process.category, process.land_id, process.land_address, process.id]);
+  }, [process.land_id, process.land_address, process.id]);
 
   // Only the fields this instance renders may count as dirty, or Step 4 would offer to save a
   // category it never showed.
   const dirty =
-    (fields.includes("category") && category !== initialCategory) ||
     (fields.includes("land_id") && landId !== process.land_id) ||
     (fields.includes("land_address") && landAddress !== process.land_address);
 
@@ -63,7 +60,6 @@ export function LandDetailsForm({
       await update({
         id: process.id,
         version: process.version,
-        ...(fields.includes("category") ? { category: category ? Number(category) : null } : {}),
         ...(fields.includes("land_id") ? { land_id: landId } : {}),
         ...(fields.includes("land_address") ? { land_address: landAddress } : {}),
       }).unwrap();
@@ -76,22 +72,23 @@ export function LandDetailsForm({
   return (
     <>
       <div className="grid gap-4 sm:grid-cols-2">
+        {/* Shown, never edited: a case's category is fixed once it is created — moving one means
+            opening a new case in the other category (UC-059). The server refuses a change, so
+            offering a dropdown here would only invite a 400. */}
         {fields.includes("category") && (
           <div className="space-y-1.5">
-            <Label htmlFor={`${idPrefix}-category`}>{t("processes.category")}</Label>
-            <Select
+            <Label htmlFor={`${idPrefix}-category`}>
+              {t("processes.category")}{" "}
+              <span className="text-xs font-normal text-muted-foreground">
+                {t("workflow.fixedAtCreation")}
+              </span>
+            </Label>
+            <p
               id={`${idPrefix}-category`}
-              value={category}
-              disabled={!canEdit}
-              onChange={(e) => setCategory(e.target.value)}
+              className="rounded-md border border-input bg-muted/40 px-3 py-2 text-sm"
             >
-              <option value="">{t("common.none")}</option>
-              {(categories ?? []).map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.code} — {c.name}
-                </option>
-              ))}
-            </Select>
+              {categoryLabel || t("common.none")}
+            </p>
           </div>
         )}
         {fields.includes("land_id") && (
