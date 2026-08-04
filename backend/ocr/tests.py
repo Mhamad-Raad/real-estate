@@ -236,3 +236,52 @@ class ImageUploadTests(TestCase):
         buffer = BytesIO()
         Image.new("RGBA", (40, 40), (0, 0, 0, 0)).save(buffer, format="PNG")
         self.assertTrue(filestore.is_readable_pdf(filestore.image_to_pdf(buffer.getvalue())))
+
+
+class SecondChanceReadTests(TestCase):
+    """A card scanned onto a sheet defeats the automatic segmentation; a framed retry rescues it.
+
+    Tesseract is stubbed so this stays pure logic — what is pinned is the *decision*: the retry
+    only runs when the first pass found nothing, and it only wins when it found more. The same
+    settings destroy a photographed card, so promoting them to the default is not an option.
+    """
+
+    def setUp(self):
+        from pathlib import Path
+
+        from . import reader
+
+        self.Path = Path
+        self.reader = reader
+        self.calls = []
+        self._real_read_side = reader.read_side
+        self._real_load = reader.load_images
+        self._real_frame = reader.frame_content
+
+    def tearDown(self):
+        self.reader.read_side = self._real_read_side
+        self.reader.load_images = self._real_load
+        self.reader.frame_content = self._real_frame
+
+    def _patch(self, first: str, second: str):
+        from .reader import SideRead
+
+        def fake(image, *, psm=None):
+            self.calls.append(psm)
+            text = second if psm else first
+            return SideRead(arabic_text=text, latin_text=text, digit_confidence=0)
+
+        self.reader.read_side = fake
+        self.reader.load_images = lambda path: ["front"]
+        self.reader.frame_content = lambda image, **kw: image
+
+    def test_a_scan_the_first_pass_cannot_read_is_retried_and_kept(self):
+        self._patch(first="", second=FRONT_TEXT)
+        draft = self.reader.read_card(self.Path("x.pdf"))
+        self.assertIn(6, self.calls, "the framed retry never ran")
+        self.assertTrue(any("read a second time" in w for w in draft.warnings))
+
+    def test_a_card_the_first_pass_reads_is_never_retried(self):
+        self._patch(first=FRONT_TEXT, second="")
+        self.reader.read_card(self.Path("x.jpg"))
+        self.assertNotIn(6, self.calls, "a readable card must not be re-read with the fallback")
