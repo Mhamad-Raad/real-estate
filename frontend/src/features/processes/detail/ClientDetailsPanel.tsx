@@ -76,11 +76,15 @@ export function ClientDetailsPanel({
         <ClientFields value={form} onChange={setForm} idPrefix="ben" showCategory={false} />
       </fieldset>
 
+      {/* Its own row: the fieldset above is `display: contents`, which drops the container's
+          `space-y` margin, leaving the button touching the last field (UC-052). */}
       {canEdit && (
-        <Button size="sm" onClick={save} disabled={isLoading || !dirty || !complete}>
-          {isLoading && <Spinner />}
-          {t("workflow.saveClient")}
-        </Button>
+        <div className="pt-5">
+          <Button size="sm" onClick={save} disabled={isLoading || !dirty || !complete}>
+            {isLoading && <Spinner />}
+            {t("workflow.saveClient")}
+          </Button>
+        </div>
       )}
     </div>
   );
