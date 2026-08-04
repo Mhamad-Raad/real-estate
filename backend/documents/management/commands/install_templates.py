@@ -22,6 +22,7 @@ TEMPLATES_DIR = Path(__file__).resolve().parents[3] / "documents" / "letter_temp
 FILENAMES = {
     DocumentTemplate.TemplateType.ELIGIBILITY_SINGLE: "eligibility_single.docx",
     DocumentTemplate.TemplateType.PROCESS_LIST: "process_list.docx",
+    DocumentTemplate.TemplateType.PROCESS_CODES: "process_codes.docx",
     DocumentTemplate.TemplateType.CASE_SUMMARY: "case_summary.docx",
 }
 

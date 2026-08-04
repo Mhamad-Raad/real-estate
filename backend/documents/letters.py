@@ -58,3 +58,23 @@ def eligibility_context(process) -> dict:
 def process_list_context(processes) -> dict:
     """The bulk letter — one numbered row per selected process, in the order given."""
     return _context([row_for_process(p, i) for i, p in enumerate(processes, start=1)])
+
+
+def process_codes_context(processes) -> dict:
+    """The code list (§6.8, UC-057) — one row per selected case: number, name, code, land number.
+
+    A separate contract from the eligibility/list letters on purpose: the office's form has its own
+    columns, and folding them into `row_for_process` would make one dict serve two documents that
+    are free to diverge. The `تێبینی` (notes) column is left for the office to write on by hand.
+    """
+    return {
+        "rows": [
+            {
+                "n": to_arabic_indic(number),
+                "full_name": process.client.full_name,
+                "code": process.unique_code,
+                "land_id": process.land_id,
+            }
+            for number, process in enumerate(processes, start=1)
+        ]
+    }

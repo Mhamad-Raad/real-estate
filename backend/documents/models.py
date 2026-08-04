@@ -77,6 +77,7 @@ class DocumentTemplate(SoftDeleteModel):
         ELIGIBILITY_SINGLE = "eligibility_single", "Eligibility letter (one beneficiary)"
         PROCESS_LIST = "process_list", "Beneficiary list letter"
         CASE_SUMMARY = "case_summary", "Compiled case summary (Step 5)"
+        PROCESS_CODES = "process_codes", "Beneficiary code list"
 
     template_type = models.CharField(max_length=32, choices=TemplateType.choices)
     name = models.CharField(max_length=120)
@@ -111,6 +112,7 @@ class GenerationJob(TimeStampedModel):
         ELIGIBILITY = "eligibility", "Eligibility letter"
         PROCESS_LIST = "process_list", "Beneficiary list"
         COMPILED_CASE = "compiled_case", "Compiled case export"
+        PROCESS_CODES = "process_codes", "Beneficiary code list"
 
     # Aliased so every existing `GenerationJob.Status.*` caller keeps working.
     Status = JobStatus

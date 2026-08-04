@@ -1,4 +1,4 @@
-import { Printer } from "lucide-react";
+import { Hash, Printer } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { useAppSelector } from "@/app/hooks";
@@ -6,7 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "@/components/ui/toaster";
 import { downloadDocument, downloadGenerationJob } from "@/features/documents/download";
-import { useGenerateProcessListMutation } from "@/features/documents/generationApi";
+import {
+  useGenerateProcessCodesMutation,
+  useGenerateProcessListMutation,
+} from "@/features/documents/generationApi";
 import { useGenerationRun } from "@/features/documents/useGenerationRun";
 import { useNum } from "@/hooks/useNum";
 import { apiErrorMessage } from "@/lib/apiError";
@@ -17,14 +20,18 @@ import { apiErrorMessage } from "@/lib/apiError";
 export function SelectionToolbar({
   selected,
   onClear,
+  stepById,
 }: {
   selected: number[];
   onClear: () => void;
+  /** Each selected row's current step — the code list only covers cases that reached step 3. */
+  stepById: Record<number, number>;
 }) {
   const { t } = useTranslation();
   const num = useNum();
   const token = useAppSelector((s) => s.auth.access);
   const [generate, { isLoading: starting }] = useGenerateProcessListMutation();
+  const [generateCodes, { isLoading: startingCodes }] = useGenerateProcessCodesMutation();
   const { start, busy: running } = useGenerationRun((job) => {
     // The two kinds land in different places: a list letter is a job output with its own
     // endpoint, a single letter is a Document on the case. Asking the job endpoint for the
@@ -38,7 +45,24 @@ export function SelectionToolbar({
 
   if (!selected.length) return null;
 
-  const busy = starting || running;
+  const busy = starting || startingCodes || running;
+
+  // The office prints the code list once a case has reached the institutes; before that it has no
+  // land number and nothing to report (UC-057). The server re-checks this — the button is only a
+  // courtesy, never the boundary (§7.2).
+  const CODES_MIN_STEP = 3;
+  const tooEarly = selected.filter((id) => (stepById[id] ?? 0) < CODES_MIN_STEP);
+  const codesReady = selected.length > 0 && tooEarly.length === 0;
+
+  const runCodes = async () => {
+    try {
+      const started = await generateCodes({ process_ids: selected }).unwrap();
+      start(started.id);
+      toast.success(t("workflow.generateStarted"));
+    } catch (err) {
+      toast.error(apiErrorMessage(err, t("workflow.generateFailed")));
+    }
+  };
 
   const run = async () => {
     try {
@@ -56,6 +80,16 @@ export function SelectionToolbar({
       <div className="flex items-center gap-2">
         <Button variant="outline" size="sm" onClick={onClear} disabled={busy}>
           {t("common.cancel")}
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={runCodes}
+          disabled={busy || !codesReady}
+          title={codesReady ? undefined : t("processes.codesNeedStep")}
+        >
+          {startingCodes ? <Spinner /> : <Hash className="size-4" />}
+          {t("processes.printCodes")}
         </Button>
         <Button size="sm" onClick={run} disabled={busy}>
           {busy ? <Spinner /> : <Printer className="size-4" />}

@@ -123,7 +123,13 @@ export function ProcessesPage() {
         }
       />
 
-      <SelectionToolbar selected={selected} onClear={() => setSelected([])} />
+      <SelectionToolbar
+        selected={selected}
+        onClear={() => setSelected([])}
+        stepById={Object.fromEntries(
+          (data?.results ?? []).map((p) => [p.id, p.current_step]),
+        )}
+      />
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <Input

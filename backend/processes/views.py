@@ -12,7 +12,11 @@ from rest_framework.viewsets import ModelViewSet
 from common.permissions import IsAdmin, IsProcessAssigneeOrAdmin
 from common.viewsets import AuditedSoftDeleteViewSet
 from documents.compile import start_compile_case_job
-from documents.generation import start_eligibility_job, start_process_list_job
+from documents.generation import (
+    start_eligibility_job,
+    start_process_codes_job,
+    start_process_list_job,
+)
 from documents.serializers import GenerationJobSerializer
 
 from .models import Process, ProcessInstituteEntry
@@ -168,6 +172,25 @@ class ProcessViewSet(AuditedSoftDeleteViewSet, ModelViewSet):
             process=process,
             actor=request.user,
             template_id=request.data.get("template"),
+            request=request,
+        )
+        return Response(GenerationJobSerializer(job).data, status=status.HTTP_202_ACCEPTED)
+
+    @action(detail=False, methods=["post"], url_path="generate-codes")
+    def generate_codes(self, request):
+        """Queue the office's code list for the selected cases (§6.8, UC-057).
+
+        A separate action rather than a mode of `generate-document`: it binds to a different
+        template with different columns, and it carries a step gate the list letter does not.
+        Like the list letter it only exports rows the caller can already see, so it stays open to
+        any authenticated user and files nothing onto a case.
+        """
+        payload = GenerateDocumentSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+        job = start_process_codes_job(
+            process_ids=payload.validated_data["process_ids"],
+            actor=request.user,
+            template_id=payload.validated_data.get("template"),
             request=request,
         )
         return Response(GenerationJobSerializer(job).data, status=status.HTTP_202_ACCEPTED)

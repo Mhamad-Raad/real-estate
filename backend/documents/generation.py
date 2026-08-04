@@ -18,7 +18,7 @@ from common.models import ActivityLog
 from common.services import record_activity
 from processes.models import Process
 
-from .letters import eligibility_context, process_list_context
+from .letters import eligibility_context, process_codes_context, process_list_context
 from .models import Document, DocumentTemplate, GenerationJob
 from .rendering import RenderError, docx_to_pdf
 from .services import create_document
@@ -127,6 +127,35 @@ def run_process_list_job(job_id: int) -> None:
         raise
 
 
+def run_process_codes_job(job_id: int) -> None:
+    """Generate the code list (§6.8, UC-057) — the office's own form of number/name/code/land."""
+    job = GenerationJob.objects.select_related("template").get(pk=job_id)
+    job.status = GenerationJob.Status.RUNNING
+    job.save(update_fields=["status", "updated_at"])
+
+    try:
+        # Re-read in the order requested, so the form reflects the data as it is now.
+        by_id = Process.objects.select_related("client").in_bulk(job.process_ids)
+        processes = [by_id[pid] for pid in job.process_ids if pid in by_id]
+        if not processes:
+            raise RenderError("None of the selected allocations are available any more.")
+
+        with tempfile.TemporaryDirectory(prefix="gen-") as work:
+            pdf = render_to_pdf(job.template, process_codes_context(processes), Path(work))
+
+        destination = Path(settings.DOCUMENTS_ROOT) / GENERATED_LISTS_DIR
+        destination.mkdir(parents=True, exist_ok=True)
+        out_file = destination / f"codes_{job.id}.pdf"
+        out_file.write_bytes(pdf)
+
+        job.output_path = f"{GENERATED_LISTS_DIR}/{out_file.name}"
+        job.status = GenerationJob.Status.DONE
+        job.save(update_fields=["output_path", "status", "updated_at"])
+    except Exception as exc:
+        _fail(job, str(exc))
+        raise
+
+
 def _template_or_400(template_type: str, template_id=None) -> DocumentTemplate:
     if template_id is not None:
         template = DocumentTemplate.objects.filter(
@@ -196,4 +225,40 @@ def start_process_list_job(*, process_ids, actor, template_id=None, request=None
     # must be traceable, whether or not the render later succeeds (§6.8, §11).
     _audit_requested(job, {"process_ids": job.process_ids, "count": len(job.process_ids)}, request)
     transaction.on_commit(lambda: generate_process_list.delay(job.id))
+    return job
+
+
+# The office prints the code list once a case has reached the institutes, so an earlier one has
+# no land number and nothing to report (UC-057).
+CODES_MIN_STEP = 3
+
+
+def start_process_codes_job(*, process_ids, actor, template_id=None, request=None) -> GenerationJob:
+    """Queue the code list for the selected processes (§6.8, UC-057)."""
+    from .tasks import generate_process_codes
+
+    template = _template_or_400(DocumentTemplate.TemplateType.PROCESS_CODES, template_id)
+    # Re-validated server-side, exactly like the list letter: the step gate is a rule, and the UI
+    # hiding a button is never the boundary (§7.2).
+    rows = Process.objects.filter(pk__in=process_ids).values_list("id", "current_step")
+    known = {pid: step for pid, step in rows}
+    unknown = [pid for pid in process_ids if pid not in known]
+    if unknown:
+        raise ValidationError({"process_ids": f"Unknown allocations: {unknown}"})
+    too_early = [pid for pid in process_ids if known[pid] < CODES_MIN_STEP]
+    if too_early:
+        raise ValidationError(
+            {"process_ids": f"These allocations have not reached step {CODES_MIN_STEP}: {too_early}"}
+        )
+
+    job = GenerationJob.objects.create(
+        kind=GenerationJob.Kind.PROCESS_CODES,
+        template=template,
+        process_ids=list(process_ids),
+        requested_by=actor,
+    )
+    # Same reasoning as the list letter: a bulk export of personal data must be traceable from the
+    # moment it is asked for, whether or not the render later succeeds (§6.8, §11).
+    _audit_requested(job, {"process_ids": job.process_ids, "count": len(job.process_ids)}, request)
+    transaction.on_commit(lambda: generate_process_codes.delay(job.id))
     return job

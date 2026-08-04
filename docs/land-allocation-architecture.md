@@ -632,6 +632,15 @@ Two things keep this honest:
 - **The stored status is re-derived wherever its inputs change** — document upload/delete, institute-entry writes, per-step save, the process header `PATCH` (Step 1 reads `land_id`/`category` from it) and the admin duplicate override. Otherwise a green badge could contradict the step's own `missing` list.
 - **`processes/test_missing_codes.py` proves every code the API can emit has a label.** It builds a maximally-incomplete case, collects the real output of all five steps, and checks each code against the shipped `en.json` (the i18n parity test then covers ar/ckb). Compose mounts the locale files read-only at `/frontend_locales` so this runs inside the container too.
 
+> **The code list (added 2026-08-04, UC-057).** The office prints its own form of the selected
+> cases — number, full name, **unique code**, land number, and a `تێبینی` column left blank to write
+> on. `POST /processes/generate-codes/` binds to the `process_codes` template and its own context
+> (`documents.letters.process_codes_context`), kept separate from the eligibility/list contract so
+> the two documents are free to diverge. **It carries a step gate the list letter does not:** only
+> cases at **step 3 or later** may be printed, because an earlier one has no land number and no
+> institute decisions to report. The gate is enforced server-side — the toolbar button disabling
+> itself is a courtesy, never the boundary (§7.2).
+
 ### 3.8 The unique code — the office's own case number
 
 Every case carries a code the office recognises it by: the **category's letter** followed by a

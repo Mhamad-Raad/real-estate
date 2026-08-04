@@ -33,6 +33,11 @@ export const generationApi = baseApi.injectEndpoints({
     generateProcessList: builder.mutation<GenerationJob, { process_ids: number[] }>({
       query: (body) => ({ url: "processes/generate-document/", method: "POST", body }),
     }),
+    // The office's own code list — a different template with different columns, and a step gate
+    // the list letter does not have, so it is its own endpoint rather than a mode of the other.
+    generateProcessCodes: builder.mutation<GenerationJob, { process_ids: number[] }>({
+      query: (body) => ({ url: "processes/generate-codes/", method: "POST", body }),
+    }),
     compileCase: builder.mutation<GenerationJob, { process: number }>({
       query: ({ process }) => ({ url: `processes/${process}/compile/`, method: "POST", body: {} }),
     }),
@@ -46,5 +51,6 @@ export const {
   useCompileCaseMutation,
   useGenerateEligibilityMutation,
   useGenerateProcessListMutation,
+  useGenerateProcessCodesMutation,
   useGetGenerationJobQuery,
 } = generationApi;

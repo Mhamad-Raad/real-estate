@@ -204,6 +204,8 @@
       }
     },
     "selectedCount": "{{total}} selected",
+    "printCodes": "Print code list",
+    "codesNeedStep": "Only cases that have reached step 3 can be printed on the code list.",
     "selectAll": "Select all",
     "selectRow": "Select allocation",
     "pickLawyer": "Choose the responsible lawyer first.",
@@ -355,7 +357,8 @@
     "types": {
       "eligibility_single": "Eligibility letter (one beneficiary)",
       "process_list": "Beneficiary list letter",
-      "case_summary": "Compiled case cover sheet"
+      "case_summary": "Compiled case cover sheet",
+      "process_codes": "Beneficiary code list"
     },
     "deleteActiveConfirm": "Delete template “{{name}}”? It is the ACTIVE template — letters cannot be generated until another one is activated.",
     "preview": "View letter",
