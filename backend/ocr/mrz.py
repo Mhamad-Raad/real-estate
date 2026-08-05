@@ -90,6 +90,19 @@ def find_mrz_lines(text: str) -> list[str]:
     return candidates
 
 
+# Letters the engine routinely substitutes for digits. Applied ONLY to fields the standard says
+# are numeric — dates and check digits — never to the document number, which really can contain
+# letters. The office's own card read `9SO1016` for `9501016`, which cost the date of birth and
+# its check digit, and so the whole MRZ was reported unverified (UC-068).
+OCR_DIGIT_FIXES = str.maketrans({"O": "0", "Q": "0", "D": "0", "I": "1", "L": "1", "Z": "2",
+                                 "S": "5", "G": "6", "B": "8"})
+
+
+def as_digits(raw: str) -> str:
+    """A numeric MRZ field with the usual OCR letter-for-digit substitutions undone."""
+    return raw.translate(OCR_DIGIT_FIXES)
+
+
 def parse_td1(lines: list[str]) -> MrzResult:
     """Parse a TD1 (three-line, 30-character) MRZ — the format used by ID cards.
 
@@ -106,7 +119,8 @@ def parse_td1(lines: list[str]) -> MrzResult:
     if len(first) >= 15:
         number = first[5:14]
         result.document_number = number.replace(FILLER, "")
-        if verify(number, first[14:15]):
+        # The number itself may legitimately contain letters; its check digit may not.
+        if verify(number, as_digits(first[14:15])):
             result.verified.add("document_number")
         # The optional-data field holds the national ID on this card. It carries no check digit
         # of its own here, so it is cross-checked against the front of the card instead.
@@ -117,7 +131,8 @@ def parse_td1(lines: list[str]) -> MrzResult:
     # the card is still in date, and a national ID does not stop identifying its holder when it
     # expires. Its offsets still matter, because nationality sits after it.
     if len(second) >= 15:
-        dob_raw, dob_cd = second[0:6], second[6:7]
+        # Both are numeric by the standard, so an OCR letter here is a misread, not data.
+        dob_raw, dob_cd = as_digits(second[0:6]), as_digits(second[6:7])
         result.date_of_birth = parse_yymmdd(dob_raw)
         if result.date_of_birth and verify(dob_raw, dob_cd):
             result.verified.add("date_of_birth")

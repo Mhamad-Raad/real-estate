@@ -139,14 +139,33 @@ def parse_front_fields(text: str) -> dict[str, str]:
     return values
 
 
+# The name block is read **positionally** — the first name-like line is the given name, the second
+# the father, and so on. That only holds while the block is read coherently. A card these fields
+# are unreadable on may yield a single surviving line, and position alone then declares it the
+# applicant's given name: on the office's own scan the only legible line was the MOTHER's, and it
+# was offered as the applicant (UC-068). Below this many lines the positions mean nothing, so no
+# name is proposed at all — an empty box asks the lawyer to type it, a wrong one invites them to
+# accept it, and the invariant is that OCR never gets trusted blindly (§6.5).
+MIN_NAME_LINES_FOR_POSITIONS = 3
+
+
+def positions_are_trustworthy(parts: dict[str, str]) -> bool:
+    """Did enough of the name block survive for its ordering to mean anything?"""
+    return len([key for key in FRONT_FIELDS if parts.get(key)]) >= MIN_NAME_LINES_FOR_POSITIONS
+
+
 def compose_full_name(parts: dict[str, str]) -> str:
     """Given name + father + father's father + surname, in the order the office writes it."""
+    if not positions_are_trustworthy(parts):
+        return ""
     ordered = ("given_name", "father_name", "father_grandfather", "surname")
     return " ".join(parts[key] for key in ordered if parts.get(key))
 
 
 def compose_mother_full_name(parts: dict[str, str]) -> str:
     """Mother's given name + HER father — the second grandfather line (§3.7 dedup key)."""
+    if not positions_are_trustworthy(parts):
+        return ""
     ordered = ("mother_name", "mother_grandfather")
     return " ".join(parts[key] for key in ordered if parts.get(key))
 

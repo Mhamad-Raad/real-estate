@@ -7,7 +7,7 @@ KRG national ID during the accuracy spike, with the identifying digits changed.
 
 from datetime import date
 
-from django.test import TestCase
+from django.test import SimpleTestCase, TestCase
 
 from . import extraction, mrz
 
@@ -285,3 +285,67 @@ class SecondChanceReadTests(TestCase):
         self._patch(first=FRONT_TEXT, second="")
         self.reader.read_card(self.Path("x.jpg"))
         self.assertNotIn(6, self.calls, "a readable card must not be re-read with the fallback")
+
+
+class MrzDigitConfusionTests(SimpleTestCase):
+    """Numeric MRZ fields survive the engine reading letters for digits (UC-068).
+
+    The office's own card gave `9SO1016` for `9501016` — S for 5, O for 0. That cost the date of
+    birth *and* its check digit, so the whole MRZ was reported unverified and the lawyer was told
+    to enter dates by eye on a card whose MRZ was in fact perfectly readable.
+    """
+
+    LINES = [
+        "IDIRQA3519035274199548017276<<<",
+        "9SO1016M3S111080IRQ<<<<<<<K<<<5",
+        "K<XTAWDYR<<<<<<<<<<<<<<<<<<<<<<",
+    ]
+
+    def test_the_birth_date_is_recovered_and_check_digit_verified(self):
+        from .mrz import parse_td1
+
+        result = parse_td1(self.LINES)
+
+        self.assertEqual(str(result.date_of_birth), "1995-01-01")
+        # Recovered *and* trusted: the check digit proves the correction was right, which is why
+        # this is a safe repair rather than a guess.
+        self.assertIn("date_of_birth", result.verified)
+
+    def test_the_document_number_keeps_its_letters(self):
+        """The number legitimately contains letters — only its check digit is numeric."""
+        from .mrz import parse_td1
+
+        self.assertTrue(parse_td1(self.LINES).document_number.startswith("A"))
+
+
+class IncompleteNameBlockTests(SimpleTestCase):
+    """A name block too damaged to trust is left empty, never guessed at (§6.5, UC-068).
+
+    The front is parsed **positionally** — first name-like line is the given name, second the
+    father, and so on. On a poor scan only one line may survive, and position alone then declares
+    it the applicant: on the office's card the only legible line was the MOTHER's, and it was
+    offered as the beneficiary's name. An empty box asks the lawyer to type it; a wrong one
+    invites them to accept it.
+    """
+
+    def test_a_single_surviving_line_proposes_no_name(self):
+        from .extraction import compose_full_name, compose_mother_full_name
+
+        parts = {"given_name": "زيرين"}  # in truth the mother's line, read into slot 0
+
+        self.assertEqual(compose_full_name(parts), "")
+        self.assertEqual(compose_mother_full_name(parts), "")
+
+    def test_a_complete_block_is_still_composed(self):
+        from .extraction import compose_full_name, compose_mother_full_name
+
+        parts = {
+            "given_name": "ئاودێر",
+            "father_name": "محمدامین",
+            "father_grandfather": "عبدالله",
+            "mother_name": "زيرين",
+            "mother_grandfather": "حسين",
+        }
+
+        self.assertEqual(compose_full_name(parts), "ئاودێر محمدامین عبدالله")
+        self.assertEqual(compose_mother_full_name(parts), "زيرين حسين")

@@ -60,7 +60,21 @@ export function CardCapture({
 
       <div className="relative flex min-h-40 items-center justify-center overflow-hidden rounded-md border border-dashed border-border bg-muted/40">
         {side ? (
-          <img src={side.url} alt={label} className="max-h-56 w-full object-contain" />
+          // A PDF is not an image: `<img>` renders nothing for one, so an imported scan looked
+          // like nothing had been picked at all (UC-070). The office imports PDFs routinely —
+          // that is how their scanner delivers a card — so both shapes have to show.
+          side.file.type === "application/pdf" ? (
+            <object
+              data={side.url}
+              type="application/pdf"
+              aria-label={label}
+              className="h-56 w-full"
+            >
+              <p className="p-6 text-center text-xs text-muted-foreground">{side.file.name}</p>
+            </object>
+          ) : (
+            <img src={side.url} alt={label} className="max-h-56 w-full object-contain" />
+          )
         ) : camera.active ? (
           <video
             ref={camera.videoRef}

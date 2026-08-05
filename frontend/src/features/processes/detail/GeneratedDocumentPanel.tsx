@@ -104,8 +104,10 @@ export function GeneratedDocumentPanel({
       {documents.length ? (
         <div className="space-y-3">
           <div className="space-y-1">
-            {documents.map((doc) => (
-              <DocumentRow key={doc.id} doc={doc} />
+            {documents.map((doc, i) => (
+              // The newest is already previewed below, so it must not offer its own toggle —
+              // that opened a second copy of the same PDF under the first (UC-069).
+              <DocumentRow key={doc.id} doc={doc} previewable={i !== 0} />
             ))}
           </div>
           {/* Newest shown inline so it can be checked and printed without leaving the case. */}

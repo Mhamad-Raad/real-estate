@@ -15,7 +15,14 @@ import type { DocumentMeta } from "./types";
 // One stored document: click the name to download (auth-checked stream), open it in place, or
 // soft-delete it. The preview is the same component the generated letters use — it was wired
 // only to those, so nothing a lawyer *uploaded* could be looked at without downloading (UC-042).
-export function DocumentRow({ doc }: { doc: DocumentMeta }) {
+export function DocumentRow({
+  doc,
+  previewable = true,
+}: {
+  doc: DocumentMeta;
+  /** `false` when this file is already shown beside the row, so its toggle would duplicate it. */
+  previewable?: boolean;
+}) {
   const { t } = useTranslation();
   const token = useAppSelector((s) => s.auth.access);
   const [remove, { isLoading }] = useDeleteDocumentMutation();
@@ -59,17 +66,22 @@ export function DocumentRow({ doc }: { doc: DocumentMeta }) {
         <Download className="size-3.5 shrink-0 text-muted-foreground" />
       </button>
       <div className="flex shrink-0 items-center gap-1">
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="size-7"
-          onClick={() => setOpen((o) => !o)}
-          aria-expanded={open}
-          aria-label={t("workflow.preview")}
-        >
-          <Eye className="size-4" />
-        </Button>
+        {/* Hidden when this file is already previewed beside the row: the generated-document
+            panels show the newest one inline, so its own toggle opened a second copy of the very
+            same PDF underneath the first (UC-069). */}
+        {previewable && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="size-7"
+            onClick={() => setOpen((o) => !o)}
+            aria-expanded={open}
+            aria-label={t("workflow.preview")}
+          >
+            <Eye className="size-4" />
+          </Button>
+        )}
         <Button
           type="button"
           variant="ghost"
@@ -83,7 +95,7 @@ export function DocumentRow({ doc }: { doc: DocumentMeta }) {
         </Button>
       </div>
       </div>
-      {open && (
+      {previewable && open && (
         <div className="border-t border-border px-3 py-3">
           <DocumentPreview documentId={doc.id} title={doc.display_filename} />
         </div>
