@@ -54,6 +54,25 @@ DOCUMENT_TYPES: list[DocumentType] = [
 DOCUMENT_TYPE_CODES = frozenset(dt.code for dt in DOCUMENT_TYPES)
 
 
+# The Sorani names, for the **filenames** — the same reason `INSTITUTE_NAMES_CKB` exists. The
+# office browses the document store by hand when the app is not in front of them, and it looks
+# for these papers by the names it uses for them, not by `RealEstate` (UC-060).
+DOCUMENT_TYPE_NAMES_CKB: dict[str, str] = {
+    CLIENT_ID: "ناسنامەی کڕیار",
+    SPOUSE_ID: "ناسنامەی هاوسەر",
+    "RealEstate": "بەڵگەنامەی خانووبەرە",
+    "SignedAgreement": "ڕێککەوتنی واژۆکراو",
+    "EligibilityLetter": "نامەی سۆراغکردنی سوودمەندی",
+    "InstituteDoc": "بەڵگەنامەی دامەزراوە",
+    "CompiledCase": "دۆسیەی کۆکراوەی کەیس",
+}
+
+
+def name_ckb(code: str) -> str:
+    """The Sorani name for a type, falling back to the code so a file is never named blank."""
+    return DOCUMENT_TYPE_NAMES_CKB.get(code, code or "")
+
+
 def required_codes_for_step(step: int, *, married: bool = False) -> tuple[str, ...]:
     """Codes a step must have on file to count as complete (§3.6). Ordered — it is rendered."""
     return tuple(

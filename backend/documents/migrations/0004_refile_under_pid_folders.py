@@ -12,11 +12,20 @@ already in place or missing is skipped rather than raising, and `file_path` is o
 the bytes are actually at the new location. A half-finished run can simply be re-run.
 """
 
+from pathlib import Path
+
 from django.db import migrations
 
 
 def _new_path(filestore, document, client, category_code):
-    """Rebuild this document's path under the new scheme, keeping its short id."""
+    """Rebuild this document's path under the scheme **this** migration introduced, keeping its
+    short id.
+
+    The layout is spelled out here rather than composed through `filestore`. That module tracks
+    the store as it is *today* — UC-060 has since moved it on again, to case folders and Sorani
+    labels — and a migration that follows it would stop reproducing the state the next migration
+    expects to find. A historical migration has to stay pinned to the shape it was written for.
+    """
     old_name = document.file_path.rsplit("/", 1)[-1]
     # `..._ClientID__bf76170e.pdf` — the short id is the last segment and never changes (§6.7).
     stem, _, tail = old_name.rpartition("__")
@@ -24,12 +33,13 @@ def _new_path(filestore, document, client, category_code):
         return None
     sid = tail.removesuffix(".pdf")
     institute = stem.split("_")[1] if len(stem.split("_")) > 1 else "General"
-    return filestore.relative_path(
-        category_code=category_code,
-        pid=client.pid,
-        stored_filename=filestore.compose_stored_name(
-            institute=institute, document_type=document.document_type, sid=sid
-        ),
+    return (
+        Path(filestore.sanitize(category_code, "NA", 10))
+        / filestore.sanitize(client.pid, "NA", 40)
+        / (
+            f"{filestore.sanitize(institute, 'General')}"
+            f"_{filestore.sanitize(document.document_type, 'Document')}__{sid}.pdf"
+        )
     )
 
 

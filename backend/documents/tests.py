@@ -59,7 +59,7 @@ class DocumentApiTests(APITestCase):
         self.assertEqual(resp.status_code, status.HTTP_201_CREATED)
         doc = Document.objects.get(pk=resp.data["id"])
         self.assertTrue((settings.DOCUMENTS_ROOT / doc.file_path).exists())
-        self.assertIn("ClientID", doc.display_filename)
+        self.assertIn("ناسنامەی کڕیار", doc.display_filename)
         self.assertTrue(doc.display_filename.endswith(".pdf"))
         self.assertTrue(
             ActivityLog.objects.filter(entity_type="Document", entity_id=str(doc.id)).exists()
@@ -153,15 +153,43 @@ class DocumentApiTests(APITestCase):
 class FileStoreUnitTests(APITestCase):
     def test_sanitize_strips_illegal_and_keeps_unicode(self):
         self.assertEqual(filestore.sanitize('a/b:c*d'), "abcd")
-        self.assertEqual(filestore.sanitize("ئەحمەد محمد"), "ئەحمەد_محمد")  # Sorani survives
+        # Sorani survives, and so do the spaces between its words — these names are read by
+        # people browsing the folders, not parsed by anything (UC-060).
+        self.assertEqual(filestore.sanitize("ئەحمەد محمد"), "ئەحمەد محمد")
+        self.assertEqual(filestore.sanitize("ئەحمەد   محمد"), "ئەحمەد محمد")
         self.assertEqual(filestore.sanitize(""), "NA")
 
-    def test_display_name_composition(self):
+    def test_display_name_leads_with_the_case_code_and_names_the_paper(self):
         name = filestore.compose_display_name(
-            category_code="A", institute="General", person_name="Ahmad Ali",
-            document_type="ClientID", sid="7f3ae2ab",
+            unique_code="A18", category_code="A", person_name="Ahmad Ali",
+            label=filestore.document_label("ClientID"),
         )
-        self.assertEqual(name, "A_General_Ahmad_Ali_ClientID__7f3ae2ab.pdf")
+        self.assertEqual(name, "A18_Ahmad Ali_ناسنامەی کڕیار.pdf")
+
+    def test_display_name_falls_back_to_the_category_when_a_case_predates_codes(self):
+        name = filestore.compose_display_name(
+            unique_code="", category_code="A", person_name="Ahmad Ali",
+            label=filestore.document_label("ClientID"),
+        )
+        self.assertEqual(name, "A_Ahmad Ali_ناسنامەی کڕیار.pdf")
+
+    def test_the_stored_name_keeps_the_short_id_the_download_name_drops(self):
+        label = filestore.document_label("RealEstate")
+        self.assertEqual(label, "بەڵگەنامەی خانووبەرە")
+        # Two files legitimately share this slot (UC-055), so on disk they need telling apart.
+        stored = filestore.compose_stored_name(label=label, sid="7f3ae2ab")
+        self.assertEqual(stored, "بەڵگەنامەی خانووبەرە__7f3ae2ab.pdf")
+
+    def test_the_case_folder_is_keyed_by_code_and_pid(self):
+        rel = filestore.relative_path(
+            category_code="A", unique_code="A18", pid="199036880522", stored_filename="x.pdf"
+        )
+        self.assertEqual(str(rel), "A/A18_199036880522/x.pdf")
+        # A case opened before codes existed keeps the plain PID folder it already had.
+        plain = filestore.relative_path(
+            category_code="A", unique_code="", pid="199036880522", stored_filename="x.pdf"
+        )
+        self.assertEqual(str(plain), "A/199036880522/x.pdf")
 
     def test_looks_like_pdf(self):
         self.assertTrue(filestore.looks_like_pdf(b"%PDF-1.7 ..."))

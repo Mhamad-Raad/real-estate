@@ -50,7 +50,12 @@ export function DocumentRow({ doc }: { doc: DocumentMeta }) {
         title={t("workflow.download")}
       >
         <FileText className="size-4 shrink-0 text-muted-foreground" />
-        <span className="truncate">{doc.display_filename}</span>
+        {/* The name mixes a Latin case code with Sorani words (UC-060). Isolated and forced LTR so
+            it reads in the order it is stored — an RTL page would otherwise swap `A11_` and `.pdf`
+            to the wrong ends, and the row would not match the folder the office is looking at. */}
+        <span className="truncate" dir="ltr">
+          {doc.display_filename}
+        </span>
         <Download className="size-3.5 shrink-0 text-muted-foreground" />
       </button>
       <div className="flex shrink-0 items-center gap-1">

@@ -2,7 +2,11 @@
 
 The DB is authoritative: we always look files up by `Document.file_path`, never by parsing a
 name. Every filename component is whitelist-sanitized, so path traversal is impossible and
-Sorani/Arabic names survive on NTFS/APFS. Layout: <CATEGORY>/<client_id>_<pid>/<name>__<id>.pdf
+Sorani/Arabic names survive on NTFS/APFS.
+
+Layout: `<CATEGORY>/<CODE>_<PID>/<label>__<shortid>.pdf`, where the label is the Sorani name of
+the issuing body or of the paper itself — the archive has to be navigable by hand, without the
+app, by people who do not know what `INST_S4_B` is (UC-060).
 """
 
 import hashlib
@@ -15,6 +19,8 @@ from pathlib import Path
 
 from django.conf import settings
 from pypdf import PdfReader
+
+from catalog import document_types, institutes
 
 PDF_MAGIC = b"%PDF-"
 # Windows-illegal characters + control chars — stripped from every name component.
@@ -108,59 +114,82 @@ def short_id() -> str:
 
 
 def sanitize(text: str, fallback: str = "NA", max_len: int = 60) -> str:
-    """NFC-normalize, spaces→_, strip illegal/control chars and trailing dots/spaces, cap length."""
+    """NFC-normalize, strip illegal/control chars and trailing dots/spaces, cap length.
+
+    Inner spaces **survive** (UC-060): the names are Sorani phrases the office reads and searches
+    by hand, and `بەڵگەنامەی_خانووبەرە` is harder to scan than the words it is made of. Runs of
+    whitespace collapse to one so a stray double space cannot make two names look different.
+    """
     if not text:
         return fallback
-    text = unicodedata.normalize("NFC", text).replace(" ", "_")
-    text = _ILLEGAL.sub("", text).strip(". ")
+    text = unicodedata.normalize("NFC", text)
+    text = _ILLEGAL.sub("", text)
+    text = re.sub(r"\s+", " ", text).strip(". ")
     text = text[:max_len].strip("._ ")
     return text or fallback
 
 
-def institute_label(entry) -> str:
-    """Canonical (stable) institute label for the filename — never the per-user UI translation."""
+def document_label(document_type: str, entry=None) -> str:
+    """What a file is *called*: the body that issued it, or the paper's own name (§6.7, UC-060).
+
+    Sorani, for the same reason the generated documents are — this archive is read by the office,
+    and `INST_S4_B` tells a person looking for the land map nothing. The names are code constants,
+    so they are as stable as the codes were; correcting one renames later files, never filed ones.
+    """
     if entry is None:
-        return "General"  # Step-1 client papers & generated PDFs have no institute
+        return sanitize(document_types.name_ckb(document_type), "Document")
     if entry.is_custom:
         return sanitize(entry.custom_name, "Custom")
-    return entry.institute_code or "General"
+    return sanitize(institutes.name_ckb(entry.institute_code), "Document")
 
 
-def compose_display_name(
-    *, category_code: str, institute: str, person_name: str, document_type: str, sid: str
-) -> str:
-    """The **download** name (§6.7). Fully self-describing, because a downloaded file lands in
-    someone's Downloads folder with no surrounding path to give it context."""
-    parts = [
-        sanitize(category_code, "NA", 10),
-        sanitize(institute, "General"),
-        sanitize(person_name, "Unknown"),
-        sanitize(document_type, "Document"),
-    ]
-    return "_".join(parts) + f"__{sid}.pdf"
+def compose_display_name(*, unique_code: str, category_code: str, person_name: str, label: str) -> str:
+    """The **download** name: `<CODE>_<person>_<label>.pdf` (§6.7, UC-060).
 
-
-def compose_stored_name(*, institute: str, document_type: str, sid: str) -> str:
-    """The **on-disk** name. Deliberately shorter than the download name: the two folders above
-    already say the category and the person, so repeating them buys nothing and makes a name
-    correction rewrite the filesystem. The institute stays — it is what tells apart the many
-    `InstituteDoc` files a case accumulates in steps 2–4."""
-    return f"{sanitize(institute, 'General')}_{sanitize(document_type, 'Document')}__{sid}.pdf"
-
-
-def person_dir(pid: str) -> str:
-    """One folder per **person**, keyed by the government PID (§3.7, §6.7).
-
-    Not by `client.id`: two client rows can be the same human (one soft-deleted and re-entered),
-    and keying on the row id would scatter one person's papers across two folders. The PID is the
-    identity the whole system already turns on.
+    Self-describing, because a downloaded file lands in someone's Downloads folder with no
+    surrounding path to give it context — but no `__<shortid>` and no machine type code, which
+    said nothing to the people who actually open these files. The case code leads, and it already
+    starts with the category letter, so naming the category again would only repeat it.
     """
-    return sanitize(pid, "NA", 40)
+    lead = sanitize(unique_code, "", 12) or sanitize(category_code, "NA", 10)
+    return f"{lead}_{sanitize(person_name, 'Unknown')}_{label}.pdf"
 
 
-def relative_path(*, category_code: str, pid: str, stored_filename: str) -> Path:
-    """`<CATEGORY>/<pid>/<institute>_<type>__<shortid>.pdf`, relative to DOCUMENTS_ROOT."""
-    return Path(sanitize(category_code, "NA", 10)) / person_dir(pid) / stored_filename
+def compose_stored_name(*, label: str, sid: str) -> str:
+    """The **on-disk** name. Shorter than the download name: the folders above already say the
+    case and the person, so repeating them buys nothing and makes a name correction rewrite the
+    filesystem.
+
+    The `__<shortid>` stays here and only here. It is what keeps two files apart when a slot
+    legitimately holds more than one — `RealEstate` expects two papers (UC-055) — and what lets a
+    file survive any number of re-filings. A download has no such constraint: the browser numbers
+    a repeat, and the name is free to stay clean.
+    """
+    return f"{label}__{sid}.pdf"
+
+
+def case_dir(*, unique_code: str, pid: str) -> str:
+    """One folder per **case**: `<CODE>_<PID>` (§3.7, §6.7, UC-060).
+
+    The PID stays because it is the identity the whole system turns on — and because a client row
+    can be re-entered, so keying on `client.id` would scatter one person's papers. The code is in
+    front of it because a person may hold more than one case over time (a re-application after a
+    rejection), and their papers were previously landing in one undifferentiated folder.
+
+    Cases opened before codes existed have none; they keep the plain PID folder they already had.
+    """
+    person = sanitize(pid, "NA", 40)
+    code = sanitize(unique_code, "", 12)
+    return f"{code}_{person}" if code else person
+
+
+def relative_path(*, category_code: str, unique_code: str, pid: str, stored_filename: str) -> Path:
+    """`<CATEGORY>/<CODE>_<PID>/<label>__<shortid>.pdf`, relative to DOCUMENTS_ROOT."""
+    return (
+        Path(sanitize(category_code, "NA", 10))
+        / case_dir(unique_code=unique_code, pid=pid)
+        / stored_filename
+    )
 
 
 def write_pdf(rel_path: Path, content: bytes) -> Path:

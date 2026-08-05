@@ -7,6 +7,7 @@ from django.core.exceptions import ImproperlyConfigured
 from dotenv import load_dotenv
 import os
 import sys
+import tempfile
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 TESTING = "test" in sys.argv
@@ -63,9 +64,15 @@ INSTALLED_APPS = [
 ]
 
 # Offline document file store (§2.5, §6.7) — lives OUTSIDE the repo, bind-mounted in prod.
-# Overridable per environment; tests point it at a temp dir.
-DOCUMENTS_ROOT = Path(
+_CONFIGURED_DOCUMENTS_ROOT = Path(
     os.getenv("DOCUMENTS_ROOT", str(BASE_DIR.parent / "LandAllocationData" / "documents"))
+)
+# Under `manage.py test` the store is forced to a throwaway directory. It used to rely on each
+# test class remembering `@override_settings(DOCUMENTS_ROOT=...)`, and the classes that forgot
+# wrote real PDFs into the office's archive — junk that outlives the run, in the one place this
+# system can never hard-delete from. Making it structural means no future test can leak into it.
+DOCUMENTS_ROOT = (
+    Path(tempfile.mkdtemp(prefix="las-test-documents-")) if TESTING else _CONFIGURED_DOCUMENTS_ROOT
 )
 # Hard cap on uploaded PDF size (bytes) — reject anything larger before writing to disk.
 MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_BYTES", str(25 * 1024 * 1024)))
@@ -76,8 +83,10 @@ MAX_GENERATED_BYTES = int(os.getenv("MAX_GENERATED_BYTES", str(200 * 1024 * 1024
 
 # Admin-uploaded .docx letter templates (§3.5, §6.6) — kept beside the documents they generate.
 # Named to stay clearly distinct from Django's own TEMPLATES setting below.
+# Off the CONFIGURED root, not the test one: the installed .docx templates are real input the
+# rendering tests read, so they must still be found when the store is redirected to a temp dir.
 LETTER_TEMPLATES_ROOT = Path(
-    os.getenv("LETTER_TEMPLATES_ROOT", str(DOCUMENTS_ROOT / "_templates"))
+    os.getenv("LETTER_TEMPLATES_ROOT", str(_CONFIGURED_DOCUMENTS_ROOT / "_templates"))
 )
 # Headless LibreOffice does the .docx→PDF render (D5): it shapes RTL Sorani/Arabic correctly,
 # which the lightweight HTML-to-PDF engines do not.

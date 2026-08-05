@@ -1,7 +1,7 @@
 """Keep the store's paths true after the data they were composed from changes (§6.7).
 
-Both names a document carries are derived from the person: the folder from their category and
-PID, the download name from their name. Correcting any of those makes the stored path a lie.
+Both names a document carries are derived from the person: the folder from their category, case
+code and PID, the download name from their name. Correcting any of those makes the path a lie.
 
 Shortening the on-disk name (It.5) removed most of this problem — the person's name is no longer
 part of it, so a name correction now only rewrites `display_filename` in the database and never
@@ -64,9 +64,10 @@ def refile_client_documents(client, *, actor=None, request=None) -> list[int]:
     )
     for document in documents:
         display, rel = _target(document)
-        # Keep the original short id — only the *derived* parts of the name may change.
+        # Keep the original short id — only the *derived* parts of the name may change. The stored
+        # name alone: since UC-060 the download name carries no short id to preserve, and splicing
+        # one into a name with no `__` would leave nothing but the id.
         rel = rel.parent / _keep_short_id(rel.name, document.file_path)
-        display = _keep_short_id(display, document.file_path)
         if str(rel) == document.file_path and display == document.display_filename:
             continue
 

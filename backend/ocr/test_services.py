@@ -247,13 +247,15 @@ class ConfirmCreatesTheClientTests(ScanTestBase):
         )
 
         document = Document.objects.get()
-        # `<CATEGORY>/<pid>/<institute>_<type>__<sid>.pdf` — one folder per person, and a short
-        # on-disk name because the folders already carry the category and the person (§6.7).
+        # `<CATEGORY>/<CODE>_<PID>/<label>__<sid>.pdf` — one folder per case, and a short on-disk
+        # name because the folders already carry the category and the person (§6.7). This case has
+        # no category and so no code, which is why the folder is the bare PID.
         self.assertEqual(document.file_path, f"NA/200103487811/{Path(document.file_path).name}")
-        self.assertTrue(Path(document.file_path).name.startswith("General_ClientID__"))
-        # The download name stays long and self-describing.
-        self.assertIn("ClientID", document.display_filename)
+        self.assertTrue(Path(document.file_path).name.startswith("ناسنامەی کڕیار__"))
+        # The download name is self-describing, and says it in the language the office reads.
+        self.assertIn("ناسنامەی کڕیار", document.display_filename)
         self.assertIn("محمد", document.display_filename)
+        self.assertNotIn("__", document.display_filename)
         self.assertTrue((settings.DOCUMENTS_ROOT / document.file_path).exists())
         # Nothing left behind in staging.
         self.assertFalse((settings.DOCUMENTS_ROOT / staged).exists())
@@ -497,8 +499,8 @@ class ConfirmOntoAnExistingClientTests(ScanTestBase):
         )
         document = Document.objects.latest("id")
         self.assertIn("/OLD-1/", f"/{document.file_path}")  # the beneficiary's folder
-        self.assertIn("Spouse_Name", document.display_filename)
-        self.assertNotIn("Old_Name", document.display_filename)
+        self.assertIn("Spouse Name", document.display_filename)
+        self.assertNotIn("Old Name", document.display_filename)
 
     def test_a_spouse_card_stores_the_spouses_own_pid_for_the_household_rule(self):
         scan = self._read(self._scan(document_type="SpouseID"))

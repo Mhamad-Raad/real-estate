@@ -61,7 +61,7 @@ class RefileTests(APITestCase):
 
         self.document.refresh_from_db()
         self.assertEqual(self.document.file_path, before_path)
-        self.assertIn("Corrected_Name", self.document.display_filename)
+        self.assertIn("Corrected Name", self.document.display_filename)
         self.assertTrue((settings.DOCUMENTS_ROOT / self.document.file_path).exists())
 
     def test_a_category_change_moves_the_file_to_the_new_folder(self):
@@ -77,9 +77,9 @@ class RefileTests(APITestCase):
         self.assertTrue((settings.DOCUMENTS_ROOT / self.document.file_path).exists())
         self.assertFalse(old.exists())
 
-    def test_a_pid_correction_moves_the_person_folder(self):
+    def test_a_pid_correction_moves_the_case_folder(self):
         """A misread card number is corrected often enough to matter, and the folder is keyed
-        by the PID (§6.7)."""
+        by the case code and the PID (§6.7)."""
         old = settings.DOCUMENTS_ROOT / self.document.file_path
         self.client_row.pid = "PID-CORRECTED"
         self.client_row.save(update_fields=["pid"])
@@ -87,7 +87,7 @@ class RefileTests(APITestCase):
         self._refile()
 
         self.document.refresh_from_db()
-        self.assertIn("/PID-CORRECTED/", f"/{self.document.file_path}")
+        self.assertIn("_PID-CORRECTED/", self.document.file_path)
         self.assertTrue((settings.DOCUMENTS_ROOT / self.document.file_path).exists())
         self.assertFalse(old.exists())
 
@@ -99,7 +99,8 @@ class RefileTests(APITestCase):
 
         self.document.refresh_from_db()
         self.assertTrue(self.document.file_path.endswith(sid))
-        self.assertTrue(self.document.display_filename.endswith(sid))
+        # The download name carries no short id to keep — it is the stored name's job (UC-060).
+        self.assertNotIn("__", self.document.display_filename)
 
     def test_re_filing_is_audited(self):
         self.client_row.pid = "PID-3"
@@ -180,5 +181,5 @@ class RefileTests(APITestCase):
         self.assertEqual(response.status_code, 200)
 
         self.document.refresh_from_db()
-        self.assertIn("/PID-VIA-API/", f"/{self.document.file_path}")
+        self.assertIn("_PID-VIA-API/", self.document.file_path)
         self.assertTrue((settings.DOCUMENTS_ROOT / self.document.file_path).exists())

@@ -60,20 +60,19 @@ def compose_location(*, process, document_type: str, institute_entry=None) -> tu
     client = process.client
     category_code = process.category.code if process.category_id else "NA"
     sid = filestore.short_id()
-    institute = filestore.institute_label(institute_entry)
+    # One label serves both names — the issuing body when there is one, else the paper's own name.
+    label = filestore.document_label(document_type, institute_entry)
     display = filestore.compose_display_name(
+        unique_code=process.unique_code,
         category_code=category_code,
-        institute=institute,
         person_name=subject_name(client, document_type),
-        document_type=document_type,
-        sid=sid,
+        label=label,
     )
     rel = filestore.relative_path(
         category_code=category_code,
+        unique_code=process.unique_code,
         pid=client.pid,
-        stored_filename=filestore.compose_stored_name(
-            institute=institute, document_type=document_type, sid=sid
-        ),
+        stored_filename=filestore.compose_stored_name(label=label, sid=sid),
     )
     return display, rel
 
