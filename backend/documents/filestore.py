@@ -199,6 +199,26 @@ def write_pdf(rel_path: Path, content: bytes) -> Path:
     return dest
 
 
+
+# What the office calls each bulk output, in Sorani like every other filename here. Keyed by
+# `GenerationJob.Kind` — the literals rather than the enum, so this naming module stays free of
+# the model layer. The job id stays on the end: two code lists printed the same day are different
+# papers.
+BULK_JOB_NAMES = {
+    "process_list": "لیستی کەیسەکان",
+    "process_codes": "لیستی کۆدەکان",
+}
+
+
+def bulk_job_filename(job) -> str:
+    """The download name for a bulk job's PDF (§6.7, UC-066).
+
+    Lives beside the other naming rules rather than in `generation.py`: the endpoint that serves
+    the file used to invent `list_<id>.pdf` for **every** kind, so a code list arrived called a
+    case list. One module decides what a file is called.
+    """
+    return f"{sanitize(BULK_JOB_NAMES.get(job.kind, 'بەڵگەنامە'), 'Document')}_{job.id}.pdf"
+
 # Scans wait here between upload and confirmation. Inside DOCUMENTS_ROOT so one backup covers it,
 # and underscore-prefixed so it can never collide with a category folder (A/B/C/G).
 STAGING_DIR = "_staging"

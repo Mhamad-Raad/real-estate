@@ -14,8 +14,8 @@ from rest_framework.viewsets import ModelViewSet, ReadOnlyModelViewSet
 from common.viewsets import AuditedSoftDeleteViewSet
 from processes.services import recompute_step
 
-from .generation import bulk_job_filename
 from .models import Document, DocumentTemplate, GenerationJob
+from .filestore import bulk_job_filename
 from .permissions import IsDocumentEditorOrAdmin
 from .selectors import documents_for_process
 from .preview import render_template_preview

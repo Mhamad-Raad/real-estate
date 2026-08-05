@@ -247,7 +247,7 @@ class BulkJobFilenameTests(APITestCase):
     """
 
     def test_each_kind_is_named_for_itself(self):
-        from documents.generation import bulk_job_filename
+        from documents.filestore import bulk_job_filename
         from documents.models import GenerationJob
 
         class FakeJob:
@@ -264,7 +264,7 @@ class BulkJobFilenameTests(APITestCase):
         )
 
     def test_an_unknown_kind_still_gets_a_name(self):
-        from documents.generation import bulk_job_filename
+        from documents.filestore import bulk_job_filename
 
         class FakeJob:
             kind, id = "something_new", 4

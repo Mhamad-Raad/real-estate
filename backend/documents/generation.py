@@ -97,22 +97,6 @@ def run_eligibility_job(job_id: int) -> None:
         raise
 
 
-# What the office calls each bulk output, in Sorani like every other filename (§6.7, UC-060).
-# The job id stays on the end: two code lists printed the same day are different papers.
-BULK_JOB_NAMES = {
-    GenerationJob.Kind.PROCESS_LIST: "لیستی کەیسەکان",
-    GenerationJob.Kind.PROCESS_CODES: "لیستی کۆدەکان",
-}
-
-
-def bulk_job_filename(job) -> str:
-    """The download name for a bulk job's PDF."""
-    from documents import filestore
-
-    label = BULK_JOB_NAMES.get(job.kind, "بەڵگەنامە")
-    return f"{filestore.sanitize(label, 'Document')}_{job.id}.pdf"
-
-
 def _run_bulk_job(job_id: int, *, build_context, stem: str) -> None:
     """Render a multi-case document to a standalone downloadable file (§6.8).
 

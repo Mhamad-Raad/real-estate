@@ -197,14 +197,20 @@ def read_card(front_path: Path, back_path: Path | None = None) -> IdCardDraft:
     # it spent that on finding nothing, turning an import into a wait long enough that the office
     # gave up and typed the details by hand (UC-065). A page still gets the plain read above; what
     # it no longer gets is minutes of a pass that cannot help it.
-    if _filled(draft) == 0 and looks_like_a_card(frame_content(front_images[0])):
-        rescued, rescued_front = _read_pair(front_images[0], back_image, psm=6, framed=True)
-        if _filled(rescued) > _filled(draft):
-            rescued.warnings.append(
-                "This looked like a scan of a page rather than a photograph of the card, so it was "
-                "read a second time. Check every field before confirming."
-            )
-            return rescued
+    if _filled(draft) == 0:
+        # Framed once, here: the gate and the read have to be looking at the same image rather
+        # than at two independently-derived ones, which is why `_read_pair` is told not to frame.
+        # Inside the guard so the ordinary path — a reading that worked — pays nothing for it.
+        framed_front = frame_content(front_images[0])
+        framed_back = frame_content(back_image) if back_image is not None else None
+        if looks_like_a_card(framed_front):
+            rescued, _ = _read_pair(framed_front, framed_back, psm=6, framed=False)
+            if _filled(rescued) > _filled(draft):
+                rescued.warnings.append(
+                    "This looked like a scan of a page rather than a photograph of the card, so "
+                    "it was read a second time. Check every field before confirming."
+                )
+                return rescued
 
     if not front.is_readable:
         draft.warnings.insert(0, "The front of the card could not be read. Enter the details by hand.")
