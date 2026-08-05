@@ -79,6 +79,13 @@ def looks_like_a_card(image) -> bool:
     return CARD_ASPECT_RANGE[0] <= max(size) / min(size) <= CARD_ASPECT_RANGE[1]
 
 
+# A row or column counts as holding content only if this fraction of it is ink. An absolute
+# "more than 3 dark pixels" was the original rule, and a scanner's dust and speckle cleared it on
+# every line of an otherwise blank page — so the box stretched the full height of the sheet and
+# framed the page instead of the card sitting in its corner (UC-067).
+MIN_INK_FRACTION = 0.01
+
+
 # A scan puts the card on a sheet: frame the ink and enlarge it, so the engine is handed the card
 # rather than a page that is mostly paper. Only ever used by the second-chance pass below.
 def frame_content(image, *, threshold: int = 190, pad: int = 30):
@@ -87,10 +94,12 @@ def frame_content(image, *, threshold: int = 190, pad: int = 30):
 
     grey = np.asarray(image.convert("L"))
     ink = grey < threshold
-    rows = np.where(ink.sum(axis=1) > 3)[0]
-    cols = np.where(ink.sum(axis=0) > 3)[0]
+    height, width = grey.shape
+    # Proportional to the edge being scanned across, so the rule means the same thing on a
+    # 300-dpi sheet as on a tightly-cropped photograph of a card.
+    rows = np.where(ink.sum(axis=1) > width * MIN_INK_FRACTION)[0]
+    cols = np.where(ink.sum(axis=0) > height * MIN_INK_FRACTION)[0]
     if len(rows) and len(cols):
-        height, width = grey.shape
         image = image.crop(
             (
                 max(0, int(cols[0]) - pad),
