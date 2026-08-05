@@ -667,6 +667,12 @@ value. `ix_process_unique_code` is the storage-level backstop — and note it is
 partial on `is_deleted`**, unlike `ix_client_pid_active`: a PID may be reused after a soft delete,
 a code may not. Allocation counts over `all_objects` for the same reason.
 
+**A category is required to open a case** (2026-08-04, the office's rule). The API states it as
+"a category must be **resolvable**", not "must always be typed": re-applying after a rejection
+passes only the client and inherits theirs (UC-028), so demanding the field outright would reject a
+legitimate path. Cases opened *before* this rule keep a blank code — the column stays nullable for
+them, and since the category is fixed at creation they can never acquire one.
+
 **A case opened without a category gets no code** (the column is blank). Such a case cannot complete
 Step 1 anyway — `category` is in that step's `missing` list (§3.6) — and since the category is fixed
 at creation it will never acquire one. The unique constraint excludes the blank so several may
