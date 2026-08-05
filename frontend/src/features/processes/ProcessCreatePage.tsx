@@ -19,9 +19,7 @@ import { EMPTY_CLIENT, type ClientDraft } from "@/features/clients/clientForm";
 import { useCheckDuplicateMutation } from "@/features/clients/clientsApi";
 import type { DuplicateCheckResult } from "@/features/clients/types";
 import { useListLawyersQuery } from "@/features/users/lawyersApi";
-import { apiErrorStatus } from "@/lib/apiError";
-
-import { codeErrorMessage } from "./codeError";
+import { apiErrorMessage, apiErrorStatus } from "@/lib/apiError";
 
 import { useCreateProcessMutation } from "./processesApi";
 
@@ -39,7 +37,6 @@ export function ProcessCreatePage() {
 
   const [mode, setMode] = useState<Mode>("scan");
   const [category, setCategory] = useState("");
-  const [uniqueCode, setUniqueCode] = useState("");
   const [landId, setLandId] = useState("");
   const [landAddress, setLandAddress] = useState("");
   const [lawyer, setLawyer] = useState("");
@@ -125,9 +122,6 @@ export function ProcessCreatePage() {
         // One value, sent to both: the beneficiary's category and the case's are the same thing.
         client_data: { ...draft, category: Number(category) },
         category: Number(category),
-        // Blank = the server issues the next free number. Typed = the office is choosing where
-        // the sequence resumes, and it continues from there afterwards (UC-062).
-        unique_code: uniqueCode.trim(),
         land_id: landId,
         land_address: landAddress,
         ...(assignedLawyer ? { assigned_lawyer: assignedLawyer } : {}),
@@ -139,7 +133,7 @@ export function ProcessCreatePage() {
       toast.error(
         apiErrorStatus(err) === 409
           ? t("processes.duplicateAllocation")
-          : codeErrorMessage(err, t, t("common.saveError")),
+          : apiErrorMessage(err, t("common.saveError")),
       );
     }
   };
@@ -178,22 +172,6 @@ export function ProcessCreatePage() {
           </Select>
         </div>
       )}
-      <div className="space-y-1.5">
-        <Label htmlFor="i-code">
-          {t("workflow.uniqueCode")}{" "}
-          <span className="text-xs font-normal text-muted-foreground">
-            {t("workflow.codeAutoHint")}
-          </span>
-        </Label>
-        <Input
-          id="i-code"
-          dir="ltr"
-          className="font-mono"
-          value={uniqueCode}
-          onChange={(e) => setUniqueCode(e.target.value)}
-          placeholder={t("workflow.codePlaceholder")}
-        />
-      </div>
       <div className="space-y-1.5">
         <Label htmlFor="i-landid">{t("workflow.landId")}</Label>
         <Input

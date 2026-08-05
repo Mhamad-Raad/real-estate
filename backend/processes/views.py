@@ -12,7 +12,6 @@ from rest_framework.viewsets import ModelViewSet
 from common.permissions import IsAdmin, IsProcessAssigneeOrAdmin
 from common.viewsets import AuditedSoftDeleteViewSet
 from documents.compile import start_compile_case_job
-from documents.refile import refile_client_documents
 from documents.generation import (
     start_eligibility_job,
     start_process_codes_job,
@@ -90,8 +89,6 @@ class ProcessViewSet(AuditedSoftDeleteViewSet, ModelViewSet):
             category=data.get("category"),
             land_id=data.get("land_id", ""),
             land_address=data.get("land_address", ""),
-            # Blank = let the allocator issue the next free number (§3.8, UC-062).
-            unique_code=data.get("unique_code", "").strip(),
             request=self.request,
         )
 
@@ -111,31 +108,15 @@ class ProcessViewSet(AuditedSoftDeleteViewSet, ModelViewSet):
         restore_client_with_case(instance, actor=self.request.user, request=self.request)
 
     def perform_update(self, serializer):
-        # Read before the save: the store path is keyed on the code, so a change has to be
-        # detected here or not at all.
-        previous_code = serializer.instance.unique_code
-        try:
-            super().perform_update(serializer)
-        except IntegrityError:
-            # `ix_process_unique_code` fired: the other computer took this number between the
-            # serializer's check and this write. Same clean 400 the check itself gives, rather
-            # than a 500 — the office sees "already used" either way (UC-062).
-            raise ValidationError(
-                {"unique_code": "This number has just been taken.", "code_error": "already_used"}
-            )
+        super().perform_update(serializer)
         # Both steps read header fields edited through here (Step 4 the `land_id`, UC-041), so
         # their stored status would otherwise go stale against the live rules (§3.6).
         recompute_step(serializer.instance, 1)
         recompute_step(serializer.instance, 4)
-        # The case number *is* part of the document store's path and download names since UC-060
-        # (`<CATEGORY>/<CODE>_<PID>/…`), and UC-062 made it editable — so correcting a code has to
-        # move the papers with it, or the archive the office browses by hand still shows the old
-        # number. The category cannot change here (UC-059) and the PID re-files on its own update,
-        # so this is the only path left that can invalidate a path.
-        if serializer.instance.unique_code != previous_code:
-            refile_client_documents(
-                serializer.instance.client, actor=self.request.user, request=self.request
-            )
+        # No refile here: the store path is composed from the category, the case number and the
+        # PID (§6.7), and none of the three can change through this endpoint — the category is
+        # fixed for the life of the case (UC-059), the number is system-owned and never editable
+        # (UC-064), and the PID belongs to the client, which refiles on its own update.
 
     @action(
         detail=True,

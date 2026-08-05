@@ -51,7 +51,6 @@ export const processesApi = baseApi.injectEndpoints({
         land_id?: string;
         land_address?: string;
         category?: number | null;
-        unique_code?: string;
       }
     >({
       query: ({ id, ...body }) => ({ url: `processes/${id}/`, method: "PATCH", body }),

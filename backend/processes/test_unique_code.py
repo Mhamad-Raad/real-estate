@@ -98,12 +98,13 @@ class UniqueCodeApiTests(APITestCase):
         detail = self.client.get(reverse("process-detail", args=[resp.data["id"]]))
         self.assertEqual(detail.data["unique_code"], "A1")
 
-    def test_the_code_may_now_be_corrected(self):
-        """**Reverses this rule deliberately.** UC-056 shipped the code as read-only; the office
-        then asked to be able to set where the sequence resumes, and to correct a number that went
-        out wrong (UC-062). What did NOT change is the part that protects the paperwork: a number
-        is still retired for ever once issued, and still has to carry its category's letter —
-        `processes/test_code_editing.py` holds those. Only the "never editable" part is gone.
+    def test_the_code_cannot_be_edited(self):
+        """The system owns the sequence end to end (§3.8).
+
+        UC-062 briefly made this editable so the office could choose where the sequence resumed;
+        they reversed that in UC-064 — the number is issued automatically per category and by
+        nothing else. `unique_code` is absent from `ProcessUpdateSerializer`, so a caller that
+        sends one is ignored rather than obeyed.
         """
         process = create_process(
             client=make_client(pid="199505050102", category=self.category),
@@ -118,7 +119,21 @@ class UniqueCodeApiTests(APITestCase):
         )
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
         process.refresh_from_db()
-        self.assertEqual(process.unique_code, "A999")
+        self.assertEqual(process.unique_code, "A1")
+
+    def test_a_code_cannot_be_chosen_at_intake_either(self):
+        """The other half of the same rule — the intake payload has no say in the number."""
+        resp = self.client.post(
+            reverse("process-list"),
+            {
+                "client_data": client_data(pid="199505050103"),
+                "category": self.category.id,
+                "unique_code": "A999",
+            },
+            format="json",
+        )
+        self.assertEqual(resp.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(Process.objects.get(pk=resp.data["id"]).unique_code, "A1")
 
 
 class UniqueCodeConcurrencyTests(APITransactionTestCase):

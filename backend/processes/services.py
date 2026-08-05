@@ -70,50 +70,8 @@ def allocate_unique_code(category) -> str:
 
 
 @transaction.atomic
-def assert_code_is_available(code: str, category, *, exclude=None) -> None:
-    """Vet a hand-picked case number before the index does (§3.8, UC-062).
-
-    Two rules, both the office's own:
-
-    * it must carry **this case's category letter**. The first character of a code *is* the
-      category, the category is fixed for the life of the case (UC-059), and letters that have
-      gone out quote the code — so a code that disagreed with its case would be a lie on paper.
-    * it must never have been used, **including by deleted cases**. A number is retired for ever
-      once issued; `all_objects` is what makes that true rather than "free again after a delete".
-
-    A case with no category can hold no chosen code at all: `prefix` would be "" and every bare
-    number would pass the first rule, which is not a rule.
-    """
-    prefix = category.code if category else ""
-    # A machine code travels beside the sentence. The sentence is English like every other DRF
-    # error, but this one a lawyer hits by simply mistyping — and every screen in this app is
-    # localized (§9). So the screens read `code_error` and print it in the office's own language,
-    # the same shape `in_use` already uses for a refused delete.
-    if not prefix or not code.startswith(prefix) or not code[len(prefix):].isdigit():
-        raise ValidationError(
-            {
-                "unique_code": (
-                    f"A case number in this category looks like "
-                    f"{prefix or 'A'}1, {prefix or 'A'}2, …"
-                ),
-                "code_error": "wrong_category",
-                "expected_prefix": prefix,
-            }
-        )
-    taken = Process.all_objects.filter(unique_code=code)
-    if exclude is not None:
-        taken = taken.exclude(pk=exclude.pk)
-    if taken.exists():
-        raise ValidationError(
-            {
-                "unique_code": f"{code} has already been used and cannot be reused.",
-                "code_error": "already_used",
-            }
-        )
-
-
 def create_process(
-    *, client, assigned_lawyer, actor, category=None, request=None, unique_code="",
+    *, client, assigned_lawyer, actor, category=None, request=None,
 ) -> Process:
     """Create a case + its five step placeholder rows. Returns HTTP 409 (not 500) if the
     client already has an active allocation — the DB index is the race-safe backstop (§5.7)."""
@@ -143,11 +101,10 @@ def create_process(
                 client=client,
                 assigned_lawyer=assigned_lawyer,
                 category=category,
-                # A number the office chose, or the next free one. Either way the allocator
-                # reads "highest ever issued + 1" over `all_objects`, so choosing A15 while the
-                # sequence sat at A12 simply moves it on — the next auto code is A16, and A13/A14
-                # are retired unused rather than handed out later (§3.8, UC-062).
-                unique_code=(unique_code or allocate_unique_code(category)) if category else "",
+                # Issued here and never again: the category is fixed for the life of the case
+                # (UC-059), so the letter can be trusted for as long as the code exists. The
+                # office issues no numbers by hand — the system owns the sequence (UC-064).
+                unique_code=allocate_unique_code(category) if category else "",
                 duplicate_flagged=duplicate_flagged,
                 similar_name_flagged=similar_name_flagged,
             )
@@ -187,7 +144,6 @@ def intake_process(
     category=None,
     land_id="",
     land_address="",
-    unique_code="",
     request=None,
 ) -> Process:
     """Open a case from the Step-1 intake form — the beneficiary and their case commit together.
@@ -213,14 +169,11 @@ def intake_process(
     # is a data-integrity hole, so the guarantee belongs on this side of the boundary (§7.2).
     if category is None:
         category = client.category
-    if unique_code:
-        assert_code_is_available(unique_code, category)
     process = create_process(
         client=client,
         assigned_lawyer=assigned_lawyer,
         category=category,
         actor=actor,
-        unique_code=unique_code,
         request=request,
     )
     if land_id or land_address:

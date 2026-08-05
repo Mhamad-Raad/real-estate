@@ -7,8 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "@/components/ui/toaster";
 import { useListCategoriesQuery } from "@/features/categories/categoriesApi";
-
-import { codeErrorMessage } from "../codeError";
+import { apiErrorMessage } from "@/lib/apiError";
 
 import { useUpdateProcessMutation } from "../processesApi";
 import type { ProcessDetail } from "../types";
@@ -44,20 +43,17 @@ export function LandDetailsForm({
 
   const [landId, setLandId] = useState(process.land_id);
   const [landAddress, setLandAddress] = useState(process.land_address);
-  const [code, setCode] = useState(process.unique_code);
 
   useEffect(() => {
     setLandId(process.land_id);
     setLandAddress(process.land_address);
-    setCode(process.unique_code);
-  }, [process.land_id, process.land_address, process.unique_code, process.id]);
+  }, [process.land_id, process.land_address, process.id]);
 
   // Only the fields this instance renders may count as dirty, or Step 4 would offer to save a
   // category it never showed.
   const dirty =
     (fields.includes("land_id") && landId !== process.land_id) ||
-    (fields.includes("land_address") && landAddress !== process.land_address) ||
-    (fields.includes("unique_code") && code !== process.unique_code);
+    (fields.includes("land_address") && landAddress !== process.land_address);
 
   const save = async () => {
     try {
@@ -66,50 +62,36 @@ export function LandDetailsForm({
         version: process.version,
         ...(fields.includes("land_id") ? { land_id: landId } : {}),
         ...(fields.includes("land_address") ? { land_address: landAddress } : {}),
-        ...(fields.includes("unique_code") && code !== process.unique_code
-          ? { unique_code: code.trim() }
-          : {}),
       }).unwrap();
       toast.success(t("common.saved"));
     } catch (err) {
       // A refused case number is the one failure here a lawyer causes by simply mistyping, so it
       // is named in their own language rather than left as the server's English (UC-062).
-      toast.error(codeErrorMessage(err, t, t("common.saveError")));
+      toast.error(apiErrorMessage(err, t("common.saveError")));
     }
   };
 
   return (
     <>
       <div className="grid gap-4 sm:grid-cols-2">
-        {/* The office's own case number. Issued automatically at creation, and correctable since
-            UC-062 — the office sets where the sequence resumes. The server still refuses a number
-            already issued or one from another category, so a bad edit comes back as a 400 rather
-            than landing. `dir="ltr"` because it is quoted on paper left-to-right. */}
+        {/* The office's own case number — issued by the system at creation and never editable
+            (§3.8, UC-064). Sits beside the category because its first letter *is* the category.
+            `dir="ltr"` because it is quoted on paper left-to-right, even on an RTL screen. */}
         {fields.includes("unique_code") && (
           <div className="space-y-1.5">
             <Label htmlFor={`${idPrefix}-code`}>
               {t("workflow.uniqueCode")}{" "}
               <span className="text-xs font-normal text-muted-foreground">
-                {t("workflow.neverReused")}
+                {t("workflow.fixedAtCreation")}
               </span>
             </Label>
-            {canEdit ? (
-              <Input
-                id={`${idPrefix}-code`}
-                dir="ltr"
-                className="font-mono"
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-              />
-            ) : (
-              <p
-                id={`${idPrefix}-code`}
-                dir="ltr"
-                className="rounded-md border border-input bg-muted/40 px-3 py-2 font-mono text-sm text-start"
-              >
-                {process.unique_code || t("common.none")}
-              </p>
-            )}
+            <p
+              id={`${idPrefix}-code`}
+              dir="ltr"
+              className="rounded-md border border-input bg-muted/40 px-3 py-2 font-mono text-sm text-start"
+            >
+              {process.unique_code || t("common.none")}
+            </p>
           </div>
         )}
         {/* Shown, never edited: a case's category is fixed once it is created — moving one means

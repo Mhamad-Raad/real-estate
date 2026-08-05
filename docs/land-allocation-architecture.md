@@ -647,18 +647,21 @@ Every case carries a code the office recognises it by: the **category's letter**
 number that only ever counts **up within that category** — `A1`, `A102`, `G2005`. Added 2026-08-04
 (UC-056). It is `Process.unique_code`, issued automatically at creation.
 
-> **Revised It.7 / UC-062 (2026-08-05).** The code was originally **never editable**. The office
-> then asked for two things it could not do: choose where the sequence resumes (they are on `A12`
-> and want the next case to be `A15`), and correct a number that went out wrong. It is now settable
-> at intake and editable afterwards by whoever may edit the case — the assigned lawyer or an admin,
-> the same boundary as every other header field (§7.2).
+It is **never editable** — absent from `ProcessUpdateSerializer` and from the intake payload alike,
+so a caller that sends one is ignored rather than obeyed.
+
+> **UC-062, reversed by UC-064 (both 2026-08-05).** For one afternoon the code was settable at
+> intake and correctable afterwards, so the office could choose where the sequence resumed. They
+> reversed it the same day: the system owns the sequence end to end, and it increments
+> automatically per category. Recorded because the reversal is the decision — not because the
+> feature is coming back.
 >
-> **Nothing that protects the paperwork changed.** A chosen code still has to carry its category's
-> letter, and still must never have been used — including by a deleted case. Both are checked by
-> `services.assert_code_is_available`, over `all_objects`. And because the allocator reads "highest
-> ever issued + 1" rather than "count of live rows", choosing `A15` needs no other machinery to make
-> the next automatic number `A16`: `A13` and `A14` are simply retired unused, which rule 3 below
-> already permits.
+> The removal was complete: the hand-picked-code validator, the machine-readable error keys it
+> needed, and the re-file that a code change had to trigger (the number is part of the store path,
+> §6.7) all went with it. What UC-062 *established* and is worth keeping in mind: the allocator
+> reads "highest ever issued + 1" over `all_objects`, so it would resume correctly from any number
+> that ever appeared — that property is why choosing one was cheap to add, and why removing it
+> again cost nothing.
 
 **Three rules, all decided by the office:**
 
@@ -666,8 +669,7 @@ number that only ever counts **up within that category** — `A1`, `A102`, `G200
    the category's own `code`, not a prefix on a shared sequence.
 2. **The category never changes** (§7.2 layer 5, UC-059), which is what lets the letter be trusted
    for as long as the code exists.
-3. **A code is never reissued.** This is the rule UC-062 left untouched, and the reason it could
-   be relaxed safely elsewhere. Soft-deleting a case does *not* release its number — the next case
+3. **A code is never reissued.** Soft-deleting a case does *not* release its number — the next case
    in that category takes the following one, and gaps are correct. This matters because the office
    moves a case between categories by deleting it and opening a new one, so deletion is routine; a
    recycled number would put two different cases on the same figure already printed on letters that
