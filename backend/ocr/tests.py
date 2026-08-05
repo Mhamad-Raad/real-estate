@@ -311,6 +311,37 @@ class MrzDigitConfusionTests(SimpleTestCase):
         # this is a safe repair rather than a guess.
         self.assertIn("date_of_birth", result.verified)
 
+    def test_a_misread_letter_never_shortens_the_national_id(self):
+        """The "no land twice" key must not be silently compacted (§3.7).
+
+        Filtering the optional-data field to `isdigit()` **deleted** any letter the engine
+        misread, so one bad character turned a 13-character read into 12 digits — the exact
+        length of a real PID. The wrong number then looked entirely valid and was offered as the
+        card number at confidence 70. Repair, or drop the field; never quietly shorten it.
+        """
+        from .mrz import parse_td1
+
+        clean = parse_td1(
+            ["IDIRQA3519035274199548017276<<<", self.LINES[1], self.LINES[2]]
+        ).national_id
+        smudged = parse_td1(
+            ["IDIRQA351903527419954801727S<<<", self.LINES[1], self.LINES[2]]
+        ).national_id
+
+        self.assertEqual(len(clean), 13)
+        # Repaired, not compacted — the length is what made a wrong value look right.
+        self.assertEqual(len(smudged), len(clean))
+
+    def test_a_field_that_cannot_be_repaired_is_dropped_whole(self):
+        """Better nothing than a plausible wrong identifier: the front of the card then decides."""
+        from .mrz import parse_td1
+
+        result = parse_td1(
+            ["IDIRQA35190352741995480172#6<<<", self.LINES[1], self.LINES[2]]
+        )
+
+        self.assertEqual(result.national_id, "")
+
     def test_the_document_number_keeps_its_letters(self):
         """The number legitimately contains letters — only its check digit is numeric."""
         from .mrz import parse_td1

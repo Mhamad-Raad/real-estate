@@ -124,7 +124,16 @@ def parse_td1(lines: list[str]) -> MrzResult:
             result.verified.add("document_number")
         # The optional-data field holds the national ID on this card. It carries no check digit
         # of its own here, so it is cross-checked against the front of the card instead.
-        result.national_id = "".join(ch for ch in first[15:] if ch.isdigit())
+        #
+        # **Never compact this field by discarding characters.** Filtering to `isdigit()` deleted
+        # any letter the engine misread, so one bad character silently shortened a 13-character
+        # read to 12 digits — the exact length of a real PID, so the wrong number looked entirely
+        # valid and was offered at confidence 70. This is the "no land twice" key (§3.7): a
+        # plausible wrong value here is far worse than no value. So the known letter-for-digit
+        # substitutions are *repaired*, and anything still not a digit means the field was not
+        # read cleanly — in which case it is dropped whole and the front of the card decides.
+        optional = as_digits(first[15:].replace(FILLER, ""))
+        result.national_id = optional if optional.isdigit() else ""
 
     # Line 2: birth date (6) + check, sex (1), expiry (6) + check, nationality (3).
     # The expiry date is read past, not parsed: the office cares who the holder is, not whether
