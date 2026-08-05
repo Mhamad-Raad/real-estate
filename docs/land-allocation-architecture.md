@@ -1205,7 +1205,9 @@ sequenceDiagram
     U->>D: POST /auth/logout/ → blacklist refresh
 ```
 
-- **Access token** short-lived (e.g. 60 min — generous for a single trusted office); **refresh** longer (e.g. 12 h, expiring at end of workday). Refresh rotation + blacklist on logout.
+- **Access token** short-lived — **30 min** as shipped. It is sent on every request, and rotation makes its expiry invisible: the app refreshes silently on the first 401 and retries.
+- **Refresh token — 7 days** (UC-071, 2026-08-05). Set by the office: a 1-day window meant a fresh sign-in every morning. The cost is that a session left open on a shared machine stays usable for the week; what bounds it is that the token is blacklisted the moment it is spent (`ROTATE_REFRESH_TOKENS` + `BLACKLIST_AFTER_ROTATION`) or the user signs out, and the machines sit on an isolated LAN behind full-disk encryption (§2, §12). Both lifetimes are env-overridable (`ACCESS_TOKEN_MINUTES`, `REFRESH_TOKEN_DAYS`) so a stricter site needs no code change.
+- ⚠️ **Rotation means the client must store the returned refresh token, not just the access token.** Storing only `access` made the silent refresh work exactly once — the next one sent the just-blacklisted token and signed the user out mid-work (UC-071).
 - **Token storage:** access token in memory (Redux); refresh token in an **httpOnly, SameSite cookie** if TLS is enabled on the LAN, otherwise in memory with silent re-login — flagged in §12.
 - **Login** is itself audited (`action="login"`).
 

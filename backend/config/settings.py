@@ -175,9 +175,18 @@ REST_FRAMEWORK = {
     "PAGE_SIZE": 25,
 }
 
+# The access token stays short: it is the one sent on every request, and rotation makes its expiry
+# invisible — the app refreshes silently and retries (§7.1).
+#
+# The refresh window is the office's call (UC-071). A day meant a fresh sign-in every morning; a
+# week means they sign in about as often as they think about it. The trade-off is on the other
+# side: this is a shared office computer, so a session left open stays usable for the whole week.
+# Two things bound that — the token is blacklisted the moment it is spent (rotation) or the user
+# signs out, and the machines are on an isolated LAN behind full-disk encryption (§2, §12).
+# Overridable per environment so a stricter site can shorten it without a code change.
 SIMPLE_JWT = {
-    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=30),
-    "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=int(os.getenv("ACCESS_TOKEN_MINUTES", "30"))),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=int(os.getenv("REFRESH_TOKEN_DAYS", "7"))),
     "ROTATE_REFRESH_TOKENS": True,
     "BLACKLIST_AFTER_ROTATION": True,
 }
