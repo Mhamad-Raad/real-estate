@@ -36,10 +36,11 @@ export function SelectionToolbar({
     // The two kinds land in different places: a list letter is a job output with its own
     // endpoint, a single letter is a Document on the case. Asking the job endpoint for the
     // latter 404s, because an eligibility job carries no `output_path`.
+    // Both names come from the server (UC-066); these fallbacks only apply if it sends none.
     const download =
       job.kind === "eligibility" && job.document
         ? downloadDocument(job.document, `letter_${job.document}.pdf`, token)
-        : downloadGenerationJob(job.id, token, job.kind);
+        : downloadGenerationJob(job.id, token);
     download.then(onClear).catch(() => toast.error(t("workflow.downloadError")));
   });
 

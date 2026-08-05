@@ -132,7 +132,12 @@ export function InstituteEntryCard({
 
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <Label className="text-xs">{t("workflow.document")}</Label>
+          {/* Named for the body that issues it, not the generic "Document" — the office asked
+              for the Step-4 slot to read "The relevant authority acceptance" (UC-066), and the
+              stored file is already named after the institute (§6.7), so the two now agree. */}
+          <Label className="text-xs">
+            {label ? t("workflow.instituteAcceptance", { name: label }) : t("workflow.document")}
+          </Label>
           {canEdit && (
             <DocumentUpload
               process={process.id}

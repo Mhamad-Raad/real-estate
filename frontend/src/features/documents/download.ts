@@ -1,8 +1,34 @@
+/** The name the server put in `Content-Disposition`, if it sent one.
+ *
+ * Non-ASCII names travel RFC 5987-encoded (`filename*=utf-8''…`) — every generated name is Sorani
+ * (§6.7), so that is the branch that matters; the plain `filename=` form is read as a fallback.
+ */
+function serverFilename(res: Response): string | undefined {
+  // Optional-chained: a stubbed or opaque response may carry no `headers` at all, and a missing
+  // server name simply means the caller's fallback stands.
+  const header = res.headers?.get?.("content-disposition");
+  if (!header) return undefined;
+  const encoded = /filename\*=(?:utf-8|UTF-8)''([^;]+)/.exec(header);
+  if (encoded) {
+    try {
+      return decodeURIComponent(encoded[1].trim());
+    } catch {
+      return undefined; // malformed percent-encoding: fall back to the caller's name
+    }
+  }
+  return /filename="?([^";]+)"?/.exec(header)?.[1]?.trim() || undefined;
+}
+
 // Every protected file needs the auth header, so a plain <a href> won't do — fetch as a blob
 // and trigger a download from an object URL.
+//
+// `filename` is only a **fallback**. The server names every file it stores or generates (§6.7),
+// so what it sends wins — otherwise each caller invents its own name and they drift, which is how
+// a compiled case came to be saved as `case_41.pdf` instead of the name the office reads (UC-066).
 export async function downloadFile(url: string, filename: string, token: string | null) {
   const res = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
   if (!res.ok) throw new Error("download failed");
+  filename = serverFilename(res) ?? filename;
   const objectUrl = URL.createObjectURL(await res.blob());
   const a = document.createElement("a");
   a.href = objectUrl;
@@ -18,24 +44,13 @@ export async function downloadDocument(id: number, filename: string, token: stri
   return downloadFile(`/api/v1/documents/${id}/file/`, filename, token);
 }
 
-// Matches the stem the server gives the file on disk, so what the office opens is called what
-// the system calls it. Naming a code list `list_29.pdf` is the same complaint they raised about
-// the compiled case arriving as a blob id (UC-058).
-const JOB_FILE_STEM: Record<string, string> = {
-  process_list: "list",
-  process_codes: "codes",
-  compiled_case: "case",
-  eligibility: "letter",
-};
-
-/** A generated list is a job output, not a Document, so it has its own endpoint. */
-export async function downloadGenerationJob(
-  id: number,
-  token: string | null,
-  kind = "process_list",
-) {
-  const stem = JOB_FILE_STEM[kind] ?? "document";
-  return downloadFile(`/api/v1/generation-jobs/${id}/file/`, `${stem}_${id}.pdf`, token);
+/** A generated list is a job output, not a Document, so it has its own endpoint.
+ *
+ * No stem table here any more: the server names each kind (UC-066). The fallback only applies if
+ * it ever stops sending a `Content-Disposition`.
+ */
+export async function downloadGenerationJob(id: number, token: string | null) {
+  return downloadFile(`/api/v1/generation-jobs/${id}/file/`, `document_${id}.pdf`, token);
 }
 
 /** Blob URL for inline preview/print — the file needs the auth header, so it cannot be an <iframe src>. */

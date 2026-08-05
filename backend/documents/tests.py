@@ -237,3 +237,36 @@ class DocumentTypeVocabularyTests(APITestCase):
         resp = self._post("ClientID")
 
         self.assertEqual(resp.status_code, status.HTTP_201_CREATED)
+
+
+class BulkJobFilenameTests(APITestCase):
+    """A generated list is named for what it is (§6.7, UC-066).
+
+    The endpoint used to answer `list_<id>.pdf` for **every** kind, so a code list arrived called
+    a case list. The name belongs on the server, like every other filename in this system.
+    """
+
+    def test_each_kind_is_named_for_itself(self):
+        from documents.generation import bulk_job_filename
+        from documents.models import GenerationJob
+
+        class FakeJob:
+            def __init__(self, kind, pk):
+                self.kind, self.id = kind, pk
+
+        self.assertEqual(
+            bulk_job_filename(FakeJob(GenerationJob.Kind.PROCESS_CODES, 33)),
+            "لیستی کۆدەکان_33.pdf",
+        )
+        self.assertEqual(
+            bulk_job_filename(FakeJob(GenerationJob.Kind.PROCESS_LIST, 29)),
+            "لیستی کەیسەکان_29.pdf",
+        )
+
+    def test_an_unknown_kind_still_gets_a_name(self):
+        from documents.generation import bulk_job_filename
+
+        class FakeJob:
+            kind, id = "something_new", 4
+
+        self.assertEqual(bulk_job_filename(FakeJob()), "بەڵگەنامە_4.pdf")

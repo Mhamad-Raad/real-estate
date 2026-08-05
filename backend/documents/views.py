@@ -14,6 +14,7 @@ from rest_framework.viewsets import ModelViewSet, ReadOnlyModelViewSet
 from common.viewsets import AuditedSoftDeleteViewSet
 from processes.services import recompute_step
 
+from .generation import bulk_job_filename
 from .models import Document, DocumentTemplate, GenerationJob
 from .permissions import IsDocumentEditorOrAdmin
 from .selectors import documents_for_process
@@ -142,7 +143,12 @@ class GenerationJobViewSet(ReadOnlyModelViewSet):
 
     @action(detail=True, methods=["get"])
     def file(self, request, pk=None):
-        """Stream a finished list letter. Single-beneficiary letters are served as Documents."""
+        """Stream a finished list letter. Single-beneficiary letters are served as Documents.
+
+        The name is composed here, not by the caller: every other file in this system is named by
+        the server (§6.7), and this endpoint used to hand back `list_<id>.pdf` **whatever the job
+        was** — so a code list arrived called a case list (UC-066).
+        """
         job = self.get_object()
         if job.status != GenerationJob.Status.DONE or not job.output_path:
             raise Http404("This job has no downloadable file.")
@@ -152,6 +158,6 @@ class GenerationJobViewSet(ReadOnlyModelViewSet):
         return FileResponse(
             open(path, "rb"),
             as_attachment=True,
-            filename=f"list_{job.id}.pdf",
+            filename=bulk_job_filename(job),
             content_type="application/pdf",
         )

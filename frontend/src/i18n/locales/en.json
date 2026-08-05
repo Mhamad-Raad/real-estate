@@ -325,7 +325,8 @@
     "sectionPapers": "Client papers",
     "sectionLetter": "Eligibility letter",
     "reapply": "Start a new application",
-    "reapplyNote": "This application was rejected. The beneficiary may apply again."
+    "reapplyNote": "This application was rejected. The beneficiary may apply again.",
+    "instituteAcceptance": "{{name}} acceptance"
   },
   "institute": {
     "s2_a": "Slemani Municipality Presidency",

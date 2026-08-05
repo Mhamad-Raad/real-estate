@@ -55,9 +55,33 @@ def load_images(path: Path) -> list:
     return [Image.open(path)]
 
 
+# What the enlargement is aiming at: a cropped card whose longest edge is about this many pixels
+# reads well. Enlarging past it buys nothing and costs a great deal — Tesseract's layout analysis
+# is superlinear, so doubling a full page took **27.8s** against 2.4s for the page itself (UC-065).
+FRAMED_TARGET_LONG_EDGE = 2200
+MAX_FRAME_SCALE = 2.0
+
+# An ID card is 85.6 × 54 mm — about 1.59 either way up. The rescue below is only worth its cost
+# on something card-shaped; a scan of a full A4 page crops to roughly 0.4, and running the
+# expensive pass on it found **nothing at all** while taking 24 seconds (UC-065).
+CARD_ASPECT_RANGE = (1.15, 2.30)
+
+
+def looks_like_a_card(image) -> bool:
+    """Is this framed region shaped like an ID card, either orientation?
+
+    Anything without real dimensions answers **yes**: this gate only ever *withholds* the
+    expensive rescue, so when it cannot tell it must not be the thing that suppresses a reading.
+    """
+    size = getattr(image, "size", None)
+    if not size or min(size) <= 0:
+        return True
+    return CARD_ASPECT_RANGE[0] <= max(size) / min(size) <= CARD_ASPECT_RANGE[1]
+
+
 # A scan puts the card on a sheet: frame the ink and enlarge it, so the engine is handed the card
 # rather than a page that is mostly paper. Only ever used by the second-chance pass below.
-def frame_content(image, *, threshold: int = 190, pad: int = 30, scale: int = 2):
+def frame_content(image, *, threshold: int = 190, pad: int = 30):
     import numpy as np
     from PIL import Image
 
@@ -75,7 +99,13 @@ def frame_content(image, *, threshold: int = 190, pad: int = 30, scale: int = 2)
                 min(height, int(rows[-1]) + pad),
             )
         )
-    return image.resize((image.width * scale, image.height * scale), Image.LANCZOS)
+    # Enlarge only what is actually small. The whole point is a card occupying a corner of a
+    # sheet; when the ink already fills the page there is nothing to rescue by making it bigger,
+    # and a blanket ×2 was what turned an import into a ten-minute wait (UC-065).
+    scale = min(MAX_FRAME_SCALE, FRAMED_TARGET_LONG_EDGE / max(image.width, image.height))
+    if scale <= 1.05:
+        return image
+    return image.resize((round(image.width * scale), round(image.height * scale)), Image.LANCZOS)
 
 
 def read_side(image, *, psm: int | None = None) -> SideRead:
@@ -83,12 +113,17 @@ def read_side(image, *, psm: int | None = None) -> SideRead:
     import pytesseract
     from pytesseract import Output
 
+    # The same `config` on every pass. The two `image_to_data` calls used to run without it, so
+    # the confidence figures came from a different page-segmentation mode than the text they were
+    # meant to describe — and paid for a second, more expensive layout analysis to do it.
     config = f"--psm {psm}" if psm else ""
     result = SideRead(
         arabic_text=pytesseract.image_to_string(image, lang=ARABIC_MODEL, config=config),
         latin_text=pytesseract.image_to_string(image, lang=LATIN_MODEL, config=config),
     )
-    data = pytesseract.image_to_data(image, lang=LATIN_MODEL, output_type=Output.DICT)
+    data = pytesseract.image_to_data(
+        image, lang=LATIN_MODEL, config=config, output_type=Output.DICT
+    )
     confidences = [
         int(conf)
         for text, conf in zip(data["text"], data["conf"])
@@ -98,7 +133,9 @@ def read_side(image, *, psm: int | None = None) -> SideRead:
 
     # Names carry no check digit, so the engine's own confidence is the only signal the verify
     # screen has for "look at this one closely".
-    arabic = pytesseract.image_to_data(image, lang=ARABIC_MODEL, output_type=Output.DICT)
+    arabic = pytesseract.image_to_data(
+        image, lang=ARABIC_MODEL, config=config, output_type=Output.DICT
+    )
     word_confidences = [
         int(conf)
         for text, conf in zip(arabic["text"], arabic["conf"])
@@ -154,7 +191,13 @@ def read_card(front_path: Path, back_path: Path | None = None) -> IdCardDraft:
     # A card scanned onto a sheet of paper defeats the automatic segmentation entirely. Retry it
     # framed, and keep that reading ONLY if it found more — the same settings ruin a photographed
     # card, so this may never become the default.
-    if _filled(draft) == 0:
+    #
+    # Attempted only when the framed region is actually card-shaped. `--psm 6` costs ~10× the
+    # automatic segmentation, and on a scan of a full page — which crops to a page, not a card —
+    # it spent that on finding nothing, turning an import into a wait long enough that the office
+    # gave up and typed the details by hand (UC-065). A page still gets the plain read above; what
+    # it no longer gets is minutes of a pass that cannot help it.
+    if _filled(draft) == 0 and looks_like_a_card(frame_content(front_images[0])):
         rescued, rescued_front = _read_pair(front_images[0], back_image, psm=6, framed=True)
         if _filled(rescued) > _filled(draft):
             rescued.warnings.append(
