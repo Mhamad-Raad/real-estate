@@ -1,5 +1,11 @@
 from django.db import migrations
 
+# Columns added by LATER migrations. This file deliberately uses the LIVE model (the status rules
+# live in services and a historical model carries none of them), but the live class declares every
+# field the model will ever have — including ones whose column does not exist yet when this runs on
+# a fresh database. **Add every new `Process` field here.**
+LATER_COLUMNS = ("unique_code", "completed_by")
+
 RETIRED_CODE = "INST_S2_B"
 
 
@@ -22,11 +28,11 @@ def retire_second_step_2_institute(apps, schema_editor):
 
     # `steps__is_deleted=False`: a soft-deleted case has soft-deleted step rows, and
     # `recompute_step` reads them through the active manager, so it would raise rather than skip.
-    # `.defer("unique_code")`: this migration deliberately uses the LIVE model (the status rules
+    # `.defer(*LATER_COLUMNS)`: this migration deliberately uses the LIVE model (the status rules
     # live there and a historical model carries none of them), but the live class also declares
     # every column added by LATER migrations — which do not exist in the database yet when this
     # runs on a fresh install. Deferring keeps them out of the SELECT.
-    for process in LiveProcess.all_objects.defer("unique_code").filter(steps__is_deleted=False).distinct():
+    for process in LiveProcess.all_objects.defer(*LATER_COLUMNS).filter(steps__is_deleted=False).distinct():
         recompute_step(process, 2)
 
 
@@ -38,11 +44,11 @@ def restore_second_step_2_institute(apps, schema_editor):
     from processes.models import Process as LiveProcess
     from processes.services import recompute_step
 
-    # `.defer("unique_code")`: this migration deliberately uses the LIVE model (the status rules
+    # `.defer(*LATER_COLUMNS)`: this migration deliberately uses the LIVE model (the status rules
     # live there and a historical model carries none of them), but the live class also declares
     # every column added by LATER migrations — which do not exist in the database yet when this
     # runs on a fresh install. Deferring keeps them out of the SELECT.
-    for process in LiveProcess.all_objects.defer("unique_code").filter(steps__is_deleted=False).distinct():
+    for process in LiveProcess.all_objects.defer(*LATER_COLUMNS).filter(steps__is_deleted=False).distinct():
         recompute_step(process, 2)
 
 

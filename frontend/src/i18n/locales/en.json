@@ -209,6 +209,8 @@
     "selectAll": "Select all",
     "selectRow": "Select allocation",
     "pickLawyer": "Choose the responsible lawyer first.",
+    "pickCategory": "Choose a category before opening the case — it cannot be set later.",
+    "chooseCategory": "Choose a category…",
     "printSingle": "Print letter",
     "printList": "Print list letter"
   },

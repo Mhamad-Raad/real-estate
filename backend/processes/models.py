@@ -43,6 +43,16 @@ class Process(SoftDeleteModel):
     overall_status = models.CharField(
         max_length=12, choices=OverallStatus.choices, default=OverallStatus.DRAFT
     )
+    # Who marked the case complete — printed on the compiled export so the signed file says whose
+    # work it was (UC-044). `PROTECT` like every other actor reference: someone who has left the
+    # office must still be nameable on a document that has already gone out.
+    completed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="completed_processes",
+    )
     current_step = models.PositiveSmallIntegerField(default=1)
     lawyer_notes = models.TextField(blank=True)
     # Set only by a PID collision — the same person, so it blocks Step 1 until an admin overrides.

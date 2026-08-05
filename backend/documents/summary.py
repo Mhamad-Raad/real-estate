@@ -105,6 +105,9 @@ def case_summary_context(process, attachments) -> dict:
         "assigned_lawyer": (
             process.assigned_lawyer.username if process.assigned_lawyer else ""
         ),
+        # Blank until the case is actually closed — an export taken mid-flight must not name
+        # somebody as having concluded work that is still open (UC-044).
+        "concluded_by": process.completed_by.username if process.completed_by_id else "",
         "created_at": _date(process.created_at.date()),
         "steps": _step_rows(process),
         "institutes": _institute_rows(process),

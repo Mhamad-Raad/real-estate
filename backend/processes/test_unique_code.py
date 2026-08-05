@@ -155,3 +155,37 @@ class UniqueCodeConcurrencyTests(APITransactionTestCase):
 
         self.assertEqual(errors, [], f"allocation raised under concurrency: {errors}")
         self.assertEqual(sorted(codes), ["A1", "A2"], "two cases were given the same code")
+
+
+class CategoryIsRequiredAtIntakeTests(APITestCase):
+    """Every new case must be numberable, so it must name a category (UC-056, the office's rule)."""
+
+    def setUp(self):
+        self.lawyer = User.objects.create_user("req_lw", password="pw12345678")
+        self.category = Category.objects.create(code="A", name="A")
+        self.client.force_authenticate(self.lawyer)
+
+    def test_a_case_cannot_be_opened_without_a_category(self):
+        resp = self.client.post(
+            reverse("process-list"), {"client_data": client_data(pid="199505050201")}, format="json"
+        )
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("category", resp.data)
+        self.assertFalse(Process.all_objects.filter(client__pid="199505050201").exists())
+
+    def test_a_null_category_is_refused_too(self):
+        resp = self.client.post(
+            reverse("process-list"),
+            {"client_data": client_data(pid="199505050202"), "category": None},
+            format="json",
+        )
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_naming_a_category_opens_the_case_and_numbers_it(self):
+        resp = self.client.post(
+            reverse("process-list"),
+            {"client_data": client_data(pid="199505050203"), "category": self.category.id},
+            format="json",
+        )
+        self.assertEqual(resp.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(Process.objects.get(pk=resp.data["id"]).unique_code)

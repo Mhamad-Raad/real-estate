@@ -5,6 +5,7 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from accounts.models import User
+from catalog.models import Category
 from clients.factories import client_data
 
 from .models import Process
@@ -18,10 +19,15 @@ class AssignableLawyerTests(APITestCase):
             "sweep_admin", password="pw12345678", role=User.Role.ADMIN
         )
         self.gone = User.objects.create_user("sweep_gone", password="pw12345678")
+        self.category = Category.objects.create(code="A", name="A")
         self.client.force_authenticate(self.admin)
 
     def _payload(self, assignee, pid):
-        return {"client_data": client_data(pid=pid), "assigned_lawyer": assignee.id}
+        return {
+            "client_data": client_data(pid=pid),
+            "assigned_lawyer": assignee.id,
+            "category": self.category.id,
+        }
 
     def test_a_deactivated_lawyer_cannot_be_handed_a_new_case(self):
         self.gone.is_active = False

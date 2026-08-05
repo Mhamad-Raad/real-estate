@@ -60,6 +60,14 @@ def process_list_context(processes) -> dict:
     return _context([row_for_process(p, i) for i, p in enumerate(processes, start=1)])
 
 
+# The office's own banding for the code list: odd rows keep the shade the form already had, even
+# rows take a lighter one so a long list is easy to read across (UC-057, follow-up). Driven from
+# the context rather than the template because docxtpl repeats a single row — the only way to vary
+# it per row is to let the row ask what colour it is.
+CODE_ROW_SHADE_ODD = "d9e7f9"
+CODE_ROW_SHADE_EVEN = "eff5fd"
+
+
 def process_codes_context(processes) -> dict:
     """The code list (§6.8, UC-057) — one row per selected case: number, name, code, land number.
 
@@ -74,6 +82,7 @@ def process_codes_context(processes) -> dict:
                 "full_name": process.client.full_name,
                 "code": process.unique_code,
                 "land_id": process.land_id,
+                "shade": CODE_ROW_SHADE_ODD if number % 2 else CODE_ROW_SHADE_EVEN,
             }
             for number, process in enumerate(processes, start=1)
         ]

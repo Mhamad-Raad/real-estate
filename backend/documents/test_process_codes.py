@@ -90,3 +90,54 @@ class ProcessCodesApiTests(APITestCase):
             ActivityLog.objects.filter(entity_type="GenerationJob").exists(),
             "the code-list request left no audit row",
         )
+
+
+class ConcludedByTests(APITestCase):
+    """The compiled export names whoever closed the case (UC-044)."""
+
+    def setUp(self):
+        self.admin = User.objects.create_user("cb_adm", password="pw12345678", role=User.Role.ADMIN)
+        self.category = Category.objects.create(code="A", name="A")
+        self.process = create_process(
+            client=make_client(pid="199505050401", category=self.category),
+            assigned_lawyer=self.admin, actor=self.admin, category=self.category,
+        )
+        self.client.force_authenticate(self.admin)
+
+    def _summary(self):
+        from .summary import case_summary_context
+        from processes.models import Process as P
+        p = P.objects.prefetch_related("steps", "institute_entries", "documents").get(pk=self.process.pk)
+        return case_summary_context(p, [])
+
+    def test_an_open_case_names_nobody(self):
+        """An export taken mid-flight must not claim somebody concluded work that is still open."""
+        self.assertEqual(self._summary()["concluded_by"], "")
+
+    def test_completing_the_case_records_who_did_it(self):
+        self.process.refresh_from_db()
+        resp = self.client.post(
+            reverse("process-complete", args=[self.process.id]),
+            {"force": True, "version": self.process.version}, format="json",
+        )
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.process.refresh_from_db()
+        self.assertEqual(self.process.completed_by, self.admin)
+        self.assertEqual(self._summary()["concluded_by"], "cb_adm")
+
+    def test_a_later_re_completion_does_not_rewrite_the_name(self):
+        """The first person to close it is the one already named on the paperwork that went out."""
+        self.process.refresh_from_db()
+        self.client.post(
+            reverse("process-complete", args=[self.process.id]),
+            {"force": True, "version": self.process.version}, format="json",
+        )
+        other = User.objects.create_user("cb_other", password="pw12345678", role=User.Role.ADMIN)
+        self.client.force_authenticate(other)
+        self.process.refresh_from_db()
+        self.client.post(
+            reverse("process-complete", args=[self.process.id]),
+            {"force": True, "version": self.process.version}, format="json",
+        )
+        self.process.refresh_from_db()
+        self.assertEqual(self.process.completed_by, self.admin)

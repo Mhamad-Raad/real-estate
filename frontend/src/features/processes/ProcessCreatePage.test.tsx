@@ -29,7 +29,7 @@ vi.mock("react-router-dom", () => ({ useNavigate: () => vi.fn() }));
 vi.mock("@/components/ui/toaster", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@/features/cardScans/ScanIntakePanel", () => ({ ScanIntakePanel: () => null }));
 vi.mock("@/features/categories/categoriesApi", () => ({
-  useListCategoriesQuery: () => ({ data: [] }),
+  useListCategoriesQuery: () => ({ data: [{ id: 7, code: "A", name: "A" }] }),
 }));
 vi.mock("@/features/users/lawyersApi", () => ({
   useListLawyersQuery: () => ({ data: [] }),
@@ -44,6 +44,8 @@ vi.mock("@/features/clients/clientsApi", () => ({
 
 async function fillManualForm() {
   await userEvent.click(screen.getByRole("button", { name: /enter manually/i }));
+  // A case must be opened in a category — the pre-create guard aborts without one (UC-056).
+  await userEvent.selectOptions(screen.getByLabelText("Category"), "7");
   await userEvent.type(screen.getByLabelText("Full name"), "Test Person");
   await userEvent.type(screen.getByLabelText("National ID"), "200001011234");
   await userEvent.type(screen.getByLabelText("Mother's full name"), "Test Mother");

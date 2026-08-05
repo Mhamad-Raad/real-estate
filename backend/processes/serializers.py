@@ -154,6 +154,8 @@ class ProcessCreateSerializer(serializers.ModelSerializer):
         fields = ("id", "client", "client_data", "category", "assigned_lawyer", "land_id", "land_address")
         read_only_fields = ("id",)
         extra_kwargs = {
+            # Not `required` — see validate(): re-applying passes only the client and inherits
+            # their category, so demanding it here would reject a legitimate path (UC-028).
             # The view resolves the assignee (self for lawyers); admins may pass one explicitly.
             "assigned_lawyer": {"required": False},
             # Exactly one of `client` / `client_data` — enforced in validate(), not by `required`.
@@ -166,6 +168,15 @@ class ProcessCreateSerializer(serializers.ModelSerializer):
         if bool(attrs.get("client")) == bool(attrs.get("client_data")):
             raise serializers.ValidationError(
                 {"client": "Provide exactly one of `client` (existing) or `client_data` (new)."}
+            )
+        # Every case must be numberable (UC-056): the unique code takes its first letter from the
+        # category, and the category can never be set afterwards (UC-059). So the rule is that a
+        # category must be **resolvable**, not that it must always be typed — re-applying after a
+        # rejection passes only the client and inherits theirs (UC-028).
+        client = attrs.get("client")
+        if attrs.get("category") is None and (client is None or client.category_id is None):
+            raise serializers.ValidationError(
+                {"category": "A case must be opened in a category; it cannot be set later."}
             )
         return attrs
 

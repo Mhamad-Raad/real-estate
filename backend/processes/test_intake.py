@@ -7,6 +7,7 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from accounts.models import User
+from catalog.models import Category
 from clients.factories import client_data, make_client
 from clients.models import Client
 
@@ -17,10 +18,15 @@ from .services import DuplicateAllocation, create_process, intake_process
 class IntakeApiTests(APITestCase):
     def setUp(self):
         self.lawyer = User.objects.create_user("intake_lawyer", password="pw12345678")
+        self.category = Category.objects.create(code="A", name="A")
         self.client.force_authenticate(self.lawyer)
 
     def _payload(self, **overrides):
-        return {"client_data": client_data(**{"pid": "199505054321", **overrides})}
+        # A case must name a category — the unique code takes its first letter from it (UC-056).
+        return {
+            "client_data": client_data(**{"pid": "199505054321", **overrides}),
+            "category": self.category.id,
+        }
 
     def test_creates_the_beneficiary_and_the_case_together(self):
         resp = self.client.post(reverse("process-list"), self._payload(), format="json")
@@ -38,7 +44,7 @@ class IntakeApiTests(APITestCase):
         self.assertEqual((process.land_id, process.land_address), ("L-42", "Street 9"))
 
     def test_an_existing_beneficiary_still_works(self):
-        existing = make_client(full_name="On File", pid="197007071111")
+        existing = make_client(full_name="On File", pid="197007071111", category=self.category)
         resp = self.client.post(
             reverse("process-list"), {"client": existing.id}, format="json"
         )
@@ -82,6 +88,7 @@ class IntakeAtomicityTests(APITestCase):
 
     def setUp(self):
         self.lawyer = User.objects.create_user("atomic_lawyer", password="pw12345678")
+        self.category = Category.objects.create(code="A", name="A")
 
     def test_a_failure_after_the_client_leaves_no_orphan_behind(self):
         before = Client.objects.count()
@@ -98,8 +105,13 @@ class IntakeAtomicityTests(APITestCase):
         self.assertFalse(Client.objects.filter(pid="200001019999").exists())
 
     def test_a_second_allocation_for_the_same_person_is_still_refused(self):
-        existing = make_client(pid="200001018888")
-        create_process(client=existing, assigned_lawyer=self.lawyer, actor=self.lawyer)
+        existing = make_client(pid="200001018888", category=self.category)
+        create_process(
+            client=existing,
+            assigned_lawyer=self.lawyer,
+            actor=self.lawyer,
+            category=self.category,
+        )
         self.client.force_authenticate(self.lawyer)
         resp = self.client.post(
             reverse("process-list"), {"client": existing.id}, format="json"
@@ -112,9 +124,17 @@ class ReapplyAfterRejectionTests(APITestCase):
 
     def setUp(self):
         self.lawyer = User.objects.create_user("reapply_lw", password="pw12345678")
-        self.person = make_client(full_name="Refused", pid="198801011234")
+        self.category = Category.objects.create(code="A", name="A")
+        # The beneficiary carries the category, which is what lets a re-application inherit it
+        # without the caller naming one (UC-028 + UC-056).
+        self.person = make_client(
+            full_name="Refused", pid="198801011234", category=self.category
+        )
         self.first = create_process(
-            client=self.person, assigned_lawyer=self.lawyer, actor=self.lawyer
+            client=self.person,
+            assigned_lawyer=self.lawyer,
+            actor=self.lawyer,
+            category=self.category,
         )
         self.client.force_authenticate(self.lawyer)
 

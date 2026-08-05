@@ -1,5 +1,11 @@
 from django.db import migrations
 
+# Columns added by LATER migrations. This file deliberately uses the LIVE model (the status rules
+# live in services and a historical model carries none of them), but the live class declares every
+# field the model will ever have — including ones whose column does not exist yet when this runs on
+# a fresh database. **Add every new `Process` field here.**
+LATER_COLUMNS = ("unique_code", "completed_by")
+
 
 def move_requirements_to_step_4(apps, schema_editor):
     """The real-estate paper and `land_id` are Step-4 requirements now, not Step-1 (UC-037/UC-041).
@@ -28,11 +34,11 @@ def move_requirements_to_step_4(apps, schema_editor):
     # first save after that re-derives the status anyway.
     # `steps__is_deleted=False`, not `steps__isnull=False`: the reverse relation is a plain join
     # that does not honour the active manager, so `isnull` would still match the deleted rows.
-    # `.defer("unique_code")`: this migration deliberately uses the LIVE model (the status rules
+    # `.defer(*LATER_COLUMNS)`: this migration deliberately uses the LIVE model (the status rules
     # live there and a historical model carries none of them), but the live class also declares
     # every column added by LATER migrations — which do not exist in the database yet when this
     # runs on a fresh install. Deferring keeps them out of the SELECT.
-    for process in LiveProcess.all_objects.defer("unique_code").filter(steps__is_deleted=False).distinct():
+    for process in LiveProcess.all_objects.defer(*LATER_COLUMNS).filter(steps__is_deleted=False).distinct():
         recompute_step(process, 1)
         recompute_step(process, 4)
 
@@ -51,11 +57,11 @@ def move_requirements_back(apps, schema_editor):
     # first save after that re-derives the status anyway.
     # `steps__is_deleted=False`, not `steps__isnull=False`: the reverse relation is a plain join
     # that does not honour the active manager, so `isnull` would still match the deleted rows.
-    # `.defer("unique_code")`: this migration deliberately uses the LIVE model (the status rules
+    # `.defer(*LATER_COLUMNS)`: this migration deliberately uses the LIVE model (the status rules
     # live there and a historical model carries none of them), but the live class also declares
     # every column added by LATER migrations — which do not exist in the database yet when this
     # runs on a fresh install. Deferring keeps them out of the SELECT.
-    for process in LiveProcess.all_objects.defer("unique_code").filter(steps__is_deleted=False).distinct():
+    for process in LiveProcess.all_objects.defer(*LATER_COLUMNS).filter(steps__is_deleted=False).distinct():
         recompute_step(process, 1)
         recompute_step(process, 4)
 

@@ -5,6 +5,7 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from accounts.models import User
+from catalog.models import Category
 
 from .models import Client
 from .factories import client_data, make_client
@@ -13,6 +14,7 @@ from .factories import client_data, make_client
 class ClientApiTests(APITestCase):
     def setUp(self):
         self.lawyer = User.objects.create_user("lw", password="pw12345678")
+        self.category = Category.objects.create(code="A", name="A")
         self.client.force_authenticate(self.lawyer)
         self.existing = make_client(
             full_name="Karwan", pid="111", mother_full_name="Nasrin Hassan"
@@ -35,7 +37,9 @@ class ClientApiTests(APITestCase):
         """
         payload = client_data(full_name="Alan", pid="222", mother_full_name="Runak", **overrides)
         return self.client.post(
-            reverse("process-list"), {"client_data": payload}, format="json"
+            reverse("process-list"),
+            {"client_data": payload, "category": self.category.id},
+            format="json",
         )
 
     def test_a_client_cannot_be_created_through_the_clients_api(self):
@@ -68,7 +72,9 @@ class ClientApiTests(APITestCase):
                 )
                 payload.pop(field)
                 resp = self.client.post(
-                    reverse("process-list"), {"client_data": payload}, format="json"
+                    reverse("process-list"),
+            {"client_data": payload, "category": self.category.id},
+            format="json",
                 )
                 self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
                 self.assertIn(field, str(resp.data))
@@ -78,7 +84,9 @@ class ClientApiTests(APITestCase):
         payload.pop("date_of_birth")
 
         resp = self.client.post(
-            reverse("process-list"), {"client_data": payload}, format="json"
+            reverse("process-list"),
+            {"client_data": payload, "category": self.category.id},
+            format="json",
         )
 
         self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)

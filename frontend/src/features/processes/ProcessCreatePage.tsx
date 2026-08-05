@@ -56,12 +56,21 @@ export function ProcessCreatePage() {
   // resolve. Held in a ref: a re-render must not lose the pending decision.
   const decision = useRef<((proceed: boolean) => void) | null>(null);
 
-  /** `true` when it is safe to create. A hard match can only ever be cancelled (§5.7). */
+  /** `true` when it is safe to create. A hard match can only ever be cancelled (§5.7).
+   *
+   * Both branches vet through here — typed and scanned — so the category check belongs here too
+   * rather than in the manual submit alone. It is required because the unique code takes its first
+   * letter from the category and the category can never be set afterwards (UC-056, UC-059).
+   */
   const guardDuplicates = async (candidate: {
     pid: string;
     mother_full_name: string;
     spouse_pid: string;
   }) => {
+    if (!category) {
+      toast.error(t("processes.pickCategory"));
+      return false;
+    }
     try {
       const result = await checkDuplicate(candidate).unwrap();
       const hit =
@@ -110,8 +119,9 @@ export function ProcessCreatePage() {
     }
     try {
       const process = await create({
-        client_data: { ...draft, category: category ? Number(category) : null },
-        category: category ? Number(category) : null,
+        // One value, sent to both: the beneficiary's category and the case's are the same thing.
+        client_data: { ...draft, category: Number(category) },
+        category: Number(category),
         land_id: landId,
         land_address: landAddress,
         ...(assignedLawyer ? { assigned_lawyer: assignedLawyer } : {}),
@@ -141,7 +151,7 @@ export function ProcessCreatePage() {
       <div className="space-y-1.5">
         <Label htmlFor="i-category">{t("processes.category")}</Label>
         <Select id="i-category" value={category} onChange={(e) => setCategory(e.target.value)}>
-          <option value="">{t("common.none")}</option>
+          <option value="">{t("processes.chooseCategory")}</option>
           {(categories ?? []).map((c) => (
             <option key={c.id} value={c.id}>
               {c.code} — {c.name}
@@ -220,7 +230,12 @@ export function ProcessCreatePage() {
           ))}
         </div>
 
-        {mode === "manual" && <ClientFields value={draft} onChange={setDraft} />}
+        {/* `showCategory={false}`: the case's category is asked once in the case section below.
+            A second picker here looked editable but was discarded — `submit` overwrites
+            `client_data.category` with the case-level one. */}
+        {mode === "manual" && (
+          <ClientFields value={draft} onChange={setDraft} showCategory={false} />
+        )}
       </FormSection>
 
       <FormSection title={t("intake.caseDetails")} description={t("intake.caseDetailsHint")}>

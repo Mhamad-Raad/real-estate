@@ -383,8 +383,15 @@ def complete_process(*, process, actor, force=False, expected_version=None, requ
     step5.save(update_fields=["status", "version", "updated_at"])
     process.overall_status = Process.OverallStatus.COMPLETE
     process.current_step = 5
+    # Recorded once, by the person who actually finished it — the compiled export prints this
+    # (UC-044). Not overwritten on a later re-completion: the first person to close the case is
+    # the one whose name is already on the paperwork that went out.
+    if process.completed_by_id is None:
+        process.completed_by = actor
     process.version += 1
-    process.save(update_fields=["overall_status", "current_step", "version", "updated_at"])
+    process.save(
+        update_fields=["overall_status", "current_step", "completed_by", "version", "updated_at"]
+    )
     record_activity(
         actor=actor,
         action=ActivityLog.Action.UPDATE,

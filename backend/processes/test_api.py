@@ -5,6 +5,7 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from accounts.models import User
+from catalog.models import Category
 from clients.models import Client
 
 from .models import Process
@@ -17,7 +18,12 @@ class ProcessApiTests(APITestCase):
         self.admin = User.objects.create_user("admin_a", password="pw12345678", role=User.Role.ADMIN)
         self.lawyer_a = User.objects.create_user("lawyer_a", password="pw12345678")
         self.lawyer_b = User.objects.create_user("lawyer_b", password="pw12345678")
-        self.client_row = make_client(full_name="Ben", pid="900", mother_full_name="Mo")
+        self.category = Category.objects.create(code="A", name="A")
+        # Carrying the category is what lets a case be opened for this person without naming one
+        # (UC-056: every case must be numberable).
+        self.client_row = make_client(
+            full_name="Ben", pid="900", mother_full_name="Mo", category=self.category
+        )
 
     def test_list_requires_authentication(self):
         self.assertEqual(self.client.get(reverse("process-list")).status_code, 401)
