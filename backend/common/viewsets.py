@@ -29,6 +29,15 @@ class AuditedSoftDeleteViewSet:
     # the cases keep pointing at it — the records look intact but can no longer be grouped by
     # the thing that classifies them.
     protect_if_used: tuple[str, ...] = ()
+    # Relations the `deleted` listing's serializer reads. Without them each row costs its own
+    # queries — the normal list gets these through its own queryset, which `deleted` bypasses.
+    deleted_select_related: tuple[str, ...] = ()
+
+    def after_soft_delete(self, instance):
+        """Hook: extra work inside the delete's transaction (e.g. releasing a beneficiary)."""
+
+    def after_restore(self, instance):
+        """Hook: the mirror of `after_soft_delete`, inside the restore's transaction."""
 
     @transaction.atomic  # mutation + its audit row commit together or not at all (§11)
     def perform_create(self, serializer):
@@ -95,6 +104,7 @@ class AuditedSoftDeleteViewSet:
             entity_id=instance.pk,
             request=self.request,
         )
+        self.after_soft_delete(instance)
 
     @action(detail=False, methods=["get"], permission_classes=[IsAdmin])
     def deleted(self, request):
@@ -105,6 +115,8 @@ class AuditedSoftDeleteViewSet:
         through `all_objects`, the only manager that sees them.
         """
         qs = self.get_queryset().model.all_objects.filter(is_deleted=True).order_by("-deleted_at")
+        if self.deleted_select_related:
+            qs = qs.select_related(*self.deleted_select_related)
         page = self.paginate_queryset(qs)
         if page is not None:
             return self.get_paginated_response(self.get_serializer(page, many=True).data)
@@ -127,4 +139,5 @@ class AuditedSoftDeleteViewSet:
             entity_id=instance.pk,
             request=request,
         )
+        self.after_restore(instance)
         return Response(self.get_serializer(instance).data, status=status.HTTP_200_OK)

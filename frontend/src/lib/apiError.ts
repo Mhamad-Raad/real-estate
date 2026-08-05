@@ -32,3 +32,15 @@ export function apiInUseTotal(err: unknown): number | undefined {
     .filter((n) => Number.isFinite(n) && n > 0);
   return counts.length ? counts.reduce((a, b) => a + b, 0) : undefined;
 }
+
+/** A machine-readable key the server sent alongside its English sentence.
+ *
+ * DRF renders every error detail as a string, so a structured reason has to travel as its own
+ * top-level key (`code_error`, `expected_prefix`) rather than as an exception `code`. The screens
+ * read it to print the reason in the office's language — the same trick `apiInUseTotal` uses.
+ */
+export function apiErrorKey(err: unknown, key: string): string | undefined {
+  const value = (err as { data?: Record<string, unknown> })?.data?.[key];
+  const raw = Array.isArray(value) ? value[0] : value;
+  return typeof raw === "string" && raw ? raw : undefined;
+}

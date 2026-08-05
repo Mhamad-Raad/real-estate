@@ -12,6 +12,7 @@ from rest_framework.viewsets import ModelViewSet
 from common.permissions import IsAdmin, IsProcessAssigneeOrAdmin
 from common.viewsets import AuditedSoftDeleteViewSet
 from documents.compile import start_compile_case_job
+from documents.refile import refile_client_documents
 from documents.generation import (
     start_eligibility_job,
     start_process_codes_job,
@@ -59,6 +60,8 @@ SERIALIZERS = {
 class ProcessViewSet(AuditedSoftDeleteViewSet, ModelViewSet):
     permission_classes = (IsProcessAssigneeOrAdmin,)
     audit_entity = "Process"
+    # The restore desk's listing reads both through the serializer (UC-063).
+    deleted_select_related = ("client", "assigned_lawyer")
 
     def get_queryset(self):
         qs = search_processes(self.request.query_params)
@@ -92,36 +95,47 @@ class ProcessViewSet(AuditedSoftDeleteViewSet, ModelViewSet):
             request=self.request,
         )
 
-    @transaction.atomic
-    def perform_destroy(self, instance):
-        """Deleting the case releases the beneficiary too, so they can be entered again (UC-061)."""
-        super().perform_destroy(instance)
+    def after_soft_delete(self, instance):
+        """Deleting the case releases the beneficiary too, so they can be entered again (UC-061).
+
+        A hook rather than an overridden `perform_destroy`/`restore` pair: the base already runs
+        both inside a transaction, so re-declaring the action here only risked its `@action`
+        config drifting out of step with the base's.
+        """
         release_client_with_case(instance, actor=self.request.user, request=self.request)
 
-    @action(detail=True, methods=["post"], permission_classes=[IsAdmin])
-    @transaction.atomic
-    def restore(self, request, pk=None):
-        """The mirror: the beneficiary comes back with the case.
-
-        Atomic across both. If their national ID has been re-used since — a legitimate outcome of
-        having freed it — the client restore raises and this rolls the case back with it, rather
-        than handing back a case whose person is not in the register.
-        """
-        response = super().restore(request, pk=pk)
-        restore_client_with_case(
-            Process.all_objects.get(pk=pk), actor=request.user, request=request
-        )
-        return response
+    def after_restore(self, instance):
+        """The mirror. If the beneficiary's national ID has been re-used since — a legitimate
+        outcome of having freed it — this raises and the base's transaction rolls the case back
+        with it, rather than handing back a case whose person is not in the register."""
+        restore_client_with_case(instance, actor=self.request.user, request=self.request)
 
     def perform_update(self, serializer):
-        super().perform_update(serializer)
+        # Read before the save: the store path is keyed on the code, so a change has to be
+        # detected here or not at all.
+        previous_code = serializer.instance.unique_code
+        try:
+            super().perform_update(serializer)
+        except IntegrityError:
+            # `ix_process_unique_code` fired: the other computer took this number between the
+            # serializer's check and this write. Same clean 400 the check itself gives, rather
+            # than a 500 — the office sees "already used" either way (UC-062).
+            raise ValidationError(
+                {"unique_code": "This number has just been taken.", "code_error": "already_used"}
+            )
         # Both steps read header fields edited through here (Step 4 the `land_id`, UC-041), so
         # their stored status would otherwise go stale against the live rules (§3.6).
         recompute_step(serializer.instance, 1)
         recompute_step(serializer.instance, 4)
-        # No refile here any more: the store path is composed from the category and the PID (§6.7),
-        # and neither can change through this endpoint — the category is now fixed for the life of
-        # the case (UC-059) and the PID belongs to the client, which refiles on its own update.
+        # The case number *is* part of the document store's path and download names since UC-060
+        # (`<CATEGORY>/<CODE>_<PID>/…`), and UC-062 made it editable — so correcting a code has to
+        # move the papers with it, or the archive the office browses by hand still shows the old
+        # number. The category cannot change here (UC-059) and the PID re-files on its own update,
+        # so this is the only path left that can invalidate a path.
+        if serializer.instance.unique_code != previous_code:
+            refile_client_documents(
+                serializer.instance.client, actor=self.request.user, request=self.request
+            )
 
     @action(
         detail=True,

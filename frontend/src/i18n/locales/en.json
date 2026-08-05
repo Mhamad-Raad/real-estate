@@ -328,7 +328,12 @@
     "reapplyNote": "This application was rejected. The beneficiary may apply again.",
     "neverReused": "never reused",
     "codeAutoHint": "optional",
-    "codePlaceholder": "Leave blank for the next number"
+    "codePlaceholder": "Leave blank for the next number",
+    "codeError": {
+      "wrong_category": "A case number here must start with {{prefix}} — for example {{prefix}}1.",
+      "already_used": "That number has already been used and can never be reused.",
+      "required": "A case must keep a number."
+    }
   },
   "institute": {
     "s2_a": "Slemani Municipality Presidency",

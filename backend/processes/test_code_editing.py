@@ -6,6 +6,10 @@ pin is that the choosing is allowed, that it cannot produce a duplicate or a num
 another category, and that a retired number stays retired.
 """
 
+import tempfile
+from pathlib import Path
+
+from django.test import override_settings
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
@@ -147,3 +151,136 @@ class EditingACodeAfterwardsTests(APITestCase):
         self.client.force_authenticate(stranger)
 
         self.assertEqual(self._patch(unique_code="A15").status_code, status.HTTP_403_FORBIDDEN)
+
+
+@override_settings(DOCUMENTS_ROOT=Path(tempfile.mkdtemp()))
+class CorrectingACodeMovesThePapersTests(APITestCase):
+    """The case number *is* part of the document store's path since UC-060, so UC-062's edit has
+    to move the files with it — or the archive the office browses by hand keeps the old number.
+    """
+
+    def setUp(self):
+        self.lawyer = User.objects.create_user("mov_lw", password="pw12345678")
+        self.category = Category.objects.create(code="M", name="M")
+        self.process = create_process(
+            client=make_client(pid="MOVE-1", category=self.category),
+            assigned_lawyer=self.lawyer,
+            actor=self.lawyer,
+            category=self.category,
+        )
+        self.document = self._document()
+        self.client.force_authenticate(self.lawyer)
+
+    def _document(self):
+        from documents import filestore
+        from documents.factories import make_pdf
+        from documents.models import Document
+        from documents.services import compose_location
+
+        display, rel = compose_location(process=self.process, document_type="ClientID")
+        # Real bytes on disk: the re-file moves the file, so a row with no file behind it would
+        # test the wrong path.
+        filestore.write_pdf(rel, make_pdf())
+        return Document.objects.create(
+            process=self.process,
+            step_number=1,
+            document_type="ClientID",
+            file_path=str(rel),
+            display_filename=display,
+            sha256="a" * 64,
+            size_bytes=1,
+            uploaded_by=self.lawyer,
+        )
+
+    def test_the_case_folder_follows_the_new_number(self):
+        self.assertIn("M1_MOVE-1", self.document.file_path)
+
+        with self.captureOnCommitCallbacks(execute=True):
+            resp = self.client.patch(
+                reverse("process-detail", args=[self.process.id]),
+                {"unique_code": "M15", "version": self.process.version},
+                format="json",
+            )
+
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.document.refresh_from_db()
+        self.assertIn("M15_MOVE-1", self.document.file_path)
+        self.assertNotIn("M1_MOVE-1", self.document.file_path)
+
+    def test_the_download_name_follows_it_too(self):
+        with self.captureOnCommitCallbacks(execute=True):
+            self.client.patch(
+                reverse("process-detail", args=[self.process.id]),
+                {"unique_code": "M15", "version": self.process.version},
+                format="json",
+            )
+
+        self.document.refresh_from_db()
+        self.assertTrue(self.document.display_filename.startswith("M15_"))
+
+    def test_the_short_id_survives_the_move(self):
+        sid = self.document.file_path.rsplit("__", 1)[-1]
+
+        with self.captureOnCommitCallbacks(execute=True):
+            self.client.patch(
+                reverse("process-detail", args=[self.process.id]),
+                {"unique_code": "M15", "version": self.process.version},
+                format="json",
+            )
+
+        self.document.refresh_from_db()
+        self.assertTrue(self.document.file_path.endswith(sid))
+
+    def test_an_edit_that_leaves_the_code_alone_moves_nothing(self):
+        """Re-filing on every header save would rewrite the filesystem for a notes edit."""
+        before = self.document.file_path
+
+        self.client.patch(
+            reverse("process-detail", args=[self.process.id]),
+            {"lawyer_notes": "just a note", "version": self.process.version},
+            format="json",
+        )
+
+        self.document.refresh_from_db()
+        self.assertEqual(self.document.file_path, before)
+
+
+class CodeErrorsAreMachineReadableTests(APITestCase):
+    """The office reads these in Sorani, so the reason travels as a code, not only a sentence."""
+
+    def setUp(self):
+        self.lawyer = User.objects.create_user("msg_lw", password="pw12345678")
+        self.category = Category.objects.create(code="N", name="N")
+        self.process = create_process(
+            client=make_client(pid="MSG-1", category=self.category),
+            assigned_lawyer=self.lawyer,
+            actor=self.lawyer,
+            category=self.category,
+        )
+        self.client.force_authenticate(self.lawyer)
+
+    def _patch(self, code):
+        return self.client.patch(
+            reverse("process-detail", args=[self.process.id]),
+            {"unique_code": code, "version": self.process.version},
+            format="json",
+        )
+
+    def test_a_wrong_category_letter_names_itself(self):
+        resp = self._patch("Z9")
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(str(resp.data["code_error"][0]), "wrong_category")
+        self.assertEqual(str(resp.data["expected_prefix"][0]), "N")
+
+    def test_a_used_number_names_itself(self):
+        taken = create_process(
+            client=make_client(pid="MSG-2", category=self.category),
+            assigned_lawyer=self.lawyer,
+            actor=self.lawyer,
+            category=self.category,
+        )
+        resp = self._patch(taken.unique_code)
+        self.assertEqual(str(resp.data["code_error"][0]), "already_used")
+
+    def test_an_empty_number_names_itself(self):
+        self.assertEqual(str(self._patch("").data["code_error"][0]), "required")

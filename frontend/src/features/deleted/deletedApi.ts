@@ -14,12 +14,12 @@ import type { Paginated } from "@/services/types";
  */
 export const deletedApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
-    listDeletedProcesses: builder.query<Paginated<ProcessListItem> | ProcessListItem[], void>({
-      query: () => "processes/deleted/",
+    listDeletedProcesses: builder.query<Paginated<ProcessListItem>, number>({
+      query: (page) => ({ url: "processes/deleted/", params: { page } }),
       providesTags: [PROCESS_LIST_TAG],
     }),
-    listDeletedClients: builder.query<Paginated<Client> | Client[], void>({
-      query: () => "clients/deleted/",
+    listDeletedClients: builder.query<Paginated<Client>, number>({
+      query: (page) => ({ url: "clients/deleted/", params: { page } }),
       providesTags: ["Client"],
     }),
     restoreProcess: builder.mutation<ProcessListItem, number>({

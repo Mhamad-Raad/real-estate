@@ -163,8 +163,10 @@ class ProcessCreateSerializer(serializers.ModelSerializer):
         extra_kwargs = {
             # Optional: left blank the allocator issues the next free number (§3.8). Sent, the
             # office is choosing where the sequence resumes — vetted in the service, which is the
-            # only place that can check it inside the allocation lock (UC-062).
-            "unique_code": {"required": False, "allow_blank": True},
+            # only place that can check it inside the allocation lock (UC-062). `validators: []`
+            # for the same reason as on the update serializer below: the service's check speaks
+            # the office's language and sees deleted cases too.
+            "unique_code": {"required": False, "allow_blank": True, "validators": []},
             # Not `required` — see validate(): re-applying passes only the client and inherits
             # their category, so demanding it here would reject a legitimate path (UC-028).
             # The view resolves the assignee (self for lawyers); admins may pass one explicitly.
@@ -202,19 +204,34 @@ class ProcessUpdateSerializer(serializers.ModelSerializer):
         fields = ("lawyer_notes", "land_id", "land_address", "unique_code", "version")
         # Version is the optimistic-lock token the client echoes back; the service bumps it.
         read_only_fields = ("version",)
-        extra_kwargs = {"unique_code": {"required": False}}
+        # `validators: []` drops the UniqueValidator DRF derives from the model constraint. It is
+        # a *field* validator, so it would fire before `validate()` and answer a live collision
+        # with its own English sentence and no `code_error` — burying the localized message for
+        # the commonest mistake. `_validate_code` covers strictly more (it sees deleted cases
+        # too), the DB index is still the race-safe backstop, and `perform_update` turns that
+        # backstop firing into a clean 400 rather than a 500.
+        extra_kwargs = {"unique_code": {"required": False, "validators": []}}
 
-    def validate_unique_code(self, value):
+    def _validate_code(self, attrs):
         """Same two rules as at intake — the category letter, and never a number already issued.
 
-        Blanking it is refused rather than silently allowed: an unnumbered case cannot be found on
-        the office's printed code list, and there would be no way back to a number for it.
+        Checked from `validate()` rather than a `validate_unique_code()` field hook on purpose:
+        DRF nests whatever a field validator raises **under that field's name**, which would bury
+        the `code_error` key the office's screens read to print the reason in their own language.
+        Raised from here it stays at the top level, where the create path already puts it.
+
+        Blanking the code is refused rather than silently allowed: an unnumbered case cannot be
+        found on the office's printed code list (§6.8), and there would be no way back to a number.
         """
-        value = (value or "").strip()
+        if "unique_code" not in attrs:
+            return
+        value = (attrs["unique_code"] or "").strip()
         if not value:
-            raise serializers.ValidationError("A case must keep a number.")
+            raise serializers.ValidationError(
+                {"unique_code": "A case must keep a number.", "code_error": "required"}
+            )
         assert_code_is_available(value, self.instance.category, exclude=self.instance)
-        return value
+        attrs["unique_code"] = value
 
     def validate(self, attrs):
         """Refuse a category change outright rather than dropping it silently (UC-059).
@@ -233,6 +250,7 @@ class ProcessUpdateSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError(
                     {"category": "A case's category cannot be changed after it is created."}
                 )
+        self._validate_code(attrs)
         return attrs
 
 

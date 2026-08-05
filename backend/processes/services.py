@@ -80,17 +80,36 @@ def assert_code_is_available(code: str, category, *, exclude=None) -> None:
       gone out quote the code — so a code that disagreed with its case would be a lie on paper.
     * it must never have been used, **including by deleted cases**. A number is retired for ever
       once issued; `all_objects` is what makes that true rather than "free again after a delete".
+
+    A case with no category can hold no chosen code at all: `prefix` would be "" and every bare
+    number would pass the first rule, which is not a rule.
     """
     prefix = category.code if category else ""
-    if not code.startswith(prefix) or not code[len(prefix):].isdigit():
+    # A machine code travels beside the sentence. The sentence is English like every other DRF
+    # error, but this one a lawyer hits by simply mistyping — and every screen in this app is
+    # localized (§9). So the screens read `code_error` and print it in the office's own language,
+    # the same shape `in_use` already uses for a refused delete.
+    if not prefix or not code.startswith(prefix) or not code[len(prefix):].isdigit():
         raise ValidationError(
-            {"unique_code": f"A case number in this category looks like {prefix}1, {prefix}2, …"}
+            {
+                "unique_code": (
+                    f"A case number in this category looks like "
+                    f"{prefix or 'A'}1, {prefix or 'A'}2, …"
+                ),
+                "code_error": "wrong_category",
+                "expected_prefix": prefix,
+            }
         )
     taken = Process.all_objects.filter(unique_code=code)
     if exclude is not None:
         taken = taken.exclude(pk=exclude.pk)
     if taken.exists():
-        raise ValidationError({"unique_code": f"{code} has already been used and cannot be reused."})
+        raise ValidationError(
+            {
+                "unique_code": f"{code} has already been used and cannot be reused.",
+                "code_error": "already_used",
+            }
+        )
 
 
 def create_process(

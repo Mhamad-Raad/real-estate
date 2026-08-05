@@ -19,7 +19,9 @@ import { EMPTY_CLIENT, type ClientDraft } from "@/features/clients/clientForm";
 import { useCheckDuplicateMutation } from "@/features/clients/clientsApi";
 import type { DuplicateCheckResult } from "@/features/clients/types";
 import { useListLawyersQuery } from "@/features/users/lawyersApi";
-import { apiErrorMessage, apiErrorStatus } from "@/lib/apiError";
+import { apiErrorStatus } from "@/lib/apiError";
+
+import { codeErrorMessage } from "./codeError";
 
 import { useCreateProcessMutation } from "./processesApi";
 
@@ -137,7 +139,7 @@ export function ProcessCreatePage() {
       toast.error(
         apiErrorStatus(err) === 409
           ? t("processes.duplicateAllocation")
-          : apiErrorMessage(err, t("common.saveError")),
+          : codeErrorMessage(err, t, t("common.saveError")),
       );
     }
   };

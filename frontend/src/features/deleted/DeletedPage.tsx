@@ -15,9 +15,10 @@ import {
 import { toast } from "@/components/ui/toaster";
 import { ConfirmDialog } from "@/features/common/ConfirmDialog";
 import { PageHeader } from "@/features/common/PageHeader";
+import { Pagination } from "@/features/common/Pagination";
 import { TableStateRows } from "@/features/common/TableStateRows";
 import { apiErrorMessage } from "@/lib/apiError";
-import { formatDate } from "@/lib/format";
+import { formatDate, formatNumber } from "@/lib/format";
 
 import {
   useListDeletedClientsQuery,
@@ -27,13 +28,6 @@ import {
 } from "./deletedApi";
 
 type Tab = "processes" | "clients";
-
-// The API paginates some of these listings and not others; both shapes are unwrapped here so the
-// page does not care which it got.
-function rowsOf<T>(data: { results: T[] } | T[] | undefined): T[] {
-  if (!data) return [];
-  return Array.isArray(data) ? data : data.results;
-}
 
 /**
  * The admin restore desk (UC-063). Nothing in this system is ever hard-deleted (§11.1) — but until
@@ -47,18 +41,24 @@ function rowsOf<T>(data: { results: T[] } | T[] | undefined): T[] {
 export function DeletedPage() {
   const { t, i18n } = useTranslation();
   const [tab, setTab] = useState<Tab>("processes");
+  // A page each: switching tabs must not carry the other list's position across.
+  const [casePage, setCasePage] = useState(1);
+  const [clientPage, setClientPage] = useState(1);
   const [confirming, setConfirming] = useState<{ kind: Tab; id: number; label: string } | null>(
     null,
   );
 
-  const processes = useListDeletedProcessesQuery();
-  const clients = useListDeletedClientsQuery();
+  const processes = useListDeletedProcessesQuery(casePage);
+  const clients = useListDeletedClientsQuery(clientPage);
   const [restoreProcess, { isLoading: restoringProcess }] = useRestoreProcessMutation();
   const [restoreClient, { isLoading: restoringClient }] = useRestoreClientMutation();
 
   const active = tab === "processes" ? processes : clients;
-  const processRows = rowsOf(processes.data);
-  const clientRows = rowsOf(clients.data);
+  const processRows = processes.data?.results ?? [];
+  const clientRows = clients.data?.results ?? [];
+  // The **total**, not the page — a tab reading "25" when 60 are deleted would be a silent cap.
+  const caseCount = processes.data?.count ?? 0;
+  const clientCount = clients.data?.count ?? 0;
 
   const confirmRestore = async () => {
     if (!confirming) return;
@@ -76,8 +76,8 @@ export function DeletedPage() {
   };
 
   const TABS: { key: Tab; label: string; count: number }[] = [
-    { key: "processes", label: t("deleted.cases"), count: processRows.length },
-    { key: "clients", label: t("deleted.clients"), count: clientRows.length },
+    { key: "processes", label: t("deleted.cases"), count: caseCount },
+    { key: "clients", label: t("deleted.clients"), count: clientCount },
   ];
 
   return (
@@ -94,7 +94,7 @@ export function DeletedPage() {
             onClick={() => setTab(key)}
           >
             {label}
-            <span className="text-xs opacity-70">{count}</span>
+            <span className="text-xs opacity-70">{formatNumber(count, i18n.language)}</span>
           </Button>
         ))}
       </div>
@@ -187,6 +187,12 @@ export function DeletedPage() {
           </TableBody>
         </Table>
       </Card>
+
+      <Pagination
+        page={tab === "processes" ? casePage : clientPage}
+        count={tab === "processes" ? caseCount : clientCount}
+        onPage={tab === "processes" ? setCasePage : setClientPage}
+      />
 
       <ConfirmDialog
         open={Boolean(confirming)}

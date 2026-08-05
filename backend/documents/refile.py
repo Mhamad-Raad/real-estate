@@ -105,6 +105,12 @@ def _move_and_tidy(*, source: Path, rel_path: Path) -> None:
     still points at it, and restoring it must not find a hole.
     """
     old_dir = (settings.DOCUMENTS_ROOT / source).parent
+    # A row whose file is already missing must not turn an otherwise-good save into a 500. This
+    # runs `on_commit`, so the rename is committed by the time it fires — raising here would
+    # report failure for a change that has in fact been made. The row is the record of where the
+    # file belongs (§6.7); it simply goes on pointing at a gap it was already pointing at.
+    if not (settings.DOCUMENTS_ROOT / source).exists():
+        return
     filestore.move_into_place(source=source, rel_path=rel_path)
     # Never touch a category folder or the staging area — only the person level is disposable.
     if old_dir.is_dir() and old_dir.parent != settings.DOCUMENTS_ROOT and not any(old_dir.iterdir()):

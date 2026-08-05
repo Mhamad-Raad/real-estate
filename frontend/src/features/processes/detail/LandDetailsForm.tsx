@@ -7,7 +7,8 @@ import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "@/components/ui/toaster";
 import { useListCategoriesQuery } from "@/features/categories/categoriesApi";
-import { apiErrorMessage } from "@/lib/apiError";
+
+import { codeErrorMessage } from "../codeError";
 
 import { useUpdateProcessMutation } from "../processesApi";
 import type { ProcessDetail } from "../types";
@@ -71,7 +72,9 @@ export function LandDetailsForm({
       }).unwrap();
       toast.success(t("common.saved"));
     } catch (err) {
-      toast.error(apiErrorMessage(err, t("common.saveError")));
+      // A refused case number is the one failure here a lawyer causes by simply mistyping, so it
+      // is named in their own language rather than left as the server's English (UC-062).
+      toast.error(codeErrorMessage(err, t, t("common.saveError")));
     }
   };
 
