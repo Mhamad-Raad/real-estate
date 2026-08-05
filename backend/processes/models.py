@@ -5,6 +5,7 @@ guarantee (§3.7, §5.7): at most one non-rejected, non-deleted allocation per c
 """
 
 from django.conf import settings
+from django.contrib.postgres.indexes import GinIndex
 from django.db import models
 
 from common.models import SoftDeleteModel
@@ -81,6 +82,10 @@ class Process(SoftDeleteModel):
         ]
         indexes = [
             models.Index(fields=["created_at"], name="ix_process_created_at"),
+            # Trigram GIN so the unified search box can find a case by a *fragment* of its code.
+            # `ix_process_unique_code` is a btree and serves equality only — exactly the gap that
+            # made a PID substring seq-scan until `ix_client_pid_trgm` was added (§3.7, UC-005).
+            GinIndex(name="ix_process_code_trgm", fields=["unique_code"], opclasses=["gin_trgm_ops"]),
             models.Index(fields=["client"], name="ix_process_client"),
             models.Index(
                 fields=["category", "overall_status", "assigned_lawyer"],

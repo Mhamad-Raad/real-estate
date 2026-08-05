@@ -189,3 +189,47 @@ class CategoryIsRequiredAtIntakeTests(APITestCase):
         )
         self.assertEqual(resp.status_code, status.HTTP_201_CREATED)
         self.assertTrue(Process.objects.get(pk=resp.data["id"]).unique_code)
+
+
+class UnifiedSearchTests(APITestCase):
+    """One box finds a case by name, national ID **or** the office's code (§4.3)."""
+
+    def setUp(self):
+        self.lawyer = User.objects.create_user("srch_lw", password="pw12345678")
+        self.category = Category.objects.create(code="A", name="A")
+        self.target = create_process(
+            client=make_client(
+                full_name="Karwan Ahmed", pid="197712120099", category=self.category
+            ),
+            assigned_lawyer=self.lawyer, actor=self.lawyer, category=self.category,
+        )
+        create_process(
+            client=make_client(full_name="Someone Else", pid="196505050088", category=self.category),
+            assigned_lawyer=self.lawyer, actor=self.lawyer, category=self.category,
+        )
+        self.client.force_authenticate(self.lawyer)
+
+    def _codes(self, term):
+        resp = self.client.get(reverse("process-list"), {"search": term})
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        return [row["unique_code"] for row in resp.data["results"]]
+
+    def test_finds_a_case_by_its_code(self):
+        self.assertIn(self.target.unique_code, self._codes(self.target.unique_code))
+
+    def test_finds_a_case_by_a_fragment_of_its_code(self):
+        """The office quotes `A1` when it means the run, not only the whole code."""
+        self.assertIn(self.target.unique_code, self._codes(self.target.unique_code[:2]))
+
+    def test_still_finds_a_case_by_a_name_fragment(self):
+        self.assertIn(self.target.unique_code, self._codes("Karwan"))
+
+    def test_still_finds_a_case_by_a_national_id_fragment(self):
+        self.assertIn(self.target.unique_code, self._codes("771212"))
+
+    def test_a_term_matching_nothing_returns_nothing(self):
+        self.assertEqual(self._codes("zzzz-no-such-thing"), [])
+
+    def test_the_row_carries_the_code_so_the_list_can_show_it(self):
+        resp = self.client.get(reverse("process-list"))
+        self.assertIn("unique_code", resp.data["results"][0])

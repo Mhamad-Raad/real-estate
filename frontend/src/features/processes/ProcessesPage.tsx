@@ -50,28 +50,23 @@ export function ProcessesPage() {
   // ID this way (UC-026). Read once: after that the box owns its own value.
   const [params] = useSearchParams();
   const [searchTerm, setSearchTerm] = useState(() => params.get("search") ?? "");
-  const [pidTerm, setPidTerm] = useState("");
   const [search, setSearch] = useState(() => params.get("search") ?? "");
-  const [pid, setPid] = useState("");
   const [category, setCategory] = useState<number | "">("");
   const [status, setStatus] = useState<OverallStatus | "">("");
   const [step, setStep] = useState<number | "">("");
   const [page, setPage] = useState(1);
 
   useEffect(() => {
-    const id = setTimeout(() => {
-      setSearch(searchTerm.trim());
-      setPid(pidTerm.trim());
-    }, 300);
+    const id = setTimeout(() => setSearch(searchTerm.trim()), 300);
     return () => clearTimeout(id);
-  }, [searchTerm, pidTerm]);
+  }, [searchTerm]);
 
   // Any filter change resets to the first page (the result set changes).
-  useEffect(() => setPage(1), [search, pid, category, status, step]);
+  useEffect(() => setPage(1), [search, category, status, step]);
 
   const filters = useMemo(
-    () => ({ search, pid, category, overall_status: status, current_step: step, page }),
-    [search, pid, category, status, step, page],
+    () => ({ search, category, overall_status: status, current_step: step, page }),
+    [search, category, status, step, page],
   );
   const { data, isLoading, isError, refetch } = useListProcessesQuery(filters);
   const [remove, { isLoading: removing }] = useDeleteProcessMutation();
@@ -85,7 +80,7 @@ export function ProcessesPage() {
   // silently print rows the user can no longer see (§6.8).
   useEffect(() => {
     setSelected([]);
-  }, [search, pid, category, status, step, page]);
+  }, [search, category, status, step, page]);
 
   const confirmDelete = async () => {
     if (!toDelete) return;
@@ -132,15 +127,13 @@ export function ProcessesPage() {
       />
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        {/* One box for the three things a lawyer knows about a case — the name, the national ID
+            and the office's own code. There were two boxes, both searching an ID (§4.3). */}
         <Input
-          placeholder={t("processes.filters.name")}
+          className="sm:col-span-2"
+          placeholder={t("processes.filters.search")}
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-        />
-        <Input
-          placeholder={t("processes.filters.pid")}
-          value={pidTerm}
-          onChange={(e) => setPidTerm(e.target.value)}
         />
         <Select
           value={category}
@@ -189,6 +182,7 @@ export function ProcessesPage() {
                   aria-label={t("processes.selectAll")}
                 />
               </TableHead>
+              <TableHead>{t("workflow.uniqueCode")}</TableHead>
               <TableHead>{t("processes.client")}</TableHead>
               <TableHead>{t("clients.pid")}</TableHead>
               <TableHead>{t("processes.step")}</TableHead>
@@ -218,6 +212,10 @@ export function ProcessesPage() {
                       onChange={() => toggle(process.id)}
                       aria-label={t("processes.selectRow")}
                     />
+                  </TableCell>
+                  {/* The office quotes this code on paper, so it reads left-to-right even in RTL. */}
+                  <TableCell className="font-mono text-xs" dir="ltr">
+                    {process.unique_code || "—"}
                   </TableCell>
                   <TableCell className="font-medium">
                     <span className="flex items-center gap-2">

@@ -184,8 +184,7 @@
       "rejected": "Rejected"
     },
     "filters": {
-      "name": "Name or national ID…",
-      "pid": "National ID…",
+      "search": "Search by name, national ID or code…",
       "allCategories": "All categories",
       "allStatuses": "All statuses",
       "allSteps": "All steps"
