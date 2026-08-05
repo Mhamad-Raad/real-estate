@@ -31,10 +31,25 @@ const authSlice = createSlice({
       localStorage.setItem(ACCESS_KEY, action.payload.access);
       localStorage.setItem(REFRESH_KEY, action.payload.refresh);
     },
-    // Used by the silent refresh-on-401 flow: swap the access token only.
-    setAccess(state, action: PayloadAction<string>) {
-      state.access = action.payload;
-      localStorage.setItem(ACCESS_KEY, action.payload);
+    /** Used by the silent refresh-on-401 flow.
+     *
+     * The refresh token **rotates**: `ROTATE_REFRESH_TOKENS` issues a new one on every refresh and
+     * `BLACKLIST_AFTER_ROTATION` blacklists the one just spent. Storing only the access token
+     * therefore worked exactly once — the next silent refresh sent the blacklisted token, was
+     * refused, and signed the user out mid-work about an hour in (UC-071). So whatever the server
+     * hands back is kept, both halves.
+     *
+     * Deliberately a separate action from `setCredentials`: that one resets the RTK Query cache
+     * (a different user is arriving), and a silent refresh must never do that — it happens
+     * mid-session, under the same user, while their screens are showing data.
+     */
+    setAccess(state, action: PayloadAction<{ access: string; refresh?: string }>) {
+      state.access = action.payload.access;
+      localStorage.setItem(ACCESS_KEY, action.payload.access);
+      if (action.payload.refresh) {
+        state.refresh = action.payload.refresh;
+        localStorage.setItem(REFRESH_KEY, action.payload.refresh);
+      }
     },
     setUser(state, action: PayloadAction<User>) {
       state.user = action.payload;

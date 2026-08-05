@@ -45,9 +45,10 @@ const baseQueryWithReauth: BaseQueryFn<
           api,
           extraOptions,
         );
-        const data = refreshResult.data as { access?: string } | undefined;
+        // Both halves: the refresh token rotates, and the one just spent is blacklisted (UC-071).
+        const data = refreshResult.data as { access?: string; refresh?: string } | undefined;
         if (data?.access) {
-          api.dispatch(setAccess(data.access));
+          api.dispatch(setAccess({ access: data.access, refresh: data.refresh }));
           result = await rawBaseQuery(args, api, extraOptions);
         } else {
           api.dispatch(logOut());
