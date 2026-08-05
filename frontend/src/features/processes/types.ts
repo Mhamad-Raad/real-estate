@@ -10,8 +10,8 @@ export interface ProcessListItem {
   client_full_name: string;
   client_pid: string;
   category: number | null;
-  // The office's case number (`A102`), issued at creation and never editable (§3.8). Empty only
-  // for a case opened without a category.
+  // The office's case number (`A102`). Issued at creation, and correctable since UC-062 — the
+  // office chooses where the sequence resumes. Empty only for a case opened without a category.
   unique_code: string;
   land_id: string;
   land_address: string;
@@ -22,6 +22,8 @@ export interface ProcessListItem {
   assigned_lawyer: number;
   assigned_lawyer_username: string;
   created_at: string;
+  // Only ever present on the restore desk's listing (UC-063); a live case has none.
+  deleted_at?: string | null;
   version: number;
 }
 
@@ -36,6 +38,8 @@ export interface ProcessCreateInput {
   assigned_lawyer?: number;
   land_id?: string;
   land_address?: string;
+  // Blank lets the server issue the next free number in the category (UC-062).
+  unique_code?: string;
 }
 
 export interface ProcessFilters {

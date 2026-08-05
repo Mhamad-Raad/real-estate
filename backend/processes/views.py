@@ -1,6 +1,6 @@
 """Processes API — create, search, header edit, override, per-step save, complete (§4, §5, §7)."""
 
-from django.db import IntegrityError
+from django.db import IntegrityError, transaction
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import status
@@ -40,11 +40,15 @@ from .services import (
     intake_process,
     override_duplicate as override_duplicate_service,
     recompute_step,
+    release_client_with_case,
+    restore_client_with_case,
     save_step,
 )
 
 SERIALIZERS = {
     "list": ProcessListSerializer,
+    # The restore desk lists cases, not full case files (UC-063).
+    "deleted": ProcessListSerializer,
     "retrieve": ProcessDetailSerializer,
     "create": ProcessCreateSerializer,
     "update": ProcessUpdateSerializer,
@@ -83,8 +87,31 @@ class ProcessViewSet(AuditedSoftDeleteViewSet, ModelViewSet):
             category=data.get("category"),
             land_id=data.get("land_id", ""),
             land_address=data.get("land_address", ""),
+            # Blank = let the allocator issue the next free number (§3.8, UC-062).
+            unique_code=data.get("unique_code", "").strip(),
             request=self.request,
         )
+
+    @transaction.atomic
+    def perform_destroy(self, instance):
+        """Deleting the case releases the beneficiary too, so they can be entered again (UC-061)."""
+        super().perform_destroy(instance)
+        release_client_with_case(instance, actor=self.request.user, request=self.request)
+
+    @action(detail=True, methods=["post"], permission_classes=[IsAdmin])
+    @transaction.atomic
+    def restore(self, request, pk=None):
+        """The mirror: the beneficiary comes back with the case.
+
+        Atomic across both. If their national ID has been re-used since — a legitimate outcome of
+        having freed it — the client restore raises and this rolls the case back with it, rather
+        than handing back a case whose person is not in the register.
+        """
+        response = super().restore(request, pk=pk)
+        restore_client_with_case(
+            Process.all_objects.get(pk=pk), actor=request.user, request=request
+        )
+        return response
 
     def perform_update(self, serializer):
         super().perform_update(serializer)

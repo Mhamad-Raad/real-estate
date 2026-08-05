@@ -14,7 +14,8 @@
     "settings": "Settings",
     "templates": "Templates",
     "collapse": "Collapse",
-    "expand": "Expand"
+    "expand": "Expand",
+    "deleted": "Deleted items"
   },
   "auth": {
     "title": "Sign in",
@@ -324,7 +325,10 @@
     "sectionPapers": "Client papers",
     "sectionLetter": "Eligibility letter",
     "reapply": "Start a new application",
-    "reapplyNote": "This application was rejected. The beneficiary may apply again."
+    "reapplyNote": "This application was rejected. The beneficiary may apply again.",
+    "neverReused": "never reused",
+    "codeAutoHint": "optional",
+    "codePlaceholder": "Leave blank for the next number"
   },
   "institute": {
     "s2_a": "Slemani Municipality Presidency",
@@ -573,5 +577,18 @@
       "reemkufi": "Decorative kufi.",
       "lateef": "Light traditional, compact."
     }
+  },
+  "deleted": {
+    "title": "Deleted items",
+    "subtitle": "Nothing is ever removed for good — restore anything deleted by mistake.",
+    "cases": "Cases",
+    "clients": "Beneficiaries",
+    "deletedAt": "Deleted",
+    "restore": "Restore",
+    "restored": "Restored.",
+    "restoreError": "Could not restore this record.",
+    "empty": "Nothing has been deleted.",
+    "confirmTitle": "Restore this record?",
+    "confirmBody": "{{name}} will be returned to the register. A deleted case brings its beneficiary back with it."
   }
 }

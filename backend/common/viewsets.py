@@ -96,6 +96,20 @@ class AuditedSoftDeleteViewSet:
             request=self.request,
         )
 
+    @action(detail=False, methods=["get"], permission_classes=[IsAdmin])
+    def deleted(self, request):
+        """Admin-only: what has been soft-deleted, newest first — the restore desk (UC-063).
+
+        Nothing here is ever hard-deleted (§11.1), so without a way to *see* the deleted rows the
+        `restore` action below could only be reached by someone who already knew the id. Reads
+        through `all_objects`, the only manager that sees them.
+        """
+        qs = self.get_queryset().model.all_objects.filter(is_deleted=True).order_by("-deleted_at")
+        page = self.paginate_queryset(qs)
+        if page is not None:
+            return self.get_paginated_response(self.get_serializer(page, many=True).data)
+        return Response(self.get_serializer(qs, many=True).data)
+
     @action(detail=True, methods=["post"], permission_classes=[IsAdmin])
     @transaction.atomic
     def restore(self, request, pk=None):

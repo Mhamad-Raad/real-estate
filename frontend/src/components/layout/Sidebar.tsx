@@ -8,6 +8,7 @@ import {
   ScrollText,
   Settings,
   Tags,
+  Trash2,
   Landmark,
   PanelLeftClose,
   type LucideIcon,
@@ -37,6 +38,8 @@ const NAV_ITEMS: NavItem[] = [
   { to: "/categories", labelKey: "nav.categories", icon: Tags, adminOnly: true },
   { to: "/templates", labelKey: "nav.templates", icon: FileType, adminOnly: true },
   { to: "/users", labelKey: "nav.users", icon: UserCog, adminOnly: true },
+  // The restore desk (UC-063) — last of the admin group, since it is reached after a mistake.
+  { to: "/deleted", labelKey: "nav.deleted", icon: Trash2, adminOnly: true },
   { to: "/settings", labelKey: "nav.settings", icon: Settings },
 ];
 

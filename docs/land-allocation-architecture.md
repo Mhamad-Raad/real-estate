@@ -645,8 +645,20 @@ Two things keep this honest:
 
 Every case carries a code the office recognises it by: the **category's letter** followed by a
 number that only ever counts **up within that category** — `A1`, `A102`, `G2005`. Added 2026-08-04
-(UC-056). It is `Process.unique_code`, allocated once at creation and **never editable** — it is
-absent from `ProcessUpdateSerializer` entirely.
+(UC-056). It is `Process.unique_code`, issued automatically at creation.
+
+> **Revised It.7 / UC-062 (2026-08-05).** The code was originally **never editable**. The office
+> then asked for two things it could not do: choose where the sequence resumes (they are on `A12`
+> and want the next case to be `A15`), and correct a number that went out wrong. It is now settable
+> at intake and editable afterwards by whoever may edit the case — the assigned lawyer or an admin,
+> the same boundary as every other header field (§7.2).
+>
+> **Nothing that protects the paperwork changed.** A chosen code still has to carry its category's
+> letter, and still must never have been used — including by a deleted case. Both are checked by
+> `services.assert_code_is_available`, over `all_objects`. And because the allocator reads "highest
+> ever issued + 1" rather than "count of live rows", choosing `A15` needs no other machinery to make
+> the next automatic number `A16`: `A13` and `A14` are simply retired unused, which rule 3 below
+> already permits.
 
 **Three rules, all decided by the office:**
 
@@ -654,7 +666,8 @@ absent from `ProcessUpdateSerializer` entirely.
    the category's own `code`, not a prefix on a shared sequence.
 2. **The category never changes** (§7.2 layer 5, UC-059), which is what lets the letter be trusted
    for as long as the code exists.
-3. **A code is never reissued.** Soft-deleting a case does *not* release its number — the next case
+3. **A code is never reissued.** This is the rule UC-062 left untouched, and the reason it could
+   be relaxed safely elsewhere. Soft-deleting a case does *not* release its number — the next case
    in that category takes the following one, and gaps are correct. This matters because the office
    moves a case between categories by deleting it and opening a new one, so deletion is routine; a
    recycled number would put two different cases on the same figure already printed on letters that
@@ -1345,6 +1358,12 @@ This reuses the same LibreOffice + Celery plumbing as eligibility generation, so
 ### 11.1 Soft-delete enforced everywhere
 
 All domain tables extend `SoftDeleteModel` (§3.1). The **default manager hides `is_deleted=True`**, so every list, search, and report excludes deleted rows automatically — a developer cannot *accidentally* show or hard-delete data. `DELETE` endpoints set the flag + `deleted_at` + `deleted_by`; `POST /{id}/restore/` (admin) reverses it. FK `on_delete=PROTECT` blocks cascade deletes. Uniqueness (PID) uses a **partial unique index excluding deleted rows**, so a soft-deleted client doesn't block re-entry while an active duplicate still can't slip through.
+
+> **Added It.7 / UC-063 (2026-08-05) — the restore desk.** `restore` had no way in. The deleted rows are hidden from every list by the default manager, so the only way to reach the endpoint was to already know the id — which meant, in practice, that a mistaken delete was permanent in a system whose whole premise is that nothing ever is. Every soft-delete viewset now also exposes **`GET <resource>/deleted/`** (admin-only, `all_objects`, newest first), and the admin screen **Deleted items** lists cases and beneficiaries side by side with a Restore action. Defined once on `AuditedSoftDeleteViewSet`, so every domain gets it — and cannot forget it.
+
+> **Added It.7 / UC-061 (2026-08-05) — deleting a case releases its beneficiary.** `ix_client_pid_active` is partial on `is_deleted=False`, so a **living** client goes on holding their national ID. Deleting only the case therefore left that person unusable: intake deliberately offers no "pick an existing client" (§5.7, UC-026), so re-entering them by hand hit the PID conflict, and there was no way forward at all. `services.release_client_with_case` now soft-deletes the beneficiary with their case, and `restore_client_with_case` brings them back with it — both audited against the Client, both inside the same transaction as the case.
+>
+> Two guards make it safe. It is **skipped when another live case still references the client**: that case's documents, letter and compiled file all read the person from this row. And a restore **checks the PID is still free first** — freeing it means someone may legitimately hold it now, so the restore fails whole with a 400 naming the conflict rather than half-restoring a case whose person is not in the register.
 
 ### 11.2 Every change recorded (who / what / when / before-after)
 

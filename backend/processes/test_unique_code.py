@@ -98,7 +98,13 @@ class UniqueCodeApiTests(APITestCase):
         detail = self.client.get(reverse("process-detail", args=[resp.data["id"]]))
         self.assertEqual(detail.data["unique_code"], "A1")
 
-    def test_the_code_cannot_be_edited(self):
+    def test_the_code_may_now_be_corrected(self):
+        """**Reverses this rule deliberately.** UC-056 shipped the code as read-only; the office
+        then asked to be able to set where the sequence resumes, and to correct a number that went
+        out wrong (UC-062). What did NOT change is the part that protects the paperwork: a number
+        is still retired for ever once issued, and still has to carry its category's letter —
+        `processes/test_code_editing.py` holds those. Only the "never editable" part is gone.
+        """
         process = create_process(
             client=make_client(pid="199505050102", category=self.category),
             assigned_lawyer=self.lawyer,
@@ -110,10 +116,9 @@ class UniqueCodeApiTests(APITestCase):
             {"unique_code": "A999", "version": process.version},
             format="json",
         )
-        # Not in the update serializer at all, so it is ignored rather than applied.
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
         process.refresh_from_db()
-        self.assertEqual(process.unique_code, "A1")
+        self.assertEqual(process.unique_code, "A999")
 
 
 class UniqueCodeConcurrencyTests(APITransactionTestCase):

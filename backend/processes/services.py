@@ -70,8 +70,31 @@ def allocate_unique_code(category) -> str:
 
 
 @transaction.atomic
+def assert_code_is_available(code: str, category, *, exclude=None) -> None:
+    """Vet a hand-picked case number before the index does (§3.8, UC-062).
+
+    Two rules, both the office's own:
+
+    * it must carry **this case's category letter**. The first character of a code *is* the
+      category, the category is fixed for the life of the case (UC-059), and letters that have
+      gone out quote the code — so a code that disagreed with its case would be a lie on paper.
+    * it must never have been used, **including by deleted cases**. A number is retired for ever
+      once issued; `all_objects` is what makes that true rather than "free again after a delete".
+    """
+    prefix = category.code if category else ""
+    if not code.startswith(prefix) or not code[len(prefix):].isdigit():
+        raise ValidationError(
+            {"unique_code": f"A case number in this category looks like {prefix}1, {prefix}2, …"}
+        )
+    taken = Process.all_objects.filter(unique_code=code)
+    if exclude is not None:
+        taken = taken.exclude(pk=exclude.pk)
+    if taken.exists():
+        raise ValidationError({"unique_code": f"{code} has already been used and cannot be reused."})
+
+
 def create_process(
-    *, client, assigned_lawyer, actor, category=None, request=None,
+    *, client, assigned_lawyer, actor, category=None, request=None, unique_code="",
 ) -> Process:
     """Create a case + its five step placeholder rows. Returns HTTP 409 (not 500) if the
     client already has an active allocation — the DB index is the race-safe backstop (§5.7)."""
@@ -101,9 +124,11 @@ def create_process(
                 client=client,
                 assigned_lawyer=assigned_lawyer,
                 category=category,
-                # Issued here and never again: the category is fixed for the life of the case
-                # (UC-059), so the letter can be trusted for as long as the code exists.
-                unique_code=allocate_unique_code(category) if category else "",
+                # A number the office chose, or the next free one. Either way the allocator
+                # reads "highest ever issued + 1" over `all_objects`, so choosing A15 while the
+                # sequence sat at A12 simply moves it on — the next auto code is A16, and A13/A14
+                # are retired unused rather than handed out later (§3.8, UC-062).
+                unique_code=(unique_code or allocate_unique_code(category)) if category else "",
                 duplicate_flagged=duplicate_flagged,
                 similar_name_flagged=similar_name_flagged,
             )
@@ -143,6 +168,7 @@ def intake_process(
     category=None,
     land_id="",
     land_address="",
+    unique_code="",
     request=None,
 ) -> Process:
     """Open a case from the Step-1 intake form — the beneficiary and their case commit together.
@@ -168,11 +194,14 @@ def intake_process(
     # is a data-integrity hole, so the guarantee belongs on this side of the boundary (§7.2).
     if category is None:
         category = client.category
+    if unique_code:
+        assert_code_is_available(unique_code, category)
     process = create_process(
         client=client,
         assigned_lawyer=assigned_lawyer,
         category=category,
         actor=actor,
+        unique_code=unique_code,
         request=request,
     )
     if land_id or land_address:
@@ -401,3 +430,66 @@ def complete_process(*, process, actor, force=False, expected_version=None, requ
         request=request,
     )
     return process
+
+
+def release_client_with_case(process, *, actor, request=None) -> bool:
+    """Soft-delete the beneficiary along with their deleted case, so they can be entered again.
+
+    `ix_client_pid_active` is partial on `is_deleted=False`: a living client keeps holding their
+    national ID. Deleting only the case therefore left the person locked out of the system —
+    intake deliberately offers no "pick an existing client" (§5.7, UC-026), so re-entering them by
+    hand hit the PID conflict and there was no way forward at all (UC-061).
+
+    Skipped when another live case still needs the record: its documents, its letter and its
+    compiled file all read the person from here, and deleting them out from under it would leave
+    that case describing someone the register says is gone.
+    """
+    client = process.client
+    if client is None or client.is_deleted:
+        return False
+    if Process.objects.filter(client=client).exclude(pk=process.pk).exists():
+        return False
+
+    client.is_deleted = True
+    client.deleted_at = timezone.now()
+    client.deleted_by = actor
+    client.version += 1
+    client.save(update_fields=["is_deleted", "deleted_at", "deleted_by", "version"])
+    record_activity(
+        actor=actor,
+        action=ActivityLog.Action.DELETE,
+        entity_type="Client",
+        entity_id=client.id,
+        after={"reason": "case deleted", "process_id": process.id},
+        request=request,
+    )
+    return True
+
+
+def restore_client_with_case(process, *, actor, request=None) -> bool:
+    """Bring the beneficiary back with their restored case (the mirror of the above).
+
+    A restore that left the client deleted would hand back a case whose person is not in the
+    register. The PID may have been taken by a re-entry in the meantime, which is a legitimate
+    outcome of freeing it — so it is checked first and reported as a 400 naming the conflict,
+    rather than reaching the index and surfacing as a 500 that explains nothing.
+    """
+    client = process.client
+    if client is None or not client.is_deleted:
+        return False
+
+    assert_pid_is_free(client.pid, exclude=client)
+    client.is_deleted = False
+    client.deleted_at = None
+    client.deleted_by = None
+    client.version += 1
+    client.save(update_fields=["is_deleted", "deleted_at", "deleted_by", "version"])
+    record_activity(
+        actor=actor,
+        action=ActivityLog.Action.RESTORE,
+        entity_type="Client",
+        entity_id=client.id,
+        after={"reason": "case restored", "process_id": process.id},
+        request=request,
+    )
+    return True

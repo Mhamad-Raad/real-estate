@@ -27,8 +27,10 @@ class ClientSerializer(serializers.ModelSerializer):
             "created_by",
             "version",
             "created_at",
+            # Only ever set on the restore desk's own listing (UC-063); a live client has none.
+            "deleted_at",
         )
-        read_only_fields = ("id", "created_by", "version", "created_at")
+        read_only_fields = ("id", "created_by", "version", "created_at", "deleted_at")
 
     # The letter prints a spouse row of name / birth date / mother's name, so a married client
     # needs all three — the same set the DB check constraint enforces (§6.6).

@@ -19,6 +19,8 @@ export interface Client {
   created_by: number | null;
   version: number;
   created_at: string;
+  // Only ever present on the restore desk's listing (UC-063); a live client has none.
+  deleted_at?: string | null;
 }
 
 export interface ClientInput {

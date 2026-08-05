@@ -5,6 +5,7 @@ from catalog.institutes import INSTITUTE_CODES, STEP_FOR_CODE
 from clients.serializers import ClientSerializer
 
 from .models import DuplicateOverride, Process, ProcessInstituteEntry, ProcessStep
+from .services import assert_code_is_available
 from .status import missing_requirements
 
 
@@ -103,6 +104,9 @@ class ProcessListSerializer(serializers.ModelSerializer):
             "assigned_lawyer",
             "assigned_lawyer_username",
             "created_at",
+            # Read-only, and only ever populated on the restore desk's own listing (UC-063) —
+            # a live case has none. It is what tells two deleted rows apart there.
+            "deleted_at",
             "version",
         )
 
@@ -151,9 +155,16 @@ class ProcessCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Process
         # `duplicate_flagged` is server-computed from the identity dedup — never client input (§5.7).
-        fields = ("id", "client", "client_data", "category", "assigned_lawyer", "land_id", "land_address")
+        fields = (
+            "id", "client", "client_data", "category", "assigned_lawyer",
+            "land_id", "land_address", "unique_code",
+        )
         read_only_fields = ("id",)
         extra_kwargs = {
+            # Optional: left blank the allocator issues the next free number (§3.8). Sent, the
+            # office is choosing where the sequence resumes — vetted in the service, which is the
+            # only place that can check it inside the allocation lock (UC-062).
+            "unique_code": {"required": False, "allow_blank": True},
             # Not `required` — see validate(): re-applying passes only the client and inherits
             # their category, so demanding it here would reject a legitimate path (UC-028).
             # The view resolves the assignee (self for lawyers); admins may pass one explicitly.
@@ -186,10 +197,24 @@ class ProcessUpdateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Process
-        # Step-1 header edits: land details + notes. **Not the category** — see validate() below.
-        fields = ("lawyer_notes", "land_id", "land_address", "version")
+        # Step-1 header edits: land details, notes, and the case number. **Not the category** —
+        # see validate() below.
+        fields = ("lawyer_notes", "land_id", "land_address", "unique_code", "version")
         # Version is the optimistic-lock token the client echoes back; the service bumps it.
         read_only_fields = ("version",)
+        extra_kwargs = {"unique_code": {"required": False}}
+
+    def validate_unique_code(self, value):
+        """Same two rules as at intake — the category letter, and never a number already issued.
+
+        Blanking it is refused rather than silently allowed: an unnumbered case cannot be found on
+        the office's printed code list, and there would be no way back to a number for it.
+        """
+        value = (value or "").strip()
+        if not value:
+            raise serializers.ValidationError("A case must keep a number.")
+        assert_code_is_available(value, self.instance.category, exclude=self.instance)
+        return value
 
     def validate(self, attrs):
         """Refuse a category change outright rather than dropping it silently (UC-059).

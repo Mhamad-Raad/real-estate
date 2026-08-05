@@ -4,6 +4,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { ActivitiesPage } from "@/features/activities/ActivitiesPage";
 import { AdminRoute } from "@/features/auth/AdminRoute";
+import { DeletedPage } from "@/features/deleted/DeletedPage";
 import { LoginPage } from "@/features/auth/LoginPage";
 import { ProtectedRoute } from "@/features/auth/ProtectedRoute";
 import { CategoriesPage } from "@/features/categories/CategoriesPage";
@@ -39,6 +40,7 @@ export default function App() {
               <Route path="categories" element={<CategoriesPage />} />
               <Route path="templates" element={<TemplatesPage />} />
               <Route path="users" element={<UsersPage />} />
+              <Route path="deleted" element={<DeletedPage />} />
             </Route>
             <Route path="settings" element={<SettingsPage />} />
           </Route>
