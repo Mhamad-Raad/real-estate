@@ -1,5 +1,6 @@
 """Step-5 compiled case export (§10.3) — ordering, supersede, and loud failure."""
 
+import unittest
 from io import BytesIO
 from pathlib import Path
 
@@ -17,7 +18,7 @@ from processes.services import create_process
 from .compile import COMPILED_DOC_TYPE, documents_in_step_order, merge_pdfs, run_compile_case_job
 from .models import Document, DocumentTemplate, GenerationJob
 from .rendering import RenderError
-from .factories import make_pdf
+from .factories import HAS_LIBREOFFICE, NO_LIBREOFFICE_REASON, make_pdf
 from .letters import to_arabic_indic
 from .services import PayloadTooLarge, create_document
 from .summary import case_summary_context
@@ -122,7 +123,12 @@ class CompileJobTests(CompileTestBase):
             requested_by=self.admin,
         )
 
+    @unittest.skipUnless(HAS_LIBREOFFICE, NO_LIBREOFFICE_REASON)
     def test_failure_marks_the_job_failed_with_a_reason(self):
+        """Needs the real binary: the cover sheet renders before the merge reads the files, so
+        without LibreOffice the job fails for the wrong reason and the assertion below is a lie.
+        Its siblings in test_generation/test_rendering carry the same guard; this one did not, and
+        left the suite red on the documented native-dev path (It.8)."""
         document = self._document(1, "ClientID")
         (Path(settings.DOCUMENTS_ROOT) / document.file_path).unlink()
         job = self._job()

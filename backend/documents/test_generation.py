@@ -1,6 +1,5 @@
 """Letter generation: context contract, job outcomes, and the endpoints around them (§6.6, §6.8)."""
 
-import shutil
 import tempfile
 import unittest
 from datetime import date
@@ -31,9 +30,9 @@ from .management.commands.build_placeholder_templates import (
     build_eligibility_single,
     build_process_list,
 )
+from .factories import HAS_LIBREOFFICE, NO_LIBREOFFICE_REASON
 from .models import Document, DocumentTemplate, GenerationJob
 
-HAS_LIBREOFFICE = shutil.which(settings.LIBREOFFICE_BIN) is not None
 
 
 def make_template(template_type, builder, name="T") -> DocumentTemplate:
@@ -110,7 +109,7 @@ class LetterContextTests(TestCase):
         self.assertEqual(context["last_name"], last.client.full_name)
 
 
-@unittest.skipUnless(HAS_LIBREOFFICE, "LibreOffice not installed (run inside the container)")
+@unittest.skipUnless(HAS_LIBREOFFICE, NO_LIBREOFFICE_REASON)
 @override_settings(
     DOCUMENTS_ROOT=Path(tempfile.mkdtemp()), LETTER_TEMPLATES_ROOT=Path(tempfile.mkdtemp())
 )
@@ -405,7 +404,7 @@ class DocumentTemplateApiTests(APITestCase):
             set(DocumentTemplate.TemplateType.values),
         )
 
-@unittest.skipUnless(HAS_LIBREOFFICE, "LibreOffice not installed (run inside the container)")
+@unittest.skipUnless(HAS_LIBREOFFICE, NO_LIBREOFFICE_REASON)
 @override_settings(
     DOCUMENTS_ROOT=Path(tempfile.mkdtemp()), LETTER_TEMPLATES_ROOT=Path(tempfile.mkdtemp())
 )

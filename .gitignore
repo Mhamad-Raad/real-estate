@@ -13,6 +13,10 @@ CLAUDE.md
 
 # --- Runtime data (lives in Desktop/LandAllocationData, never in repo) ---
 /data/
+# The backend's default DOCUMENTS_ROOT resolves to <repo>/LandAllocationData/documents whenever
+# the env var is unset, so a native run puts citizen PDFs *inside* the repo. Only `/data/` was
+# ignored — a path nothing writes to — which left the real one exposed to `git add -A` (It.8).
+/LandAllocationData/
 *.dump
 *.sql
 

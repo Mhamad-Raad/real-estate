@@ -23,6 +23,19 @@ class PayloadTooLarge(APIException):
     default_code = "file_too_large"
 
 
+def read_upload(upload, *, limit: int | None = None) -> bytes:
+    """Read an uploaded file into memory, refusing an oversized one **before** the read.
+
+    Django spools anything past `FILE_UPLOAD_MAX_MEMORY_SIZE` to a temp file, so `.read()` on a
+    huge upload pulls the whole thing into the worker's RAM and only then meets the cap. Asking
+    the upload for its size first costs nothing and keeps the 413 cheap (It.8).
+    """
+    limit = settings.MAX_UPLOAD_BYTES if limit is None else limit
+    if getattr(upload, "size", 0) > limit:
+        raise PayloadTooLarge()
+    return upload.read()
+
+
 def subject_name(client, document_type: str) -> str:
     """Whose document this is. A spouse's ID card is the *spouse's* paper even though it lives in
     the beneficiary's folder, so naming it after the beneficiary would misdescribe it (§6.7)."""

@@ -5,7 +5,6 @@ the chain fails quietly: a bad loop tag renders zero rows, a missing font substi
 Needs LibreOffice, so it runs in the container and skips on a bare native checkout.
 """
 
-import shutil
 import tempfile
 import unittest
 from pathlib import Path
@@ -18,9 +17,9 @@ from docxtpl import DocxTemplate
 from pypdf import PdfReader
 
 from .docx_rtl import rtl_paragraph, rtl_run, rtl_table
+from .factories import HAS_LIBREOFFICE, NO_LIBREOFFICE_REASON
 from .rendering import RenderError, docx_to_pdf
 
-HAS_LIBREOFFICE = shutil.which(settings.LIBREOFFICE_BIN) is not None
 
 NAME = "هاوبیر أمید کاک عبدالله"
 # Assert on a ligature-free fragment: LibreOffice draws "لله" as a single glyph that pypdf cannot
@@ -49,7 +48,7 @@ def build_template(path: Path) -> None:
     doc.save(path)
 
 
-@unittest.skipUnless(HAS_LIBREOFFICE, "LibreOffice not installed (run inside the container)")
+@unittest.skipUnless(HAS_LIBREOFFICE, NO_LIBREOFFICE_REASON)
 class DocxToPdfTests(SimpleTestCase):
     def setUp(self):
         self.work = Path(tempfile.mkdtemp(prefix="render-test-"))

@@ -26,7 +26,7 @@ from .serializers import (
     DocumentUploadSerializer,
     GenerationJobSerializer,
 )
-from .services import create_document
+from .services import create_document, read_upload
 
 
 class DocumentViewSet(AuditedSoftDeleteViewSet, ModelViewSet):
@@ -56,7 +56,7 @@ class DocumentViewSet(AuditedSoftDeleteViewSet, ModelViewSet):
             document_type=data["document_type"],
             input_source=data["input_source"],
             institute_entry=data.get("institute_entry"),
-            content=upload.read(),
+            content=read_upload(upload),
             original_filename=getattr(upload, "name", ""),
             actor=request.user,
             request=request,
