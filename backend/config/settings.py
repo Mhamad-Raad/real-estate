@@ -26,11 +26,17 @@ def env_list(name: str, default: str = "") -> list[str]:
 
 INSECURE_DEFAULT_SECRET = "dev-insecure-change-me"
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", INSECURE_DEFAULT_SECRET)
-DEBUG = env_bool("DJANGO_DEBUG", True)
+# Defaults to **off**: a production host that never sets the variable must not boot into debug,
+# where every error answers with a stack trace and ALLOWED_HOSTS stops being enforced. Dev turns
+# it on explicitly in `.env` (see `.env.example`), which is the safe direction for a default to
+# fail in (It.8).
+DEBUG = env_bool("DJANGO_DEBUG", False)
 ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1")
 
 # Never boot production on the insecure dev defaults — fail loudly instead of silently.
-if not DEBUG:
+# Skipped under `manage.py test`, which forces DEBUG off itself: a fresh clone with no `.env` must
+# still be able to run the suite, and a test run is not a production boot.
+if not DEBUG and not TESTING:
     if SECRET_KEY == INSECURE_DEFAULT_SECRET or len(SECRET_KEY) < 32:
         raise ImproperlyConfigured(
             "DJANGO_SECRET_KEY must be set to a strong (32+ char) value when DEBUG is off."
@@ -39,7 +45,9 @@ if not DEBUG:
         raise ImproperlyConfigured("DJANGO_ALLOWED_HOSTS must be set when DEBUG is off.")
 
 INSTALLED_APPS = [
-    "django.contrib.admin",
+    # `django.contrib.admin` is deliberately absent — see the note in config/urls.py. It writes
+    # through neither the service layer nor the soft-delete rules, so leaving it installed would
+    # keep a second, unaudited write path into the same tables.
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "django.contrib.sessions",
@@ -83,10 +91,17 @@ MAX_GENERATED_BYTES = int(os.getenv("MAX_GENERATED_BYTES", str(200 * 1024 * 1024
 
 # Admin-uploaded .docx letter templates (§3.5, §6.6) — kept beside the documents they generate.
 # Named to stay clearly distinct from Django's own TEMPLATES setting below.
-# Off the CONFIGURED root, not the test one: the installed .docx templates are real input the
-# rendering tests read, so they must still be found when the store is redirected to a temp dir.
-LETTER_TEMPLATES_ROOT = Path(
-    os.getenv("LETTER_TEMPLATES_ROOT", str(_CONFIGURED_DOCUMENTS_ROOT / "_templates"))
+#
+# Redirected under `manage.py test` for the same reason `DOCUMENTS_ROOT` is: isolation relied on
+# each test class remembering `@override_settings(LETTER_TEMPLATES_ROOT=…)`, and the classes that
+# forgot wrote real `.docx` files into the office's template directory (It.8 — five of them landed
+# there during this review). The earlier note here claimed the tests need the *installed*
+# templates; they do not — every test that renders one either builds it or installs it into a root
+# it overrides itself.
+LETTER_TEMPLATES_ROOT = (
+    Path(tempfile.mkdtemp(prefix="las-test-templates-"))
+    if TESTING
+    else Path(os.getenv("LETTER_TEMPLATES_ROOT", str(_CONFIGURED_DOCUMENTS_ROOT / "_templates")))
 )
 # Headless LibreOffice does the .docx→PDF render (D5): it shapes RTL Sorani/Arabic correctly,
 # which the lightweight HTML-to-PDF engines do not.
