@@ -1,6 +1,14 @@
-"""Root URL config. API is versioned under /api/v1/."""
+"""Root URL config. API is versioned under /api/v1/.
 
-from django.contrib import admin
+**No Django admin.** It was scaffolded in It.0 and never revisited, and It.8 proved what it cost:
+a staff account could hard-DELETE a `Document` row through it — gone from `all_objects`, the
+manager that is supposed to see everything — with **zero** audit rows written, and edit any case
+outside the service layer, so no optimistic lock and no before/after trail. That defeats the two
+invariants this system is built on (§11.1, §11.2) from inside the boundary that is supposed to
+enforce them. Nothing needed it: the app has its own admin screens, including the restore desk
+for soft-deleted rows (UC-063) and the audit trail (§11.3).
+"""
+
 from django.http import JsonResponse
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
@@ -37,7 +45,6 @@ router.register("activities", ActivityLogViewSet, basename="activity")
 router.register("card-scans", CardScanViewSet, basename="card-scan")
 
 urlpatterns = [
-    path("admin/", admin.site.urls),
     path("api/v1/health/", health, name="health"),
     path("api/v1/auth/", include("accounts.urls")),
     path("api/v1/institutes/", InstitutesView.as_view(), name="institutes"),
