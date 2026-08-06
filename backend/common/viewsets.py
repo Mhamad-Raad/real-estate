@@ -5,6 +5,7 @@ services.py; this base only centralizes the mechanical CRUD audit + soft-delete 
 """
 
 from django.db import transaction
+from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.decorators import action
@@ -125,8 +126,14 @@ class AuditedSoftDeleteViewSet:
     @action(detail=True, methods=["post"], permission_classes=[IsAdmin])
     @transaction.atomic
     def restore(self, request, pk=None):
-        """Admin-only: reverse a soft-delete."""
-        instance = self.get_queryset().model.all_objects.get(pk=pk)
+        """Admin-only: reverse a soft-delete.
+
+        Looked up with `get_object_or_404`: a plain `.get()` turned an id that isn't there into a
+        `DoesNotExist`, which DRF does not translate — so a stale restore desk (the other office
+        computer having restored the row already, then deleting it for good reasons) answered 500
+        instead of 404 (It.8).
+        """
+        instance = get_object_or_404(self.get_queryset().model.all_objects, pk=pk)
         instance.is_deleted = False
         instance.deleted_at = None
         instance.deleted_by = None

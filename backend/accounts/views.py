@@ -1,6 +1,7 @@
 """Auth endpoints: login / refresh / logout / me. Login and logout are audited (§7, §11)."""
 
 from django.db import transaction
+from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.decorators import action
@@ -152,7 +153,8 @@ class UserViewSet(AuditedSoftDeleteViewSet, ModelViewSet):
     @transaction.atomic
     def restore(self, request, pk=None):
         # Re-enable login on restore (mirrors the deactivation done on delete).
-        instance = User.all_objects.get(pk=pk)
+        # 404 rather than the `DoesNotExist` 500 an unknown id used to raise (It.8).
+        instance = get_object_or_404(User.all_objects, pk=pk)
         instance.is_active = True
         instance.is_deleted = False
         instance.deleted_at = None

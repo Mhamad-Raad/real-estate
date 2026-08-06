@@ -108,6 +108,24 @@ class ProcessApiTests(APITestCase):
         )
         self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
 
+    def test_a_version_that_is_not_a_number_is_a_400_not_a_500(self):
+        """Bad input is the client's fault, and must read as such (It.8).
+
+        `int(expected_version)` raised ValueError, which DRF does not translate — so a malformed
+        field came back as a server error, and with DEBUG on that answer carries a stack trace.
+        """
+        process = create_process(
+            client=self.client_row, assigned_lawyer=self.lawyer_a, actor=self.lawyer_a
+        )
+        self.client.force_authenticate(self.lawyer_a)
+        resp = self.client.patch(
+            reverse("process-detail", args=[process.id]),
+            {"lawyer_notes": "x", "version": "not-a-number"},
+            format="json",
+        )
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("version", resp.data)
+
     def test_override_duplicate_is_admin_only(self):
         process = create_process(
             client=self.client_row, assigned_lawyer=self.lawyer_a, actor=self.lawyer_a

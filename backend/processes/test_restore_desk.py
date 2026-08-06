@@ -66,6 +66,19 @@ class RestoreDeskTests(APITestCase):
             self.client.get(reverse("client-deleted")).status_code, status.HTTP_403_FORBIDDEN
         )
 
+    def test_restoring_an_id_that_is_not_there_is_a_404(self):
+        """The desk is a list two computers share, so it goes stale (It.8).
+
+        `all_objects.get(pk=pk)` raised `DoesNotExist` — untranslated by DRF, so an id that had
+        already been restored elsewhere answered 500 instead of 404.
+        """
+        for name in ("process-restore", "client-restore", "user-restore"):
+            self.assertEqual(
+                self.client.post(reverse(name, args=[999999])).status_code,
+                status.HTTP_404_NOT_FOUND,
+                name,
+            )
+
     def test_restoring_from_the_desk_clears_the_row_from_it(self):
         self.client.post(reverse("process-restore", args=[self.process.id]))
 
