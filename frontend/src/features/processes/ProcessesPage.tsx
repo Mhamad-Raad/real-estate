@@ -18,7 +18,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { toast } from "@/components/ui/toaster";
+import { toast } from "@/lib/toast";
 import { useListCategoriesQuery } from "@/features/categories/categoriesApi";
 import { ConfirmDialog } from "@/features/common/ConfirmDialog";
 import { PageHeader } from "@/features/common/PageHeader";
@@ -31,7 +31,7 @@ import { formatDate } from "@/lib/format";
 
 import { OverrideDialog } from "./OverrideDialog";
 import { useDeleteProcessMutation, useListProcessesQuery } from "./processesApi";
-import { OVERALL_STATUSES, type OverallStatus, type ProcessListItem } from "./types";
+import { OVERALL_STATUSES, STEP_NUMBERS, type OverallStatus, type ProcessListItem } from "./types";
 
 const STATUS_VARIANT: Record<OverallStatus, BadgeProps["variant"]> = {
   draft: "neutral",
@@ -162,7 +162,7 @@ export function ProcessesPage() {
           onChange={(e) => setStep(e.target.value ? Number(e.target.value) : "")}
         >
           <option value="">{t("processes.filters.allSteps")}</option>
-          {[1, 2, 3, 4, 5].map((n) => (
+          {STEP_NUMBERS.map((n) => (
             <option key={n} value={n}>
               {t("processes.stepShort", { n: num(n) })}
             </option>

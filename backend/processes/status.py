@@ -11,6 +11,7 @@ missing, so the badge and the "proceed anyway?" warning can never drift apart.
 from catalog.document_types import required_codes_for_step
 from catalog.institutes import codes_for_step
 
+from .constants import LAST_STEP
 from .models import ProcessStep
 
 
@@ -90,9 +91,10 @@ def missing_requirements(process, step_number, step_row) -> list[str]:
         present = _present_doc_types(process, 4)
         missing += [f"doc:{doc}" for doc in required_codes_for_step(4) if doc not in present]
         return missing + _missing_fixed_institutes(process, 4)
-    if step_number == 5:
+    if step_number == LAST_STEP:
         prior = sorted(
-            (s for s in process.steps.all() if s.step_number < 5), key=lambda s: s.step_number
+            (s for s in process.steps.all() if s.step_number < LAST_STEP),
+            key=lambda s: s.step_number,
         )
         return [
             f"step:{s.step_number}" for s in prior if s.status != ProcessStep.Status.COMPLETE
@@ -104,8 +106,8 @@ def _step_has_data(process, step_number, step_row) -> bool:
     docs = [d for d in process.documents.all() if d.step_number == step_number]
     if step_number == 1:
         return bool(process.land_id or process.category_id or docs)
-    if step_number == 5:
-        return False  # Step 5 is derived from the others; it holds no data of its own
+    if step_number == LAST_STEP:
+        return False  # the roll-up step is derived from the others; it holds no data of its own
     has_entries = any(e.step_number == step_number for e in process.institute_entries.all())
     return bool(has_entries or docs or step_row.start_date or step_row.end_date)
 

@@ -16,10 +16,8 @@ from common.models import ActivityLog
 from common.services import record_activity
 
 from . import status as step_status
+from .constants import LAST_STEP, STEP_NUMBERS, WORKING_STEPS
 from .models import DuplicateOverride, Process, ProcessInstituteEntry, ProcessStep
-
-STEP_NUMBERS = range(1, 6)
-LAST_STEP = 5
 
 
 class MissingFiles(APIException):
@@ -371,14 +369,15 @@ def advance_step(*, process, actor, expected_version=None, request=None) -> Proc
 def complete_process(*, process, actor, force=False, expected_version=None, request=None) -> Process:
     """Step-5 mark-complete (§5, §10.3). Blocks on missing files unless an admin forces it."""
     check_version(process, expected_version, required=True)
-    for n in range(1, 5):
+    for n in WORKING_STEPS:
         recompute_step(process, n)
     prior_complete = all(
-        s.status == ProcessStep.Status.COMPLETE for s in process.steps.filter(step_number__lt=5)
+        s.status == ProcessStep.Status.COMPLETE
+        for s in process.steps.filter(step_number__lt=LAST_STEP)
     )
     if not prior_complete and not force:
         raise MissingFiles()
-    step5 = process.steps.get(step_number=5)
+    step5 = process.steps.get(step_number=LAST_STEP)
     step5.status = ProcessStep.Status.COMPLETE
     step5.version += 1
     step5.save(update_fields=["status", "version", "updated_at"])

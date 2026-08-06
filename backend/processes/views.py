@@ -19,6 +19,7 @@ from documents.generation import (
 )
 from documents.serializers import GenerationJobSerializer
 
+from .constants import FIRST_STEP, LAST_STEP
 from .models import Process, ProcessInstituteEntry
 from .permissions import IsEntryEditorOrAdmin
 from .selectors import search_processes
@@ -140,7 +141,13 @@ class ProcessViewSet(AuditedSoftDeleteViewSet, ModelViewSet):
         process.refresh_from_db()
         return Response(ProcessDetailSerializer(process).data)
 
-    @action(detail=True, methods=["get", "patch"], url_path="steps/(?P<n>[1-5])")
+    # Range built from the workflow's own bounds — a hand-written `[1-5]` here would keep
+    # answering 404 for a step the rest of the system had already grown (§5, UC-043).
+    @action(
+        detail=True,
+        methods=["get", "patch"],
+        url_path=f"steps/(?P<n>[{FIRST_STEP}-{LAST_STEP}])",
+    )
     def steps(self, request, pk=None, n=None):
         """GET a step's data + computed status, or PATCH it (save incomplete) — §5.2."""
         process = self.get_object()  # object permission: read=all, write=assignee/admin

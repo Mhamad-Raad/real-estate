@@ -8,14 +8,14 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
-import { toast } from "@/components/ui/toaster";
+import { toast } from "@/lib/toast";
 import { useMeQuery } from "@/features/auth/authApi";
 import { PageHeader } from "@/features/common/PageHeader";
 import { useNum } from "@/hooks/useNum";
 import { apiErrorMessage, apiErrorStatus } from "@/lib/apiError";
 
 import { useCreateProcessMutation, useGetProcessQuery } from "../processesApi";
-import type { OverallStatus, StepStatus } from "../types";
+import { STEP_NUMBERS, type OverallStatus, type StepStatus } from "../types";
 import { CompiledCasePanel } from "./CompiledCasePanel";
 import { InstituteStepPanel } from "./InstituteStepPanel";
 import { LawyerNotes } from "./LawyerNotes";
@@ -141,7 +141,7 @@ export function ProcessDetailPage() {
 
       {/* Single-open: working a step should not leave the previous ones expanded (UC-051). */}
       <Accordion single>
-        {[1, 2, 3, 4, 5].map((n) => {
+        {STEP_NUMBERS.map((n) => {
           const locked = n > unlockedThrough;
           return (
             <AccordionItem

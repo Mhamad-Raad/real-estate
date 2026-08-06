@@ -4,6 +4,13 @@ export type OverallStatus = "draft" | "in_progress" | "complete" | "rejected";
 
 export const OVERALL_STATUSES: OverallStatus[] = ["draft", "in_progress", "complete", "rejected"];
 
+/** The workflow's step numbers — the client-side half of `processes/constants.py` (§5).
+ *
+ * Two screens spelled `[1, 2, 3, 4, 5]` out by hand, which is two more places to find when the
+ * office's seven steps land (UC-043).
+ */
+export const STEP_NUMBERS = [1, 2, 3, 4, 5] as const;
+
 export interface ProcessListItem {
   id: number;
   client: number;
@@ -63,7 +70,6 @@ export interface ProcessStep {
   status: StepStatus;
   start_date: string | null;
   end_date: string | null;
-  approval_status: string;
   out_of_city_flag: boolean;
   // Server-computed codes for what this step still needs: `institute:<code>`, `doc:<type>`,
   // `step:<n>`, or a bare field name. Empty means complete.

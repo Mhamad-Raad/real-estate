@@ -13,10 +13,8 @@ from django.utils import timezone
 from accounts.models import User
 from clients.models import Client
 from common.models import ActivityLog
+from processes.constants import STEP_NUMBERS
 from processes.models import Process, ProcessStep
-
-STEP_NUMBERS = (1, 2, 3, 4, 5)
-
 
 # A calendar week left the landing page almost entirely zeros every Monday morning and dropped the
 # previous week's work out of view. One allocation here spans weeks, so the window has to roll (§10.1).

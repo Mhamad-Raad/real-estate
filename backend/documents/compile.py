@@ -20,6 +20,7 @@ from django.utils import timezone
 from pypdf import PdfReader, PdfWriter
 
 from common.models import ActivityLog
+from processes.constants import LAST_STEP
 from common.services import record_activity
 
 from processes.models import Process
@@ -124,7 +125,7 @@ def run_compile_case_job(job_id: int) -> None:
                 )
             document = create_document(
                 process=process,
-                step_number=5,
+                step_number=LAST_STEP,
                 document_type=COMPILED_DOC_TYPE,
                 input_source=Document.InputSource.SYSTEM_GENERATED,
                 content=merged,

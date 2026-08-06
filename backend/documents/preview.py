@@ -9,6 +9,8 @@ the letter", so every value here is deliberately marked as a sample.
 import tempfile
 from pathlib import Path
 
+from processes.constants import STEP_NUMBERS
+
 from .generation import render_to_pdf
 from .letters import to_arabic_indic
 from .models import DocumentTemplate
@@ -67,7 +69,7 @@ def _sample_context(template_type: str) -> dict:
                     "start_date": "",
                     "end_date": "",
                 }
-                for n in range(1, 6)
+                for n in STEP_NUMBERS
             ],
             "institutes": [],
             "document_count": to_arabic_indic(0),

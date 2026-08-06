@@ -6,10 +6,10 @@ code change.
 """
 
 from catalog.institutes import INSTITUTES, name_ckb
+from processes.constants import STEP_NUMBERS
 
 from .letters import to_arabic_indic
 
-STEP_NUMBERS = (1, 2, 3, 4, 5)
 DISPLAY_KEYS = {code: key for code, key, _step in INSTITUTES}
 
 # The generated documents are Kurdish government paperwork — the letters are written in Sorani
