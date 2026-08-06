@@ -20,7 +20,6 @@ class ProcessStepSerializer(serializers.ModelSerializer):
             "status",
             "start_date",
             "end_date",
-            "approval_status",
             "out_of_city_flag",
             "missing",
             "version",

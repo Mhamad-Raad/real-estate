@@ -104,11 +104,6 @@ class ProcessStep(SoftDeleteModel):
         MISSING = "missing", "Missing files"
         COMPLETE = "complete", "Complete"
 
-    class ApprovalStatus(models.TextChoices):
-        PENDING = "pending", "Pending"
-        APPROVED = "approved", "Approved"
-        REJECTED = "rejected", "Rejected"
-
     process = models.ForeignKey(Process, on_delete=models.PROTECT, related_name="steps")
     step_number = models.PositiveSmallIntegerField()
     status = models.CharField(
@@ -116,9 +111,6 @@ class ProcessStep(SoftDeleteModel):
     )
     start_date = models.DateField(null=True, blank=True)
     end_date = models.DateField(null=True, blank=True)
-    approval_status = models.CharField(
-        max_length=10, choices=ApprovalStatus.choices, blank=True
-    )
     out_of_city_flag = models.BooleanField(default=False)  # Step 3 out-of-city rows
 
     class Meta:
