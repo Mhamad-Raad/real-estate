@@ -6,7 +6,7 @@ import { Dialog, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
-import { toast } from "@/components/ui/toaster";
+import { toast } from "@/lib/toast";
 import { apiErrorMessage } from "@/lib/apiError";
 
 import { useCreateCategoryMutation, useUpdateCategoryMutation } from "./categoriesApi";

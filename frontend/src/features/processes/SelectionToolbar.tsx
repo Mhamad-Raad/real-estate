@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { useAppSelector } from "@/app/hooks";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import { toast } from "@/components/ui/toaster";
+import { toast } from "@/lib/toast";
 import { downloadDocument, downloadGenerationJob } from "@/features/documents/download";
 import {
   useGenerateProcessCodesMutation,

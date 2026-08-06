@@ -7,7 +7,8 @@ import { useAppSelector } from "@/app/hooks";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Spinner } from "@/components/ui/spinner";
-import { toast } from "@/components/ui/toaster";
+import { toast } from "@/lib/toast";
+import { fetchBlobUrl } from "@/features/documents/download";
 import { apiErrorMessage } from "@/lib/apiError";
 
 import { DraftFieldInput } from "./DraftFieldInput";
@@ -67,12 +68,8 @@ export function CardReviewPanel({
     let objectUrl: string | null = null;
     let cancelled = false;
 
-    fetch(`/api/v1/card-scans/${scan.id}/file/`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    })
-      .then((res) => (res.ok ? res.blob() : Promise.reject(new Error("preview failed"))))
-      .then((blob) => {
-        const created = URL.createObjectURL(blob);
+    fetchBlobUrl(`/api/v1/card-scans/${scan.id}/file/`, token)
+      .then((created) => {
         if (cancelled) {
           URL.revokeObjectURL(created);
           return;

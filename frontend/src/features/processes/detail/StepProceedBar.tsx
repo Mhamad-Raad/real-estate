@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogFooter } from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/spinner";
-import { toast } from "@/components/ui/toaster";
+import { toast } from "@/lib/toast";
 import { instituteLabel, useListInstitutesQuery } from "@/features/institutes/institutesApi";
 import { useNum } from "@/hooks/useNum";
 import { apiErrorMessage } from "@/lib/apiError";

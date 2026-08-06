@@ -17,7 +17,7 @@ vi.mock("@/features/clients/clientsApi", () => ({
 vi.mock("@/features/categories/categoriesApi", () => ({
   useListCategoriesQuery: () => ({ data: [] }),
 }));
-vi.mock("@/components/ui/toaster", () => ({
+vi.mock("@/lib/toast", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
 

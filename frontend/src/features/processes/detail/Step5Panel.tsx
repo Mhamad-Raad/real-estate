@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import { toast } from "@/components/ui/toaster";
+import { toast } from "@/lib/toast";
 import { apiErrorMessage } from "@/lib/apiError";
 
 import { useCompleteProcessMutation } from "../processesApi";

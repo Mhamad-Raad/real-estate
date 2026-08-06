@@ -31,7 +31,7 @@ const uploaded = () => uploadMutation.mock.calls[0][0];
 const toastError = vi.fn();
 const toastSuccess = vi.fn();
 
-vi.mock("@/components/ui/toaster", () => ({
+vi.mock("@/lib/toast", () => ({
   toast: {
     success: (...args: unknown[]) => toastSuccess(...args),
     error: (...args: unknown[]) => toastError(...args),

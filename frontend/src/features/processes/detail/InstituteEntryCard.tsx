@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
-import { toast } from "@/components/ui/toaster";
+import { toast } from "@/lib/toast";
 import { DocumentRow } from "@/features/documents/DocumentRow";
 import { DocumentUpload } from "@/features/documents/DocumentUpload";
 import type { Lawyer } from "@/features/users/lawyersApi";

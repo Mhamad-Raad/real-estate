@@ -6,7 +6,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { toast } from "@/components/ui/toaster";
+import { toast } from "@/lib/toast";
 import { instituteLabel, useListInstitutesQuery } from "@/features/institutes/institutesApi";
 import { useListLawyersQuery } from "@/features/users/lawyersApi";
 import { apiErrorMessage } from "@/lib/apiError";

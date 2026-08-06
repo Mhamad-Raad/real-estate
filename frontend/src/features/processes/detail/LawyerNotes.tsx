@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
-import { toast } from "@/components/ui/toaster";
+import { toast } from "@/lib/toast";
 import { apiErrorMessage } from "@/lib/apiError";
 
 import { useUpdateProcessMutation } from "../processesApi";

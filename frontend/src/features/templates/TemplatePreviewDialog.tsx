@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { useAppSelector } from "@/app/hooks";
 import { Dialog } from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/spinner";
-import { toast } from "@/components/ui/toaster";
+import { toast } from "@/lib/toast";
 import { fetchTemplatePreviewUrl } from "@/features/documents/download";
 
 import type { DocumentTemplate } from "./types";

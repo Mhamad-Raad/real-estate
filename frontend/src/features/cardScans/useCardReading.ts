@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { toast } from "@/components/ui/toaster";
+import { toast } from "@/lib/toast";
 
 import { useGetCardScanQuery } from "./cardScansApi";
 import { isSettled, type CardScan } from "./types";

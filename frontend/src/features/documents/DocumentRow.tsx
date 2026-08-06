@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 
 import { useAppSelector } from "@/app/hooks";
 import { Button } from "@/components/ui/button";
-import { toast } from "@/components/ui/toaster";
+import { toast } from "@/lib/toast";
 import { apiErrorMessage } from "@/lib/apiError";
 
 import { DocumentPreview } from "./DocumentPreview";

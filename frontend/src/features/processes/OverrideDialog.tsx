@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
-import { toast } from "@/components/ui/toaster";
+import { toast } from "@/lib/toast";
 import { apiErrorMessage } from "@/lib/apiError";
 
 import { useOverrideDuplicateMutation } from "./processesApi";

@@ -3,7 +3,7 @@ import { useRef } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
-import { toast } from "@/components/ui/toaster";
+import { toast } from "@/lib/toast";
 import { useCamera } from "@/hooks/useCamera";
 
 // A card side, held as a File so the camera and the file picker produce the same thing and the

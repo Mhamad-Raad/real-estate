@@ -26,7 +26,7 @@ vi.mock("@/app/hooks", () => ({
   useAppDispatch: () => vi.fn(),
 }));
 vi.mock("react-router-dom", () => ({ useNavigate: () => vi.fn() }));
-vi.mock("@/components/ui/toaster", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+vi.mock("@/lib/toast", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@/features/cardScans/ScanIntakePanel", () => ({ ScanIntakePanel: () => null }));
 vi.mock("@/features/categories/categoriesApi", () => ({
   useListCategoriesQuery: () => ({ data: [{ id: 7, code: "A", name: "A" }] }),

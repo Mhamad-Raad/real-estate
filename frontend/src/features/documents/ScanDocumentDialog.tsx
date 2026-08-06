@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/spinner";
-import { toast } from "@/components/ui/toaster";
+import { toast } from "@/lib/toast";
 import { useCamera } from "@/hooks/useCamera";
 import { apiErrorMessage } from "@/lib/apiError";
 import { formatNumber } from "@/lib/format";

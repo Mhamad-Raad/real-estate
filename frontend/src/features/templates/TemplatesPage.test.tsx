@@ -24,7 +24,7 @@ const rows = [
   template({ id: 3, name: "Older letter", is_active: false, version: 4 }),
 ];
 
-vi.mock("@/components/ui/toaster", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+vi.mock("@/lib/toast", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("./TemplatePreviewDialog", () => ({ TemplatePreviewDialog: () => null }));
 vi.mock("./templatesApi", () => ({
   // Unpaginated: the endpoint returns a plain list because the screen groups by type.

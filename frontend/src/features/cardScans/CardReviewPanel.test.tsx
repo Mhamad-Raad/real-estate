@@ -9,7 +9,7 @@ const unwrap = vi.fn().mockResolvedValue({ id: 1, document: 5 });
 const confirmMutation = vi.fn(() => ({ unwrap }));
 
 vi.mock("@/app/hooks", () => ({ useAppDispatch: () => vi.fn(), useAppSelector: () => "token" }));
-vi.mock("@/components/ui/toaster", () => ({
+vi.mock("@/lib/toast", () => ({
   toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() },
 }));
 vi.mock("./cardScansApi", () => ({

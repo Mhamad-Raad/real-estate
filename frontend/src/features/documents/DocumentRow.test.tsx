@@ -6,7 +6,7 @@ import { DocumentRow } from "./DocumentRow";
 // The generated-document panels show the newest file inline AND list it as a row. The row's own
 // eye toggle then opened a second copy of the identical PDF underneath the first (UC-069).
 vi.mock("@/app/hooks", () => ({ useAppSelector: () => "token" }));
-vi.mock("@/components/ui/toaster", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+vi.mock("@/lib/toast", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("./documentsApi", () => ({
   useDeleteDocumentMutation: () => [vi.fn(), { isLoading: false }],
 }));

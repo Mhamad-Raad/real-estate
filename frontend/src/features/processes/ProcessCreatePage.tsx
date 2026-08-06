@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { FormSection } from "@/components/ui/separator";
 import { Spinner } from "@/components/ui/spinner";
-import { toast } from "@/components/ui/toaster";
+import { toast } from "@/lib/toast";
 import { ScanIntakePanel } from "@/features/cardScans/ScanIntakePanel";
 import { useListCategoriesQuery } from "@/features/categories/categoriesApi";
 import { ClientFields } from "@/features/clients/ClientFields";

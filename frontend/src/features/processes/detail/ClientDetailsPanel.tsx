@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import { toast } from "@/components/ui/toaster";
+import { toast } from "@/lib/toast";
 import { ClientFields } from "@/features/clients/ClientFields";
 import { toInput, withMaritalRules } from "@/features/clients/clientForm";
 import { useUpdateClientMutation } from "@/features/clients/clientsApi";

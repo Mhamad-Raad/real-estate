@@ -22,7 +22,7 @@ const clientPage = {
   results: [{ id: 3, full_name: "Released Person", pid: "199001010001", deleted_at: "2026-08-01" }],
 };
 
-vi.mock("@/components/ui/toaster", () => ({
+vi.mock("@/lib/toast", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
 vi.mock("./deletedApi", () => ({

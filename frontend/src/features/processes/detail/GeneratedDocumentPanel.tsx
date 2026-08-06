@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import { useAppDispatch } from "@/app/hooks";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import { toast } from "@/components/ui/toaster";
+import { toast } from "@/lib/toast";
 import { DocumentPreview } from "@/features/documents/DocumentPreview";
 import { DocumentRow } from "@/features/documents/DocumentRow";
 import type { GenerationJob } from "@/features/documents/generationApi";

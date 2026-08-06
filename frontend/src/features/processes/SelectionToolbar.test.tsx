@@ -9,7 +9,7 @@ const generate = vi.fn(() => ({ unwrap }));
 const generateCodes = vi.fn(() => ({ unwrap }));
 
 vi.mock("@/app/hooks", () => ({ useAppSelector: () => "token" }));
-vi.mock("@/components/ui/toaster", () => ({
+vi.mock("@/lib/toast", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
 vi.mock("@/features/documents/download", () => ({
