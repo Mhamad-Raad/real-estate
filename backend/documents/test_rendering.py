@@ -5,6 +5,7 @@ the chain fails quietly: a bad loop tag renders zero rows, a missing font substi
 Needs LibreOffice, so it runs in the container and skips on a bare native checkout.
 """
 
+import shutil
 import tempfile
 import unittest
 from pathlib import Path
