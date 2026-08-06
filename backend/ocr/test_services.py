@@ -784,3 +784,44 @@ class ScanApiTests(ScanTestBase):
             format="json",
         )
         self.assertEqual(response.status_code, 403)
+
+    def _confirm_new_case_as(self, actor, **extra):
+        scan = self._read(self._scan(actor=actor))
+        self.client.force_authenticate(actor)
+        with self.captureOnCommitCallbacks(execute=True):
+            return self.client.post(
+                reverse("card-scan-confirm", args=[scan.id]),
+                {
+                    "pid": "200103487811",
+                    "full_name": "محمد رعد",
+                    "mother_full_name": "دلسوز على",
+                    "date_of_birth": "2001-08-12",
+                    **extra,
+                },
+                format="json",
+            )
+
+    def test_a_lawyer_cannot_open_a_case_in_another_lawyers_name(self):
+        """Confirming a card opens a case, so it obeys the intake rule (§7.2 layer 4, It.8).
+
+        `ProcessViewSet.perform_create` has always forced a lawyer's own id onto the new case;
+        this path passed the request's `assigned_lawyer` straight through, so the same act by the
+        other door handed the case to a colleague — permanently, since the field is not editable
+        afterwards.
+        """
+        response = self._confirm_new_case_as(self.lawyer, assigned_lawyer=self.other.id)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(Process.objects.get().assigned_lawyer_id, self.lawyer.id)
+
+    def test_an_admin_may_still_open_a_case_for_someone_else(self):
+        response = self._confirm_new_case_as(self.admin, assigned_lawyer=self.lawyer.id)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(Process.objects.get().assigned_lawyer_id, self.lawyer.id)
+
+    def test_a_case_cannot_be_opened_for_a_lawyer_who_has_left(self):
+        """Same `assignable_lawyers()` definition the other write paths use (§7.2 layer 6)."""
+        self.other.is_deleted = True
+        self.other.save(update_fields=["is_deleted"])
+        response = self._confirm_new_case_as(self.admin, assigned_lawyer=self.other.id)
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("assigned_lawyer", response.data)

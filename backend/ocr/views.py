@@ -10,9 +10,11 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
 
-from accounts.models import User
+from accounts.serializers import AssignableLawyerField
 from catalog.models import Category
 from clients.models import Client
+
+from documents.services import read_upload
 
 from .models import CardScan
 from .services import CLIENT_FIELDS, active_process_for, confirm_scan, stage_scan
@@ -102,9 +104,10 @@ class ConfirmSerializer(serializers.Serializer):
     )
     client_version = serializers.IntegerField(required=False)
     # Only used when creating: a new case needs an owner, and a category if one is known yet.
-    assigned_lawyer = serializers.PrimaryKeyRelatedField(
-        queryset=User.objects.filter(is_active=True), required=False, allow_null=True
-    )
+    # `AssignableLawyerField` rather than a queryset of its own — the one definition of who a case
+    # may be handed to (§7.2 layer 6). This path had `User.objects.filter(is_active=True)`, which
+    # is the same set only for as long as soft-deleting a user keeps deactivating them.
+    assigned_lawyer = AssignableLawyerField(required=False, allow_null=True)
     category = serializers.PrimaryKeyRelatedField(
         queryset=Category.objects.all(), required=False, allow_null=True
     )
@@ -152,8 +155,8 @@ class CardScanViewSet(RetrieveModelMixin, GenericViewSet):
         upload = payload.validated_data["file"]
         back = payload.validated_data.get("back")
         scan = stage_scan(
-            content=upload.read(),
-            back=back.read() if back else None,
+            content=read_upload(upload),
+            back=read_upload(back) if back else None,
             document_type=payload.validated_data["document_type"],
             actor=request.user,
             original_filename=getattr(upload, "name", ""),
@@ -183,7 +186,7 @@ class CardScanViewSet(RetrieveModelMixin, GenericViewSet):
             scan=scan,
             client=client,
             client_version=data.pop("client_version", None),
-            assigned_lawyer=data.pop("assigned_lawyer", None),
+            assigned_lawyer=self._owner_for_new_case(data.pop("assigned_lawyer", None)),
             category=data.pop("category", None),
             land_id=data.pop("land_id", ""),
             land_address=data.pop("land_address", ""),
@@ -192,6 +195,17 @@ class CardScanViewSet(RetrieveModelMixin, GenericViewSet):
             request=request,
         )
         return Response(CardScanSerializer(scan).data)
+
+    def _owner_for_new_case(self, requested):
+        """Who the case this confirmation opens belongs to — lawyers may only assign themselves.
+
+        The same field-level rule `ProcessViewSet.perform_create` applies (§7.2 layer 4). Confirming
+        a card *opens a case*, so it is the same act by another door, and the rule was enforced on
+        only one of them: a lawyer could hand a new case to a colleague here, and since
+        `assigned_lawyer` is not editable afterwards, neither of them could undo it.
+        """
+        user = self.request.user
+        return requested or user if user.is_admin else user
 
     def _assert_may_write(self, client):
         """Filing onto an existing case follows that case's assignment, like any other upload.
