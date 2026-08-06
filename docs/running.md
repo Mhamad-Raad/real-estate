@@ -258,7 +258,10 @@ Dev-only seed accounts (created by `seed_dev` — not for production):
 | `admin` | `admin12345` | Administrator — sees all nav (reports, activities, users) |
 | `lawyer` | `lawyer12345` | Lawyer — sees dashboard, clients, processes, settings |
 
-`admin` is also a Django superuser: **http://localhost:8000/admin/**.
+There is **no Django admin site** — `/admin/` is a 404. It was removed in It.8: a staff account
+could hard-delete rows through it and edit cases outside the service layer, so nothing was
+soft-deleted and nothing was audited (§11.1, §11.2). Everything it offered lives in the app: the
+Users screen, the restore desk for soft-deleted rows, and the Activities audit trail.
 
 ---
 
