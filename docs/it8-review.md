@@ -8,7 +8,7 @@ as much to the next reader as a defect is.
 
 **Baseline before any change:** 408 backend tests (container, 0 skips) · 97 frontend · `tsc -b`
 clean · build clean · `oxlint` 2 warnings.
-**After:** **415 backend** (container 0 skips; native 11 LibreOffice skips) · **99 frontend** ·
+**After:** **422 backend** (container 0 skips; native 11 LibreOffice skips) · **102 frontend** ·
 `tsc -b` clean · build clean · **`oxlint` silent**.
 
 ---
@@ -66,6 +66,22 @@ long as soft-deleting a user keeps deactivating them.
 
 **Fixed** — `3085699`. Three regression tests: a lawyer's choice is overridden, an admin's is
 honoured, and a lawyer who has left is a 400.
+
+> **⚠️ REVERSED THE SAME DAY, and the reversal is the more interesting half.** The office's answer:
+> *a lawyer opening a case in a colleague's name is correct* — one person takes the papers in,
+> another works the case. So the restriction came off **both** paths; what the finding really
+> exposed was that the two doors disagreed, not which way they should point.
+>
+> But the guard was load-bearing for a reason nobody had noticed: `assigned_lawyer` is on **no**
+> update serializer, so once a case was created **nothing could change its assignee — not even an
+> admin**. Opening assignment without that made a typo permanent: the named lawyer owns the case
+> for good, and the intended one, not being the assignee, can never edit it.
+>
+> Shipped as a pair — assignment open at creation, plus **admin-only**
+> `POST /processes/{id}/reassign/` (audited with both names, under the optimistic lock) and an
+> admin-only control on the case page in all three languages. **The lesson: when a permission is
+> relaxed, look for what the old restriction was quietly holding up.** §7.2 layer 4, §7.3 and §4.2
+> record the new rule.
 
 ### 3 · MEDIUM — the test suite wrote real `.docx` files into the office's template directory
 

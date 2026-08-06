@@ -7,6 +7,7 @@ from rest_framework.test import APITestCase
 from accounts.models import User
 from catalog.models import Category
 from clients.models import Client
+from common.models import ActivityLog
 
 from .models import Process
 from .services import create_process
@@ -37,6 +38,32 @@ class ProcessApiTests(APITestCase):
         process = Process.objects.get(pk=resp.data["id"])
         self.assertEqual(process.assigned_lawyer_id, self.lawyer_a.id)
         self.assertEqual(process.steps.count(), 5)
+
+    def test_a_lawyer_may_open_a_case_in_a_colleagues_name(self):
+        """The office's rule (2026-08-06): whoever takes the papers in is not always who works the
+        case. The name still has to be an assignable one (§7.2 layer 6) — that guard is separate."""
+        self.client.force_authenticate(self.lawyer_a)
+        resp = self.client.post(
+            reverse("process-list"),
+            {"client": self.client_row.id, "assigned_lawyer": self.lawyer_b.id},
+            format="json",
+        )
+        self.assertEqual(resp.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(
+            Process.objects.get(pk=resp.data["id"]).assigned_lawyer_id, self.lawyer_b.id
+        )
+
+    def test_a_case_still_cannot_be_opened_for_a_lawyer_who_has_left(self):
+        self.lawyer_b.is_active = False
+        self.lawyer_b.save(update_fields=["is_active"])
+        self.client.force_authenticate(self.lawyer_a)
+        resp = self.client.post(
+            reverse("process-list"),
+            {"client": self.client_row.id, "assigned_lawyer": self.lawyer_b.id},
+            format="json",
+        )
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("assigned_lawyer", resp.data)
 
     def test_list_can_filter_by_current_step(self):
         p1 = create_process(client=self.client_row, assigned_lawyer=self.lawyer_a, actor=self.lawyer_a)
@@ -125,6 +152,68 @@ class ProcessApiTests(APITestCase):
         )
         self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("version", resp.data)
+
+    def _reassign(self, process, lawyer, version=None):
+        return self.client.post(
+            reverse("process-reassign", args=[process.id]),
+            {"assigned_lawyer": lawyer.id, "version": process.version if version is None else version},
+            format="json",
+        )
+
+    def test_an_admin_can_hand_a_case_to_another_lawyer(self):
+        """Assignment is open at creation (2026-08-06), so a mistyped name has to be fixable —
+        without this the wrong lawyer owned the case for good and the right one could never edit
+        it, since `assigned_lawyer` is on no update serializer."""
+        process = create_process(
+            client=self.client_row, assigned_lawyer=self.lawyer_a, actor=self.lawyer_a
+        )
+        self.client.force_authenticate(self.admin)
+        resp = self._reassign(process, self.lawyer_b)
+
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        process.refresh_from_db()
+        self.assertEqual(process.assigned_lawyer_id, self.lawyer_b.id)
+
+    def test_reassignment_is_audited_with_both_names(self):
+        process = create_process(
+            client=self.client_row, assigned_lawyer=self.lawyer_a, actor=self.lawyer_a
+        )
+        self.client.force_authenticate(self.admin)
+        self._reassign(process, self.lawyer_b)
+
+        entry = ActivityLog.objects.filter(entity_type="Process", entity_id=str(process.id)).latest("id")
+        self.assertEqual(entry.before["assigned_lawyer"], self.lawyer_a.username)
+        self.assertEqual(entry.after["assigned_lawyer"], self.lawyer_b.username)
+        self.assertEqual(entry.actor_id, self.admin.id)
+
+    def test_a_lawyer_cannot_reassign_even_their_own_case(self):
+        """It moves work between people, so it is an admin decision like the duplicate override."""
+        process = create_process(
+            client=self.client_row, assigned_lawyer=self.lawyer_a, actor=self.lawyer_a
+        )
+        self.client.force_authenticate(self.lawyer_a)
+        self.assertEqual(self._reassign(process, self.lawyer_b).status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_reassignment_enforces_the_optimistic_lock(self):
+        process = create_process(
+            client=self.client_row, assigned_lawyer=self.lawyer_a, actor=self.lawyer_a
+        )
+        self.client.force_authenticate(self.admin)
+        self.assertEqual(
+            self._reassign(process, self.lawyer_b, version=process.version + 5).status_code,
+            status.HTTP_409_CONFLICT,
+        )
+
+    def test_a_case_cannot_be_handed_to_a_lawyer_who_has_left(self):
+        process = create_process(
+            client=self.client_row, assigned_lawyer=self.lawyer_a, actor=self.lawyer_a
+        )
+        self.lawyer_b.is_deleted = True
+        self.lawyer_b.save(update_fields=["is_deleted"])
+        self.client.force_authenticate(self.admin)
+        self.assertEqual(
+            self._reassign(process, self.lawyer_b).status_code, status.HTTP_400_BAD_REQUEST
+        )
 
     def test_override_duplicate_is_admin_only(self):
         process = create_process(

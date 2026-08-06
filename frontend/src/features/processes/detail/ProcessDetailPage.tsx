@@ -18,6 +18,7 @@ import { useCreateProcessMutation, useGetProcessQuery } from "../processesApi";
 import { STEP_NUMBERS, type OverallStatus, type StepStatus } from "../types";
 import { CompiledCasePanel } from "./CompiledCasePanel";
 import { InstituteStepPanel } from "./InstituteStepPanel";
+import { CaseAssignee } from "./CaseAssignee";
 import { LawyerNotes } from "./LawyerNotes";
 import { Step1Panel } from "./Step1Panel";
 import { Step5Panel } from "./Step5Panel";
@@ -136,6 +137,8 @@ export function ProcessDetailPage() {
           </Button>
         </div>
       )}
+
+      <CaseAssignee process={process} isAdmin={isAdmin} />
 
       <LawyerNotes process={process} canEdit={canEdit} />
 

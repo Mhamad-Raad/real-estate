@@ -220,6 +220,14 @@ class OverrideSerializer(serializers.Serializer):
     version = serializers.IntegerField(required=False)
 
 
+class ReassignSerializer(serializers.Serializer):
+    """Admin-only hand-over of a case (2026-08-06). The same `AssignableLawyerField` every other
+    write path uses, so a case can never be handed to someone who has left (§7.2 layer 6)."""
+
+    assigned_lawyer = AssignableLawyerField()
+    version = serializers.IntegerField(required=False)
+
+
 class GenerateDocumentSerializer(serializers.Serializer):
     """Bulk list-letter request from the Processes page (§6.8) — ids are re-validated server-side."""
 

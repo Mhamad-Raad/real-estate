@@ -197,17 +197,13 @@ class CardScanViewSet(RetrieveModelMixin, GenericViewSet):
         return Response(CardScanSerializer(scan).data)
 
     def _owner_for_new_case(self, requested):
-        """Who the case this confirmation opens belongs to — lawyers may only assign themselves.
+        """Who the case this confirmation opens belongs to.
 
-        The same field-level rule `ProcessViewSet.perform_create` applies (§7.2 layer 4). Confirming
-        a card *opens a case*, so it is the same act by another door, and the rule was enforced on
-        only one of them: a lawyer could hand a new case to a colleague here, and since
-        `assigned_lawyer` is not editable afterwards, neither of them could undo it.
+        Confirming a card *opens a case*, so it answers to the same rule as the intake endpoint —
+        the point of this method is that there is one rule and not two. Whoever is named must be
+        assignable (`AssignableLawyerField`), and the caller owns it if nobody is named.
         """
-        user = self.request.user
-        if not user.is_admin:
-            return user
-        return requested or user
+        return requested or self.request.user
 
     def _assert_may_write(self, client):
         """Filing onto an existing case follows that case's assignment, like any other upload.

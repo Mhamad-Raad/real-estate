@@ -67,6 +67,15 @@ export const processesApi = baseApi.injectEndpoints({
       }),
       invalidatesTags: (_r, _e, arg) => touch(arg.id),
     }),
+    /** Admin-only hand-over of a case. Assignment is open at creation, so a wrong name has to be
+     *  fixable — no other endpoint can change `assigned_lawyer` (2026-08-06). */
+    reassignProcess: builder.mutation<
+      ProcessDetail,
+      { id: number; assigned_lawyer: number; version: number }
+    >({
+      query: ({ id, ...body }) => ({ url: `processes/${id}/reassign/`, method: "POST", body }),
+      invalidatesTags: (_r, _e, arg) => touch(arg.id),
+    }),
 
     // ---- 5-step workflow (§5) ----
     saveStep: builder.mutation<
@@ -131,6 +140,7 @@ export const {
   useDeleteProcessMutation,
   useUpdateProcessMutation,
   useOverrideDuplicateMutation,
+  useReassignProcessMutation,
   useSaveStepMutation,
   useAdvanceStepMutation,
   useCompleteProcessMutation,

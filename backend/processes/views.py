@@ -32,6 +32,7 @@ from .serializers import (
     ProcessListSerializer,
     ProcessStepSerializer,
     ProcessUpdateSerializer,
+    ReassignSerializer,
 )
 # Services that share a name with the view action below are aliased, so a stray `self.` can never
 # turn a service call into silent recursion.
@@ -40,6 +41,7 @@ from .services import (
     complete_process,
     intake_process,
     override_duplicate as override_duplicate_service,
+    reassign_process,
     recompute_step,
     release_client_with_case,
     restore_client_with_case,
@@ -78,10 +80,12 @@ class ProcessViewSet(AuditedSoftDeleteViewSet, ModelViewSet):
     def perform_create(self, serializer):
         data = serializer.validated_data
         user = self.request.user
-        # Lawyers may only assign themselves; admins may assign anyone (field-level, §7.2).
+        # Any lawyer may open a case in a colleague's name — one person takes the papers in, another
+        # works the case, and the office asked for that to be possible (2026-08-06). The field is
+        # still an `AssignableLawyerField`, so the name has to belong to someone active and not
+        # deleted (§7.2 layer 6); it is *who* may be named that is open, never *whether they exist*.
+        # Defaults to the caller when nothing is named, which is the common case.
         assigned = data.get("assigned_lawyer") or user
-        if not user.is_admin:
-            assigned = user
         serializer.instance = intake_process(
             client=data.get("client"),
             client_data=data.get("client_data"),
@@ -139,6 +143,21 @@ class ProcessViewSet(AuditedSoftDeleteViewSet, ModelViewSet):
             request=request,
         )
         process.refresh_from_db()
+        return Response(ProcessDetailSerializer(process).data)
+
+    @action(detail=True, methods=["post"], permission_classes=[IsAdmin])
+    def reassign(self, request, pk=None):
+        """Admin-only: hand the case to a different lawyer (§7.2, 2026-08-06)."""
+        process = self.get_object()
+        payload = ReassignSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+        process = reassign_process(
+            process=process,
+            new_lawyer=payload.validated_data["assigned_lawyer"],
+            actor=request.user,
+            expected_version=payload.validated_data.get("version"),
+            request=request,
+        )
         return Response(ProcessDetailSerializer(process).data)
 
     # Range built from the workflow's own bounds — a hand-written `[1-5]` here would keep

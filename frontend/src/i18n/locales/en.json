@@ -325,6 +325,9 @@
     "sectionPapers": "Client papers",
     "sectionLetter": "Eligibility letter",
     "reapply": "Start a new application",
+    "reassign": "Reassign",
+    "reassigned": "The case was reassigned.",
+    "reassignHint": "Only an administrator can change who owns this case. The assigned lawyer is the one who may edit it.",
     "reapplyNote": "This application was rejected. The beneficiary may apply again.",
     "instituteAcceptance": "{{name}} acceptance"
   },

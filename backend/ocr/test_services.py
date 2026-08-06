@@ -801,20 +801,17 @@ class ScanApiTests(ScanTestBase):
                 format="json",
             )
 
-    def test_a_lawyer_cannot_open_a_case_in_another_lawyers_name(self):
-        """Confirming a card opens a case, so it obeys the intake rule (§7.2 layer 4, It.8).
+    def test_a_lawyer_may_open_a_case_in_a_colleagues_name(self):
+        """One person takes the papers in, another works the case (the office's rule, 2026-08-06).
 
-        `ProcessViewSet.perform_create` has always forced a lawyer's own id onto the new case;
-        this path passed the request's `assigned_lawyer` straight through, so the same act by the
-        other door handed the case to a colleague — permanently, since the field is not editable
-        afterwards.
+        Both doors into "open a case" answer the same way — this one and `POST /processes/`.
         """
         response = self._confirm_new_case_as(self.lawyer, assigned_lawyer=self.other.id)
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(Process.objects.get().assigned_lawyer_id, self.lawyer.id)
+        self.assertEqual(Process.objects.get().assigned_lawyer_id, self.other.id)
 
-    def test_an_admin_may_still_open_a_case_for_someone_else(self):
-        response = self._confirm_new_case_as(self.admin, assigned_lawyer=self.lawyer.id)
+    def test_the_case_falls_to_the_caller_when_no_lawyer_is_named(self):
+        response = self._confirm_new_case_as(self.lawyer)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(Process.objects.get().assigned_lawyer_id, self.lawyer.id)
 

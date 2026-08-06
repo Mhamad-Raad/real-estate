@@ -755,6 +755,7 @@ A **REST** API (explicitly not GraphQL) under `/api/`, versioned `/api/v1/`, JSO
 | | `PATCH /api/v1/processes/{id}/` | Update case header / lawyer_notes | Assignee or Admin |
 | | `DELETE /api/v1/processes/{id}/` | Soft-delete case | Assignee or Admin |
 | | `POST /api/v1/processes/{id}/restore/` | Restore | Admin |
+| | `POST /api/v1/processes/{id}/reassign/` | **Hand the case to another lawyer** — body `{assigned_lawyer, version}`; audited with both names (§7.2 layer 4) | **Admin only** |
 | **Per-step save** | `PATCH /api/v1/processes/{id}/steps/{n}/` | **Save step n incomplete or complete** | Assignee or Admin |
 | | `GET /api/v1/processes/{id}/steps/{n}/` | Step n data + computed status | All |
 | | `POST /api/v1/processes/{id}/advance-step/` | **Proceed** — unlock the next step (forward-only; body `{version}`) — §5.2 | Assignee or Admin |
@@ -1224,7 +1225,14 @@ sequenceDiagram
 1. **Authentication** — `IsAuthenticated` globally (except login/refresh/health).
 2. **Role gate** — `IsAdmin` permission class on admin-only viewsets (Users, Categories write, Reports, Activities, duplicate override).
 3. **Object-level** — `IsProcessAssigneeOrAdmin` on Process edit/soft-delete: a Lawyer may edit/delete **only processes where they are the process-wide `assigned_lawyer`**. **Being a per-institute assignee does NOT grant process-wide edit/delete rights** — that check is explicit in the permission class.
-4. **Field-level** — serializers drop fields a role may not set (e.g. a Lawyer cannot change `assigned_lawyer` or force completion).
+4. **Field-level** — serializers drop fields a role may not set (e.g. a Lawyer cannot force completion).
+   **Amended 2026-08-06 (It.8), the office's decision:** `assigned_lawyer` is **open at creation to
+   any lawyer** — one person takes the papers in and another works the case, so a lawyer may open a
+   case in a colleague's name. What is *not* open is changing it afterwards: that is
+   `POST /processes/{id}/reassign/`, **admin-only** (layer 2), audited with both names, and under the
+   optimistic lock. The pair matters — assignment decides who may edit the case, so before
+   reassignment existed a mistyped name was permanent: the wrong lawyer owned it for good and the
+   right one could never edit it, since `assigned_lawyer` appears on no update serializer.
 5. **Immutable at creation** — `category` is not among the fields `ProcessUpdateSerializer` accepts,
    and a `PATCH` that tries to change it is a **400**, not a silent no-op. The office's rule: a case
    is opened in a category and stays there; moving one means deleting it and creating a new case
@@ -1242,6 +1250,8 @@ sequenceDiagram
 | Processes — **generate document from selected rows** (§6.8) | ✅ | ✅ |
 | Processes — **edit / soft-delete** | ✅ only if **process-wide assignee** | ✅ all |
 | Process — per-step save / upload / verify | ✅ if assignee | ✅ |
+| Process — **open a case in another lawyer's name** | ✅ (2026-08-06) | ✅ |
+| Process — **reassign an existing case** | ❌ | ✅ |
 | Process — **override duplicate** | ❌ | ✅ |
 | Process — force-complete with missing files | ❌ | ✅ |
 | Home dashboard | ✅ | ✅ |

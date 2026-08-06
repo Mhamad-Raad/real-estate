@@ -218,6 +218,38 @@ def override_duplicate(
     return override
 
 
+@transaction.atomic
+def reassign_process(*, process, new_lawyer, actor, expected_version=None, request=None) -> Process:
+    """Admin-only: hand a case to a different lawyer (2026-08-06).
+
+    Assignment used to be fixed at creation, which was safe only while a lawyer could name nobody
+    but themselves. Once any lawyer may open a case in a colleague's name, a mistyped name would
+    otherwise be permanent — the wrong lawyer owning the case for good and the right one unable to
+    edit it, since `assigned_lawyer` is on no update serializer. Admin-only for the same reason the
+    duplicate override is: it moves work between people, so it is a decision with a name on it.
+
+    Deliberately its own service and not a field on `ProcessUpdateSerializer`: the header `PATCH`
+    is the everyday edit a lawyer makes, and reassignment must not ride along inside one.
+    """
+    check_version(process, expected_version, required=True)
+    if new_lawyer.id == process.assigned_lawyer_id:
+        return process  # naming the current assignee is not a change; don't bump or log one
+    before = process.assigned_lawyer
+    process.assigned_lawyer = new_lawyer
+    process.version += 1
+    process.save(update_fields=["assigned_lawyer", "version", "updated_at"])
+    record_activity(
+        actor=actor,
+        action=ActivityLog.Action.UPDATE,
+        entity_type="Process",
+        entity_id=process.id,
+        before={"assigned_lawyer": before.username if before else None},
+        after={"assigned_lawyer": new_lawyer.username},
+        request=request,
+    )
+    return process
+
+
 def _advance_overall_status(process) -> None:
     """Keep overall_status honest after a step changes (§5.2, §5.3). Never touches rejected."""
     if process.overall_status == Process.OverallStatus.DRAFT:
