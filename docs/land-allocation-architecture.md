@@ -747,8 +747,8 @@ A **REST** API (explicitly not GraphQL) under `/api/`, versioned `/api/v1/`, JSO
 | | `POST/PATCH/DELETE /api/v1/categories/{id}/` | CRUD | Admin |
 | **Institutes** | `GET /api/v1/institutes/` | **Read-only shared enum** (code, i18n key, step) | All |
 | **Document types** | `GET /api/v1/document-types/` | **Read-only shared vocabulary** (code, i18n key, step, required) — §6.7 | All |
-| **Clients** | `GET/POST /api/v1/clients/` | List / create; `?search=&pid=` | All (create) |
-| | `GET/PATCH/DELETE /api/v1/clients/{id}/` | Retrieve / update / soft-delete | Admin or process assignee |
+| **Clients** | `GET /api/v1/clients/` | Search list; `?search=&pid=` — **no `POST`** (405): a beneficiary is created only by the Step-1 intake, see §0/UC-026 | All (read) |
+| | `GET/PATCH /api/v1/clients/{id}/` | Retrieve / update — **no `DELETE`** (405); a beneficiary is released by deleting their case (UC-061) | Admin or process assignee |
 | **Processes** | `GET /api/v1/processes/` | **Search/filter list** (see 4.3) | All (read all) |
 | | `POST /api/v1/processes/` | Create case (sets process-wide lawyer) | All |
 | | `GET /api/v1/processes/{id}/` | Full case with steps, entries, documents | All |
@@ -759,8 +759,8 @@ A **REST** API (explicitly not GraphQL) under `/api/`, versioned `/api/v1/`, JSO
 | | `GET /api/v1/processes/{id}/steps/{n}/` | Step n data + computed status | All |
 | | `POST /api/v1/processes/{id}/advance-step/` | **Proceed** — unlock the next step (forward-only; body `{version}`) — §5.2 | Assignee or Admin |
 | | `POST /api/v1/processes/{id}/steps/5/complete/` | Mark complete (enforces missing-file rule; admin can force) | Assignee or Admin |
-| **Institute entries** | `GET /api/v1/processes/{id}/institute-entries/` | Entries for steps 2–4 | All |
-| | `POST /api/v1/processes/{id}/institute-entries/` | Add entry (fixed or custom out-of-city) + assigned lawyer | Assignee or Admin |
+| **Institute entries** | `GET /api/v1/institute-entries/?process={id}` | Entries for steps 2–4 — a **top-level** resource filtered by case, not a nested route | All |
+| | `POST /api/v1/institute-entries/` | Add entry (fixed or custom out-of-city) + assigned lawyer; `process` in the body | Assignee or Admin |
 | | `PATCH/DELETE /api/v1/institute-entries/{id}/` | Update lawyer/doc / soft-delete row | Assignee or Admin |
 | **Documents** | `POST /api/v1/documents/` | **Upload a PDF** (multipart) — scanned or imported; body: `input_source`, `document_type`, links | Assignee or Admin |
 | | `GET /api/v1/documents/{id}/` | Metadata + OCR draft + verification status | Per parent access |
@@ -770,19 +770,26 @@ A **REST** API (explicitly not GraphQL) under `/api/`, versioned `/api/v1/`, JSO
 | | `GET /api/v1/card-scans/{id}/` | **Reading poll** (`pending/running/done/failed`) + draft fields + warnings | Own scans; Admin sees all |
 | | `GET /api/v1/card-scans/{id}/file/` | The staged PDF, for the review screen's preview pane | Own scans; Admin sees all |
 | | `POST /api/v1/card-scans/{id}/confirm/` | **The checked reading becomes real** — creates client + case + filed document, or updates an existing client (`client` + `client_version`) | Own scans; assignee/Admin when filing onto an existing case |
-| **Eligibility PDF** | `POST /api/v1/processes/{id}/generate-eligibility/` | Server-side template→PDF (base always; +spouse if married); returns job id | Assignee or Admin |
-| | `GET /api/v1/processes/{id}/generate-eligibility/{job}/` | Generation status → resulting Document ids | Assignee or Admin |
-| **Doc templates** | `GET /api/v1/document-templates/` | List templates for selection; `?type=process_list` | All (read) |
-| | `POST/PATCH/DELETE /api/v1/document-templates/{id}/` | Manage templates (upload `.docx`) | **Admin only** |
-| **Bulk document** (§6.8) | `POST /api/v1/processes/generate-document/` | Generate 1 PDF from selected `process_ids` + `template_id`; returns job id | All |
-| | `GET /api/v1/processes/generate-document/{job}/` | Generation status → PDF to save/print | All |
+| **Eligibility PDF** | `POST /api/v1/processes/{id}/generate-eligibility/` | Server-side template→PDF (base always; +spouse if married); returns a job → `202` | Assignee or Admin |
+| **Compiled case** (§10.3) | `POST /api/v1/processes/{id}/compile/` | Step-5 export: summary cover sheet + every document, merged; returns a job → `202` | Assignee or Admin |
+| **Generation jobs** | `GET /api/v1/generation-jobs/{id}/` | **One poll endpoint for every kind of job** — status, error, resulting Document id | Requester or Admin |
+| | `GET /api/v1/generation-jobs/{id}/file/` | Download a finished bulk PDF; the server names the file (§6.7, UC-066) | Requester or Admin |
+| **Doc templates** | `GET /api/v1/document-templates/` | List templates for selection; `?template_type=process_list` | All (read) |
+| | `GET /api/v1/document-templates/{id}/preview/` | Render the `.docx` to PDF with sample data, so the screen shows the letter | All (read) |
+| | ~~`POST/PATCH/DELETE`~~ | **405 — read-only** (UC-010). Templates are installed by a developer with `manage.py install_templates`, never uploaded from the running app; the active letter is a reviewed, version-controlled artifact (§6.6) | — |
+| **Bulk document** (§6.8) | `POST /api/v1/processes/generate-document/` | 1 selected row → that person's eligibility letter; 2+ → the list letter. Returns a job → `202` | All (a write onto a case still needs the assignee) |
+| | `POST /api/v1/processes/generate-codes/` | The office's code list for the selected rows; step gate (≥3) enforced server-side (UC-057) | All |
 | **Duplicate check** | `POST /api/v1/clients/duplicate-check/` | Check PID **or** mother name → matches + warning | All |
 | | `POST /api/v1/processes/{id}/override-duplicate/` | **Admin override** with reason (logged) | **Admin only** |
 | **Reports** | `GET /api/v1/reports/processes/` | Aggregates, filters `?date_from=&date_to=&category=` | **Admin only** |
 | | `GET /api/v1/reports/users/` | Per-user completed-task report | **Admin only** |
 | **Dashboard** | `GET /api/v1/dashboard/` | Home stats (records this week, per-user counts) | All |
 | **Activities** | `GET /api/v1/activities/` | Audit log; filters actor/entity/action/date | **Admin only** |
-| **Health** | `GET /api/v1/health/` | DB + Redis + file-store check | All |
+| | `GET /api/v1/activity-vocabulary/` | The values the Activities filters offer, so the frontend hard-codes none | **Admin only** |
+| **Template types** | `GET /api/v1/template-types/` | The letter types the backend supports (code + i18n key) — served, never hard-coded (UC-008) | All |
+| **Restore desk** (UC-063) | `GET /api/v1/<resource>/deleted/` | What has been soft-deleted, newest first — `processes`, `clients`, `users`, `categories`, `documents`, `institute-entries` | **Admin only** |
+| | `POST /api/v1/<resource>/{id}/restore/` | Reverse a soft-delete (404 if the id is unknown) | **Admin only** |
+| **Health** | `GET /api/v1/health/` | **Liveness only** — returns `{"status":"ok"}` if the process is up. It checks neither the DB, Redis nor the file store; It.9 wires the real readiness probe alongside the Compose healthchecks | All |
 
 ### 4.3 Process search & filter contract
 

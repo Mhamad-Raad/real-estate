@@ -31,12 +31,12 @@ This plan front-loads the demo and defers **OCR** (Iteration 5) and the **offlin
 
 ### Cross-cutting concerns (apply to every iteration)
 
-- [ ] **UI polish + full localization on every screen** — one consistent design system, responsive layout, light/dark, and complete `ckb`/`ar`/`en` translations with correct RTL, from the first screen — *§9*. **(Top priority.)**
-- [ ] **Soft-delete + audit** on every new model/endpoint (inherit `SoftDeleteModel`; write `ActivityLog` from the service layer) — *§11*.
-- [ ] **Server-side permissions** on every endpoint (never rely on UI hiding) — *§7*.
-- [ ] **Optimistic locking** (`version`/`updated_at` → HTTP 409) on every writable resource — *§4.1, §12*.
-- [ ] **Tests per feature** — model rules + the duplicate/soft-delete/audit invariants especially.
-- [ ] **Indexes with the migration** that needs them — *§3.7*.
+- [x] **UI polish + full localization on every screen** — one consistent design system, responsive layout, light/dark, and complete `ckb`/`ar`/`en` translations with correct RTL, from the first screen — *§9*. **(Top priority.)**
+- [x] **Soft-delete + audit** on every new model/endpoint (inherit `SoftDeleteModel`; write `ActivityLog` from the service layer) — *§11*.
+- [x] **Server-side permissions** on every endpoint (never rely on UI hiding) — *§7*.
+- [x] **Optimistic locking** (`version`/`updated_at` → HTTP 409) on every writable resource — *§4.1, §12*.
+- [x] **Tests per feature** — model rules + the duplicate/soft-delete/audit invariants especially.
+- [x] **Indexes with the migration** that needs them — *§3.7*.
 
 ---
 
@@ -75,13 +75,13 @@ This plan front-loads the demo and defers **OCR** (Iteration 5) and the **offlin
 
 **Tasks**
 
-- [ ] Monorepo scaffold — `land-allocation/` with `backend/` (Django), `frontend/` (React + Vite), shared config — *§14*.
-- [ ] **Minimal local dev runtime** (not production): PostgreSQL (local or a one-line docker) + Django dev server + Vite dev server. *Full offline Docker/LAN packaging is deferred to Iteration 9.*
-- [ ] Base models: `TimeStampedModel`, `SoftDeleteModel`, `ActiveManager`; `ActivityLog` + audit-service skeleton — *§3.1, §11*.
-- [ ] JWT auth (SimpleJWT): `login`/`refresh`/`logout`/`me`; custom `User` with `role`, `language`, `theme` — *§7*.
-- [ ] React app shell: routing, RTK Query `baseApi` (auth header + refresh-on-401), `auth` slice, protected routes, app layout (nav/sidebar/header), Login page — *§8*.
-- [ ] **Design-system foundation (top priority):** Tailwind + shadcn/ui with a *customized* theme (not the default look), light/dark, consistent tokens (color, spacing, radius, typography), icon set, and a few polished shared components (buttons, inputs, cards, a data-table shell, toasts, skeleton loaders).
-- [ ] **Localization foundation (top priority):** i18next with `ckb`/`ar`/`en`, per-user language switch, full RTL/LTR direction handling, **bundled** Arabic/Kurdish fonts (offline), bidi-safe number/date rendering — *§9*.
+- [x] Monorepo scaffold — `land-allocation/` with `backend/` (Django), `frontend/` (React + Vite), shared config — *§14*.
+- [x] **Minimal local dev runtime** (not production): PostgreSQL (local or a one-line docker) + Django dev server + Vite dev server. *Full offline Docker/LAN packaging is deferred to Iteration 9.*
+- [x] Base models: `TimeStampedModel`, `SoftDeleteModel`, `ActiveManager`; `ActivityLog` + audit-service skeleton — *§3.1, §11*.
+- [x] JWT auth (SimpleJWT): `login`/`refresh`/`logout`/`me`; custom `User` with `role`, `language`, `theme` — *§7*.
+- [x] React app shell: routing, RTK Query `baseApi` (auth header + refresh-on-401), `auth` slice, protected routes, app layout (nav/sidebar/header), Login page — *§8*.
+- [x] **Design-system foundation (top priority):** Tailwind + shadcn/ui with a *customized* theme (not the default look), light/dark, consistent tokens (color, spacing, radius, typography), icon set, and a few polished shared components (buttons, inputs, cards, a data-table shell, toasts, skeleton loaders).
+- [x] **Localization foundation (top priority):** i18next with `ckb`/`ar`/`en`, per-user language switch, full RTL/LTR direction handling, **bundled** Arabic/Kurdish fonts (offline), bidi-safe number/date rendering — *§9*.
 
 **Deliverable / demo:** log into a polished shell; switch language between Kurdish/Arabic/English with correct RTL flip; toggle light/dark. Already presentable.
 
@@ -97,14 +97,14 @@ This plan front-loads the demo and defers **OCR** (Iteration 5) and the **offlin
 
 **Tasks**
 
-- [ ] Models: `Category`, `Client` (all gov-ID fields + `marital_status`/`spouse_name`), `Process`, `ProcessStep` — *§3*. *(LandParcel was built here then removed in It.2.5 — land is now `Process.land_id`/`land_address`; see architecture §0.)*
-- [ ] Migrations + indexes: `pid` partial-unique, `full_name`/`mother_full_name` trigram, `created_at`, composite filter index, **`process(client_id)` active-allocation partial-unique** — *§3.7*.
-- [ ] CRUD APIs: users (admin), categories (admin), clients — *§4*. *(parcels endpoint removed It.2.5)*
-- [ ] Process create (sets process-wide lawyer) + **Step 1** data entry (no OCR/generation yet).
-- [ ] RBAC: `IsAdmin`, `IsProcessAssigneeOrAdmin`, field-level restrictions — *§7*.
-- [ ] Duplicate check (PID exact / mother-name trigram) + **admin override** + `DuplicateOverride` log — *§5.7*.
-- [ ] Processes list: search/filter by date, PID, name, category, status, lawyer + pagination — *§4.3*.
-- [ ] Frontend (clean + localized): Users, Categories, Clients pages; Process-create + Step-1 form; duplicate-warning dialog; processes list with filters + a modern data table.
+- [x] Models: `Category`, `Client` (all gov-ID fields + `marital_status`/`spouse_name`), `Process`, `ProcessStep` — *§3*. *(LandParcel was built here then removed in It.2.5 — land is now `Process.land_id`/`land_address`; see architecture §0.)*
+- [x] Migrations + indexes: `pid` partial-unique, `full_name`/`mother_full_name` trigram, `created_at`, composite filter index, **`process(client_id)` active-allocation partial-unique** — *§3.7*.
+- [x] CRUD APIs: users (admin), categories (admin), clients — *§4*. *(parcels endpoint removed It.2.5)*
+- [x] Process create (sets process-wide lawyer) + **Step 1** data entry (no OCR/generation yet).
+- [x] RBAC: `IsAdmin`, `IsProcessAssigneeOrAdmin`, field-level restrictions — *§7*.
+- [x] Duplicate check (PID exact / mother-name trigram) + **admin override** + `DuplicateOverride` log — *§5.7*.
+- [x] Processes list: search/filter by date, PID, name, category, status, lawyer + pagination — *§4.3*.
+- [x] Frontend (clean + localized): Users, Categories, Clients pages; Process-create + Step-1 form; duplicate-warning dialog; processes list with filters + a modern data table.
 
 **Deliverable / demo:** create a client and a process, fill Step 1, find it in a filtered list; a duplicate is blocked and only an admin can override (logged).
 
@@ -120,14 +120,14 @@ This plan front-loads the demo and defers **OCR** (Iteration 5) and the **offlin
 
 **Tasks**
 
-- [ ] `Document` model + file-store service: category→person→document layout, stable-ID folders, `display_filename`, sanitization — *§6.7*.
-- [ ] Upload endpoint (import path): PDF validation (magic bytes + size), `sha256`, write to disk — *§4.4*.
-- [ ] Permission-checked download (`Content-Disposition` = `display_filename`).
-- [ ] `ProcessInstituteEntry` model; shared **Institute enum** + read-only endpoint — *§3.4, §4*.
-- [ ] Steps 2–4 APIs: per-institute entries + per-institute lawyer; Step-3 out-of-city custom rows; approvals/dates; end-date auto-set-but-editable — *§5*.
-- [ ] Per-step status computation + `step_status_summary`; per-step save (`PATCH`, save-incomplete); Lawyer Notes; `overall_status` lifecycle — *§3.6, §5*.
-- [ ] Frontend (clean + localized): accordion multi-step form with per-step save + status/color badges; institute dropdowns from the enum; repeatable custom rows; upload/import + download; Lawyer Notes.
-- [ ] *(It.2.5)* **Progressive step unlocking for lawyers:** steps above `current_step` render locked; an explicit **Proceed** (confirm dialog listing what's still missing) calls `POST /processes/{id}/advance-step/` to unlock the next one. Forward-only; admins exempt — *§5.2, architecture §0*.
+- [x] `Document` model + file-store service: category→person→document layout, stable-ID folders, `display_filename`, sanitization — *§6.7*.
+- [x] Upload endpoint (import path): PDF validation (magic bytes + size), `sha256`, write to disk — *§4.4*.
+- [x] Permission-checked download (`Content-Disposition` = `display_filename`).
+- [x] `ProcessInstituteEntry` model; shared **Institute enum** + read-only endpoint — *§3.4, §4*.
+- [x] Steps 2–4 APIs: per-institute entries + per-institute lawyer; Step-3 out-of-city custom rows; approvals/dates; end-date auto-set-but-editable — *§5*.
+- [x] Per-step status computation + `step_status_summary`; per-step save (`PATCH`, save-incomplete); Lawyer Notes; `overall_status` lifecycle — *§3.6, §5*.
+- [x] Frontend (clean + localized): accordion multi-step form with per-step save + status/color badges; institute dropdowns from the enum; repeatable custom rows; upload/import + download; Lawyer Notes.
+- [x] *(It.2.5)* **Progressive step unlocking for lawyers:** steps above `current_step` render locked; an explicit **Proceed** (confirm dialog listing what's still missing) calls `POST /processes/{id}/advance-step/` to unlock the next one. Forward-only; admins exempt — *§5.2, architecture §0*.
 
 **Deliverable / demo:** build a complete case end-to-end by importing PDFs, saving steps incompletely, watching per-step badges update, and downloading documents with friendly filenames. **← First fully-usable, showable product** (manual entry + imports; no OCR/scan needed).
 
@@ -160,12 +160,12 @@ This plan front-loads the demo and defers **OCR** (Iteration 5) and the **offlin
 
 **Tasks**
 
-- [ ] Step-5 compiled case: `.docx` summary → PDF, then merge all process PDFs (pypdf) into one file; print/export — *§10.3*.
-- [ ] Mark-complete (respects the missing-file rule; admin can force) — *§5.1*.
-- [ ] Home dashboard stats endpoint + UI: records this week, per-user counts, missing-file rollups — *§10.1*.
-- [ ] Admin Reports (date + category filters) + export — *§10.2*.
-- [ ] Activities page (audit-log view) with actor/entity/action/date filters — *§11.3*.
-- [ ] Frontend (clean + localized): modern dashboard (charts/KPI cards), reports, activity log, compiled export.
+- [x] Step-5 compiled case: `.docx` summary → PDF, then merge all process PDFs (pypdf) into one file; print/export — *§10.3*.
+- [x] Mark-complete (respects the missing-file rule; admin can force) — *§5.1*.
+- [x] Home dashboard stats endpoint + UI: records this week, per-user counts, missing-file rollups — *§10.1*.
+- [x] Admin Reports (date + category filters) + export — *§10.2*.
+- [x] Activities page (audit-log view) with actor/entity/action/date filters — *§11.3*.
+- [x] Frontend (clean + localized): modern dashboard (charts/KPI cards), reports, activity log, compiled export.
 
 **Deliverable / demo:** compile a finished case into a single leadership-ready PDF; view the dashboard, a filtered report, and the activity log.
 
@@ -211,7 +211,7 @@ This plan front-loads the demo and defers **OCR** (Iteration 5) and the **offlin
 
 - [x] Camera capture (`getUserMedia`) → canvas → multi-page PDF via bundled `pdf-lib` (no CDN) — *§6.1*. **`opencv.js` enhance deliberately not built** (the §6.2 spike measured pre-processing as harmful; ~9 MB WASM for no demonstrated gain).
 - [x] Same upload paths as import — `POST /documents/` for ordinary papers, `POST /card-scans/` for an ID (`input_source=scanned`). Both already accept images and convert server-side (It.5), so the camera path was a UI addition, not a new contract.
-- [ ] (Optional) host **scanner-helper** (NAPS2/WIA on Windows, SANE on macOS) if a sheet-fed scanner is used — *§6.1, §2.5*.
+- [x] (Optional) host **scanner-helper** (NAPS2/WIA on Windows, SANE on macOS) if a sheet-fed scanner is used — *§6.1, §2.5*.
 
 **Deliverable / demo:** scan a multi-page document with the camera; it assembles into a PDF, uploads, and is filed like any import. *(Reading → review → confirm applies to identity cards only — an ordinary scanned paper is archived, not OCR'd.)*
 
@@ -229,11 +229,11 @@ This is the first iteration whose input comes from outside the code. The office 
 
 **Tasks**
 
-- [ ] **Run the real process end to end** — the office creates and works genuine allocations: client + Step 1, institutes in Steps 2–4, generated eligibility and list letters, Step-5 compiled export. On the real two-computer setup wherever possible.
-- [ ] **Every finding is written up** in `FINDINGS.md` at the repo root: actor, precondition, steps taken, expected vs actual, and a **verdict** — *bug* · *spec gap* · *change request* · *works as intended (misunderstanding)*. That file is **gitignored on purpose** — it is a working log of problems found (and may quote real pilot records), not repo content; the *fixes* are what get committed.
-- [ ] **Triage and close each one:** a bug gets a fix **plus a regression test**; a spec gap updates the architecture § first and is then built; a change request is scoped and decided before any code moves.
-- [ ] **Propagate to the docs** — §-level architecture updates, plus a dated deviation entry for anything that contradicts the current spec. The docs must describe what the office actually does.
-- [ ] **Re-verify per change:** both suites green, and a browser smoke of each changed flow in `ckb`/`ar`/`en`.
+- [x] **Run the real process end to end** — the office creates and works genuine allocations: client + Step 1, institutes in Steps 2–4, generated eligibility and list letters, Step-5 compiled export. On the real two-computer setup wherever possible.
+- [x] **Every finding is written up** in `FINDINGS.md` at the repo root: actor, precondition, steps taken, expected vs actual, and a **verdict** — *bug* · *spec gap* · *change request* · *works as intended (misunderstanding)*. That file is **gitignored on purpose** — it is a working log of problems found (and may quote real pilot records), not repo content; the *fixes* are what get committed.
+- [x] **Triage and close each one:** a bug gets a fix **plus a regression test**; a spec gap updates the architecture § first and is then built; a change request is scoped and decided before any code moves.
+- [x] **Propagate to the docs** — §-level architecture updates, plus a dated deviation entry for anything that contradicts the current spec. The docs must describe what the office actually does.
+- [x] **Re-verify per change:** both suites green, and a browser smoke of each changed flow in `ckb`/`ar`/`en`.
 - [ ] **Collect 15–25 real ID cards** (with some genuine photocopies) while real scanning is happening, and **tune the OCR confidence threshold** against them — *§6.2*. This iteration is the natural place to retire that long-standing blocker.
 - [ ] **Separate pilot data from dev/test data** — clean the dev DB before the pilot and account for what the pilot creates, so real records are never confused with smoke data.
 
@@ -253,14 +253,14 @@ Previous reviews in this project were per-iteration and scoped to what had just 
 
 **Tasks**
 
-- [ ] **Security review of the whole surface** — authn/authz on *every* endpoint against the §7 RBAC matrix; input validation; file handling and path traversal; CSV injection; secrets handling; error/stack-trace leakage; refresh-token handling — *§7, §12*.
-- [ ] **Invariant audit, endpoint by endpoint** — soft-delete everywhere, append-only audit written only from services, the two partial-unique "no land twice" indexes, optimistic locking on every writable resource. Each one **proven by a test**, not by reading — *§3.7, §11, §12*.
-- [ ] **Architecture conformance** — thin views → services → selectors; RTK Query owning all server state; the institute list defined once; indexes shipped with their migrations — *§14*.
-- [ ] **DRY + dead-code sweep** across backend and frontend. This project has repeatedly found third and fourth copies of the same helper; assume more exist.
-- [ ] **Bug & logic hunt** — N+1 queries, race conditions, transaction boundaries, `on_commit` correctness, timezone/date handling, i18n digit and pluralization handling.
-- [ ] **Lint, type and build clean** across the whole tree — including the two long-standing `only-export-components` warnings.
-- [ ] **Test-quality audit** — find tests that silently skip, assert nothing, or cover a mock instead of the code; verify the invariants are actually covered.
-- [ ] **Documentation reconciliation** — architecture doc vs shipped reality, this plan's checkboxes, `running.md`, and **settle whether `CLAUDE.md` is tracked in git** (it is currently gitignored, so a fresh clone gets outdated OCR guidance).
+- [x] **Security review of the whole surface** — authn/authz on *every* endpoint against the §7 RBAC matrix; input validation; file handling and path traversal; CSV injection; secrets handling; error/stack-trace leakage; refresh-token handling — *§7, §12*.
+- [x] **Invariant audit, endpoint by endpoint** — soft-delete everywhere, append-only audit written only from services, the two partial-unique "no land twice" indexes, optimistic locking on every writable resource. Each one **proven by a test**, not by reading — *§3.7, §11, §12*.
+- [x] **Architecture conformance** — thin views → services → selectors; RTK Query owning all server state; the institute list defined once; indexes shipped with their migrations — *§14*.
+- [x] **DRY + dead-code sweep** across backend and frontend. This project has repeatedly found third and fourth copies of the same helper; assume more exist.
+- [x] **Bug & logic hunt** — N+1 queries, race conditions, transaction boundaries, `on_commit` correctness, timezone/date handling, i18n digit and pluralization handling.
+- [x] **Lint, type and build clean** across the whole tree — including the two long-standing `only-export-components` warnings.
+- [x] **Test-quality audit** — find tests that silently skip, assert nothing, or cover a mock instead of the code; verify the invariants are actually covered.
+- [x] **Documentation reconciliation** — architecture doc vs shipped reality, this plan's checkboxes, `running.md`, and `CLAUDE.md` — **settled: it stays gitignored** (the user's decision, 2026-08-06); `docs/` remains the authoritative spec a fresh clone gets.
 
 **Deliverable / demo:** a written review report — findings ordered by severity, each with the probe that proved it and either the commit that fixed it or the reason it was deferred.
 
@@ -283,6 +283,10 @@ Previous reviews in this project were per-iteration and scoped to what had just 
 - [ ] RTL/multilingual **print validation** on real documents; performance pass at scale (seed tens of thousands; verify index usage) — *§13.1*.
 - [ ] Re-file operation for category/name changes; filename sanitization + optional Latin-transliteration toggle — *§6.7*.
 - [ ] Security review, secrets handling, host hardening (firewall, no egress) — *§12*.
+- [ ] **Make `/api/v1/health/` a real readiness check** (DB, Redis, file store) and wire it to the Compose healthchecks. It answers a static `{"status":"ok"}` today, which a restore drill cannot rely on — a health endpoint that never fails is worse than none (found in It.8's doc reconciliation; §4.2 now says so plainly).
+- [ ] **Decide the production account bootstrap.** `seed_dev` is the only documented way to create the first user and it ships `admin`/`admin12345` as a superuser — dev-only by its docstring, but nothing else fills the gap (It.8).
+- [ ] **Rate-limit the login endpoint.** No throttling is configured anywhere, so password guessing from the second office computer is unbounded (It.8). Cheap with DRF's `ScopedRateThrottle`; note that with several Gunicorn workers the default local-memory cache counts per worker.
+- [ ] **Revisit httpOnly refresh cookies together with TLS** — §7.1 records why `sessionStorage` is the right answer until then, and the trap to avoid (a *persistent* cookie re-introduces the shared-machine exposure It.8 removed).
 
 **Deliverable / demo:** the full stack runs offline on the two computers over the LAN; a daily backup runs to the external drive and a restore is performed successfully.
 

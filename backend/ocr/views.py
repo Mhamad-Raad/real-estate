@@ -205,7 +205,9 @@ class CardScanViewSet(RetrieveModelMixin, GenericViewSet):
         `assigned_lawyer` is not editable afterwards, neither of them could undo it.
         """
         user = self.request.user
-        return requested or user if user.is_admin else user
+        if not user.is_admin:
+            return user
+        return requested or user
 
     def _assert_may_write(self, client):
         """Filing onto an existing case follows that case's assignment, like any other upload.
