@@ -67,14 +67,21 @@ class VersionResolutionTests(TestCase):
 
     def test_a_negative_env_build_still_lets_audit_write(self):
         """The end-to-end guarantee, not just the helper: a typo'd env var must cost the version
-        display and nothing else."""
+        display and nothing else.
+
+        `common.services` binds `BUILD_NUMBER` **by value** at import, so reloading this module
+        alone does not reach the audit writer — patching the name the writer actually reads is
+        what makes this exercise `record_activity` instead of merely proving the DB accepts 0.
+        """
         with mock.patch.dict(os.environ, {"APP_BUILD": "-1"}):
             reloaded = importlib.reload(version_module)
             try:
                 self.assertEqual(reloaded.BUILD_NUMBER, version_module.UNKNOWN_BUILD)
-                ActivityLog.objects.create(
-                    action="login", entity_type="Probe", app_build=reloaded.BUILD_NUMBER
-                )
+                with mock.patch("common.services.BUILD_NUMBER", reloaded.BUILD_NUMBER):
+                    row = record_activity(
+                        actor=None, action=ActivityLog.Action.LOGIN, entity_type="Probe"
+                    )
+                self.assertEqual(row.app_build, version_module.UNKNOWN_BUILD)
             finally:
                 importlib.reload(version_module)
 
