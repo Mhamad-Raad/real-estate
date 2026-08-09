@@ -55,6 +55,29 @@ class VersionResolutionTests(TestCase):
             with self.subTest(bad=bad):
                 self.assertEqual(version_module._coerce_build(bad), version_module.UNKNOWN_BUILD)
 
+    def test_a_negative_build_degrades_rather_than_breaking_every_write(self):
+        """`ActivityLog.app_build` is a PositiveIntegerField with a DB check constraint, so a
+        negative that got past here would fail EVERY audit write — and audit is written inside
+        every service transaction. Probed: IntegrityError on `activity_log_app_build_check`."""
+        for negative in ("-1", "-999", " -42 "):
+            with self.subTest(negative=negative):
+                self.assertEqual(
+                    version_module._coerce_build(negative), version_module.UNKNOWN_BUILD
+                )
+
+    def test_a_negative_env_build_still_lets_audit_write(self):
+        """The end-to-end guarantee, not just the helper: a typo'd env var must cost the version
+        display and nothing else."""
+        with mock.patch.dict(os.environ, {"APP_BUILD": "-1"}):
+            reloaded = importlib.reload(version_module)
+            try:
+                self.assertEqual(reloaded.BUILD_NUMBER, version_module.UNKNOWN_BUILD)
+                ActivityLog.objects.create(
+                    action="login", entity_type="Probe", app_build=reloaded.BUILD_NUMBER
+                )
+            finally:
+                importlib.reload(version_module)
+
     def test_a_valid_build_is_an_int(self):
         self.assertEqual(version_module._coerce_build(" 42 "), 42)
 

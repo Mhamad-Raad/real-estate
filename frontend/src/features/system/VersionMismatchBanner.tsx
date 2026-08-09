@@ -1,6 +1,7 @@
 import { AlertTriangle } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
+import { UNKNOWN_BUILD, buildStamp, formatBuild } from "@/lib/build";
 import { useGetHealthQuery } from "./systemApi";
 
 /**
@@ -16,7 +17,7 @@ export function VersionMismatchBanner() {
 
   // Build 0 is the "unknown" marker on both sides (no VERSION file, or a folder-copy build).
   // Comparing against it would fire on every developer machine, so only real builds are judged.
-  if (!data || data.build === 0 || __APP_BUILD__ === 0) return null;
+  if (!data || data.build === UNKNOWN_BUILD || __APP_BUILD__ === UNKNOWN_BUILD) return null;
   if (data.build === __APP_BUILD__) return null;
 
   return (
@@ -27,9 +28,10 @@ export function VersionMismatchBanner() {
       <AlertTriangle className="mt-0.5 size-4 shrink-0" />
       <div className="space-y-1">
         <p>{t("app.versionMismatch")}</p>
-        {/* Latin and LTR: these are the two numbers the office reads back during a support call. */}
+        {/* Both sides go through the same formatter — this is the one screen where they are read
+            side by side, so presenting them differently would be its own confusion. */}
         <p dir="ltr" className="font-mono text-xs opacity-80">
-          {`app ${__APP_VERSION__} (build ${__APP_BUILD__}) · server ${data.app_version} (build ${data.build})`}
+          {`app ${buildStamp} · server ${formatBuild(data.app_version, data.build)}`}
         </p>
       </div>
     </div>

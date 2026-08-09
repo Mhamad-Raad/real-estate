@@ -39,11 +39,18 @@ def _read_version_file() -> dict[str, str]:
 
 
 def _coerce_build(raw: str | None) -> int:
-    """A malformed build number degrades to the 'unknown' marker instead of raising at import."""
+    """A malformed build number degrades to the 'unknown' marker instead of raising at import.
+
+    Negatives are rejected too, and that is not pedantry: `ActivityLog.app_build` is a
+    `PositiveIntegerField`, so a negative would pass this function and then fail the database
+    check constraint on **every** audit write — breaking every create/update/delete in the app
+    instead of degrading. A typo'd env var must cost the version display, never the write path.
+    """
     try:
-        return int(str(raw).strip())
+        build = int(str(raw).strip())
     except (TypeError, ValueError):
         return UNKNOWN_BUILD
+    return build if build >= 0 else UNKNOWN_BUILD
 
 
 _FILE_VALUES = _read_version_file()

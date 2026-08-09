@@ -1,11 +1,5 @@
 import { baseApi } from "@/services/baseApi";
-
-export interface Health {
-  status: string;
-  /** The server's build. `app_version`/`build`, never `version` — that is the optimistic lock. */
-  app_version: string;
-  build: number;
-}
+import type { Health } from "./types";
 
 export const systemApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
