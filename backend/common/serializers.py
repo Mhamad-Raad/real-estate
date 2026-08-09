@@ -53,6 +53,7 @@ class ActivityLogSerializer(serializers.ModelSerializer):
             "before",
             "after",
             "ip_address",
+            "app_build",
             "created_at",
         )
         # The whole model is read-only: the trail is append-only and written only by the

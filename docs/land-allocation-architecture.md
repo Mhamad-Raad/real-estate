@@ -334,6 +334,38 @@ Desktop/LandAllocationData/          # the ONE data folder (never inside land-al
 
 Because the consistent DB dump is produced by an in-container **Celery Beat** job, the only genuinely host-specific automation is the final "copy the Desktop data folder to the external USB drive" step — a tiny native scheduled task (or the provided one-click `backup.bat`/`backup.sh`).
 
+### 2.6 Build identity — which version is installed (added 2026-08-09, pre-It.9)
+
+The office is updated by hand, one computer at a time, from an external drive. So "which build is this machine running?" is a question that has to be answerable **from the screen, offline, by a non-technical user** — otherwise every support call starts by guessing.
+
+**Declared once**, in the repo-root **`VERSION`** file:
+
+```
+APP_VERSION=0.9.0
+APP_BUILD=1
+```
+
+`APP_BUILD` is a **committed integer, bumped by hand when an image is handed to the office**. It is deliberately *not* derived from git: `git rev-list --count` is not monotonic across branches (measured 2026-08-09 — `dev` 204, `main` 28), so a build cut from `main` would number *lower* than a dev build and the number would run backwards after a merge. A committed integer is branch-independent and works in a build with no `.git` at all. The keys are named `APP_*` so the file is **itself a valid Compose `env_file`** — no second parser, and no way for the two halves to drift.
+
+**Resolution is environment first, file second**, on both sides (`backend/common/version.py`, `frontend/vite.config.ts`). The backend image is built from `backend/` alone and the frontend is a static bundle with no runtime to ask, so in production both get the values baked in as environment at image-build time; the file is the dev-time source. **Neither side may raise**: an unresolvable build degrades to `0.0.0 (build 0)`, because a version stamp must never be why an office computer fails to start.
+
+| Surface | What it carries |
+|---|---|
+| Settings → **About** | the stamp, with the hint that this is what to read out when reporting a problem |
+| **Login page** footer | readable *before* sign-in — which is exactly when the office phones about not getting in |
+| **Sidebar** footer | always visible while working (hidden when the sidebar is collapsed) |
+| `GET /api/v1/health/` | `app_version` + `build`, so the frontend and a diagnostic script read the same source |
+| Every `activity_log` row | `app_build` — a bad record can be traced to the build that wrote it |
+| Version-mismatch banner | shown when the bundle and the server disagree; half an update is a real outcome, and every symptom of it otherwise looks like an app bug |
+
+**Naming:** the app's version is `app_version` / `build` **everywhere it is exposed, never `version`** — that name is already the optimistic-lock counter on every model, serializer and mutation (§7.2), and sharing it would make two unrelated things indistinguishable across the whole API.
+
+**Two deliberate exceptions, both easy to "fix" by mistake:**
+- The stamp is **Latin digits**, never routed through `useNum`/`formatNumber` — it has to match what is in git and what someone types into a bug report, so §9's Sorani-digit rule does not apply to it. A test pins the format so a digit sweep fails loudly instead of silently converting it to `٠.٩.٠`.
+- Only the **string** is `dir="ltr"`, not its paragraph — the paragraph follows the page direction so it aligns with what it sits under, while bidi isolation keeps `(build 1)` from swinging to the wrong end on an RTL page.
+
+**`app_build` is nullable and never back-filled.** Null means "written before build stamping existed" (766 rows at the time it shipped), not "unknown" — the trail stays append-only.
+
 ---
 
 ## 3. Data Model / ER Design
@@ -712,7 +744,7 @@ Processes are searched/filtered **only** by structured fields — **date, client
 
 **Search implementation:** the Processes list joins Process→Client with `select_related`, filters on the indexed columns, and paginates. Because PID is exact and name uses `pg_trgm` `%`/`ILIKE`, both stay fast at tens of thousands of rows. Duplicate prevention (§5.7) rests on **two** partial-unique indexes, not one — `ix_client_pid_active` (no duplicate client identities) and `ix_process_active_alloc` (no second active allocation per client). Application-level checks can race between the two computers; these indexes cannot.
 
-**Soft-delete + audit at schema level:** every table carries `is_deleted/deleted_at/deleted_by`; the default manager hides deleted rows so normal views and search exclude them automatically, while `all_objects` powers restore and admin views. Audit is a separate append-only `activity_log` table (never updated or deleted) with `before`/`after` JSONB snapshots.
+**Soft-delete + audit at schema level:** every table carries `is_deleted/deleted_at/deleted_by`; the default manager hides deleted rows so normal views and search exclude them automatically, while `all_objects` powers restore and admin views. Audit is a separate append-only `activity_log` table (never updated or deleted) with `before`/`after` JSONB snapshots, plus a nullable **`app_build`** stamping the build that wrote each row (§2.6).
 
 ---
 
@@ -790,7 +822,7 @@ A **REST** API (explicitly not GraphQL) under `/api/`, versioned `/api/v1/`, JSO
 | **Template types** | `GET /api/v1/template-types/` | The letter types the backend supports (code + i18n key) — served, never hard-coded (UC-008) | All |
 | **Restore desk** (UC-063) | `GET /api/v1/<resource>/deleted/` | What has been soft-deleted, newest first — `processes`, `clients`, `users`, `categories`, `documents`, `institute-entries` | **Admin only** |
 | | `POST /api/v1/<resource>/{id}/restore/` | Reverse a soft-delete (404 if the id is unknown) | **Admin only** |
-| **Health** | `GET /api/v1/health/` | **Liveness only** — returns `{"status":"ok"}` if the process is up. It checks neither the DB, Redis nor the file store; It.9 wires the real readiness probe alongside the Compose healthchecks | All |
+| **Health** | `GET /api/v1/health/` | **Liveness only** — returns `{"status":"ok","app_version":"0.9.0","build":1}` if the process is up. It checks neither the DB, Redis nor the file store; It.9 wires the real readiness probe alongside the Compose healthchecks. `app_version`/`build` (never `version`, which is the optimistic lock) is what the frontend's mismatch banner compares against — §2.6 | All |
 
 ### 4.3 Process search & filter contract
 

@@ -80,6 +80,10 @@ class ActivityLog(TimeStampedModel):
     before = models.JSONField(null=True, blank=True)
     after = models.JSONField(null=True, blank=True)
     ip_address = models.GenericIPAddressField(null=True, blank=True)
+    # The build that wrote this row, so a bad record can be traced to the version that produced
+    # it. Null on every row written before build stamping existed — absence means "before", not
+    # "unknown", and the column stays nullable so the append-only trail is never back-filled.
+    app_build = models.PositiveIntegerField(null=True, blank=True)
 
     class Meta:
         db_table = "activity_log"

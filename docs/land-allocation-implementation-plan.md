@@ -274,6 +274,8 @@ Previous reviews in this project were per-iteration and scoped to what had just 
 
 **Tasks**
 
+- [x] **Build identity — `VERSION` file, shown on 3 screens, on `/health/`, and stamped into every audit row** (done 2026-08-09, ahead of the rest of It.9 so the layout was settled before deployment work built on it) — *§2.6*.
+- [ ] **Bake `APP_VERSION`/`APP_BUILD` into the production images** as build args → env, and **record the build + applied migration head in the backup manifest**, so a restore can tell it is crossing a version boundary — *§2.6, §13.2*.
 - [ ] Dockerize the full stack + **offline image save/load** (`docker save`/`load`); Nginx serving static build + reverse-proxy; one-command bring-up — *§2.3*.
 - [ ] Fixed-IP LAN + **two-computer validation**; Windows-production / macOS-development parity; Desktop data-root wiring — *§2, §2.5*.
 - [ ] Full-disk encryption: **BitLocker** (Windows) / **FileVault** (macOS); encrypt the external drive — *§12, §2.5*.

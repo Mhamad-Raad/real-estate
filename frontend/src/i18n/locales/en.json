@@ -1,7 +1,9 @@
 {
   "app": {
     "name": "Land Allocation",
-    "shortName": "LAS"
+    "shortName": "LAS",
+    "version": "Version",
+    "versionMismatch": "This computer is running a different version of the app than the server. Close the app and open it again; if this warning stays, the update was not fully installed."
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -577,7 +579,9 @@
       "notokufi": "Geometric kufi, strong shapes.",
       "reemkufi": "Decorative kufi.",
       "lateef": "Light traditional, compact."
-    }
+    },
+    "about": "About",
+    "aboutHint": "Which version of the app this computer is running. Read this out when reporting a problem."
   },
   "deleted": {
     "title": "Deleted items",

@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { Navigate, useNavigate } from "react-router-dom";
 
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
+import { BuildStamp } from "@/components/layout/BuildStamp";
 import { LanguageSwitcher } from "@/components/layout/LanguageSwitcher";
 import { ThemeToggle } from "@/components/layout/ThemeToggle";
 import { Button } from "@/components/ui/button";
@@ -92,6 +93,9 @@ export function LoginPage() {
           </form>
         </CardContent>
       </Card>
+      {/* Below the card, readable before anyone signs in — which is exactly when the office
+          phones about not being able to get in. */}
+      <BuildStamp className="absolute bottom-4 start-0 end-0 text-center" />
     </div>
   );
 }

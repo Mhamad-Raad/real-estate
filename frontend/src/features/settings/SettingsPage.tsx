@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
+import { BuildStamp } from "@/components/layout/BuildStamp";
 import { FormSection } from "@/components/ui/separator";
 import { PageHeader } from "@/features/common/PageHeader";
 import { FontSpecimen } from "@/features/settings/FontSpecimen";
@@ -103,6 +104,10 @@ export function SettingsPage() {
             </OptionCard>
           ))}
         </OptionGroup>
+      </FormSection>
+
+      <FormSection title={t("settings.about")} description={t("settings.aboutHint")}>
+        <BuildStamp className="text-sm" />
       </FormSection>
 
       <div className="space-y-1 text-xs text-muted-foreground">

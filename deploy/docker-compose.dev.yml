@@ -10,6 +10,9 @@ x-django: &django
     dockerfile: Dockerfile.dev
   env_file:
     - ../backend/.env
+    # The repo-root VERSION file doubles as an env file: the image is built from `backend/` and
+    # can never see a repo-root path, so the build identity has to arrive as environment.
+    - ../VERSION
   environment:
     # Override the native-dev values from .env for the compose network.
     DB_HOST: db

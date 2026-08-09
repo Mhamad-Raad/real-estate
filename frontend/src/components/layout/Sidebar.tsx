@@ -19,6 +19,7 @@ import { NavLink } from "react-router-dom";
 import { useAppDispatch, useAppSelector } from "@/app/hooks";
 import { toggleSidebar } from "@/features/ui/uiSlice";
 import { cn } from "@/lib/utils";
+import { BuildStamp } from "./BuildStamp";
 
 interface NavItem {
   to: string;
@@ -104,6 +105,9 @@ export function Sidebar() {
           />
           {!collapsed && <span>{t("nav.collapse")}</span>}
         </button>
+        {/* Hidden when collapsed — 16px of width cannot hold it, and the Settings About block
+            is the place anyone is told to look. */}
+        {!collapsed && <BuildStamp className="px-3 pt-1 text-start" />}
       </div>
     </aside>
   );

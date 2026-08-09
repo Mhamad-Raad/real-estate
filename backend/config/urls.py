@@ -20,6 +20,7 @@ from catalog.views import (
     InstitutesView,
     TemplateTypesView,
 )
+from common.version import APP_VERSION, BUILD_NUMBER
 from common.views import ActivityLogViewSet, ActivityVocabularyView
 from clients.views import ClientViewSet
 from documents.views import DocumentTemplateViewSet, DocumentViewSet, GenerationJobViewSet
@@ -29,7 +30,15 @@ from reports.views import DashboardView, ProcessReportView, UserReportView
 
 
 def health(_request):
-    return JsonResponse({"status": "ok"})
+    """Liveness only — It.9 turns this into a real readiness check (DB, Redis, file store).
+
+    It carries the build because the frontend's mismatch check and a support call both need to
+    ask the *server* what it is running; `app_version`/`build`, never `version`, which is the
+    optimistic-lock counter everywhere else in this API.
+    """
+    return JsonResponse(
+        {"status": "ok", "app_version": APP_VERSION, "build": BUILD_NUMBER}
+    )
 
 
 router = DefaultRouter()
