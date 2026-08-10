@@ -22,7 +22,8 @@ const kb = (bytes: number) => `${Math.max(1, Math.round(bytes / 1024))} KB`;
 // dozen of them inline buried the two rows that matter (UC-009).
 //
 // Blank forms sit in the same list because this is where the office comes to print one (UC-039);
-// which types those are comes from the server with the vocabulary, never from a copy here.
+// each row says whether it is one, so a slow vocabulary request cannot leave a form worded — and
+// operated — as a letter.
 export function TemplatesPage() {
   const { t } = useTranslation();
   const num = useNum();
@@ -33,10 +34,6 @@ export function TemplatesPage() {
   const { data: types } = useListTemplateTypesQuery();
 
   const rows = useMemo(() => data ?? [], [data]);
-  const blankFormTypes = useMemo(
-    () => new Set((types ?? []).filter((type) => type.blank_form).map((type) => type.code)),
-    [types],
-  );
   // One group per letter type the *backend* knows about, so a newly added type appears here
   // rather than silently missing as `case_summary` did (UC-008).
   const groups = useMemo(() => {
@@ -46,12 +43,11 @@ export function TemplatesPage() {
       const forType = rows.filter((r) => r.template_type === code);
       return {
         code,
-        blankForm: blankFormTypes.has(code),
         active: forType.find((r) => r.is_active) ?? null,
         retired: forType.filter((r) => !r.is_active),
       };
     });
-  }, [rows, types, blankFormTypes]);
+  }, [rows, types]);
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
@@ -81,7 +77,7 @@ export function TemplatesPage() {
 
       {!isLoading &&
         !isError &&
-        groups.map(({ code, blankForm, active, retired }) => (
+        groups.map(({ code, active, retired }) => (
           <Card key={code} className="space-y-3 p-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
@@ -103,7 +99,7 @@ export function TemplatesPage() {
                 {active && (
                   <Button variant="outline" size="sm" onClick={() => setPreviewing(active)}>
                     <FileText className="size-4" />
-                    {t(blankForm ? "templates.previewForm" : "templates.preview")}
+                    {t(active.is_blank_form ? "templates.previewForm" : "templates.preview")}
                   </Button>
                 )}
               </div>
@@ -142,7 +138,7 @@ export function TemplatesPage() {
                           className="h-7"
                           onClick={() => setPreviewing(template)}
                         >
-                          {t(blankForm ? "templates.previewForm" : "templates.preview")}
+                          {t(template.is_blank_form ? "templates.previewForm" : "templates.preview")}
                         </Button>
                       </li>
                     ))}
@@ -153,11 +149,7 @@ export function TemplatesPage() {
           </Card>
         ))}
 
-      <TemplatePreviewDialog
-        template={previewing}
-        blankForm={Boolean(previewing && blankFormTypes.has(previewing.template_type))}
-        onClose={() => setPreviewing(null)}
-      />
+      <TemplatePreviewDialog template={previewing} onClose={() => setPreviewing(null)} />
     </div>
   );
 }

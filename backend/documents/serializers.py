@@ -70,6 +70,11 @@ class DocumentTemplateSerializer(serializers.ModelSerializer):
             "name",
             "original_filename",
             "size_bytes",
+            # Whether the row is a blank form the office prints or a letter the system fills in
+            # (§6.6). It rides on the row itself because that is what every screen holds — reading
+            # it from the separate vocabulary endpoint left a form labelled as a letter, without
+            # its Print button, whenever that second request had not landed.
+            "is_blank_form",
             "is_active",
             "uploaded_by",
             "version",

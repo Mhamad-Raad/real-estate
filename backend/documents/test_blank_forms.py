@@ -130,15 +130,24 @@ class BlankFormPreviewTests(APITestCase):
             render_to_pdf(self.template, {}, Path(tempfile.gettempdir()))
 
 
-class BlankFormVocabularyTests(APITestCase):
-    def test_the_types_endpoint_flags_which_types_are_blank_forms(self):
-        """The screen words itself from this; three hard-coded frontend copies of the vocabulary
-        already fell a whole type behind once (UC-008)."""
+@override_settings(LETTER_TEMPLATES_ROOT=Path(tempfile.mkdtemp()))
+class BlankFormListingTests(APITestCase):
+    def test_each_row_says_whether_it_is_a_blank_form(self):
+        """It rides on the row because the row is what the screen holds. Read from the separate
+        vocabulary endpoint instead, a slow or failed second request left the office's form worded
+        AND operated as a letter — no Print button, which is the only reason the entry exists."""
         self.client.force_authenticate(
             User.objects.create_user("bf_voc", password="pw12345678", role=User.Role.ADMIN)
         )
+        form = install_shipped_form()
+        letter = DocumentTemplate.objects.create(
+            template_type=DocumentTemplate.TemplateType.ELIGIBILITY_SINGLE,
+            name="L",
+            file_path="x/y.docx",
+            sha256="0" * 64,
+        )
 
-        rows = {row["code"]: row["blank_form"] for row in self.client.get("/api/v1/template-types/").data}
+        by_id = {row["id"]: row["is_blank_form"] for row in self.client.get("/api/v1/document-templates/").data}
 
-        self.assertTrue(rows[BLANK_TYPE])
-        self.assertFalse(rows[DocumentTemplate.TemplateType.ELIGIBILITY_SINGLE])
+        self.assertTrue(by_id[form.id])
+        self.assertFalse(by_id[letter.id])

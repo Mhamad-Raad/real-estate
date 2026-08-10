@@ -11,6 +11,7 @@ const template = (over: Partial<DocumentTemplate> = {}): DocumentTemplate => ({
   name: "Current letter",
   original_filename: "letter.docx",
   size_bytes: 20480,
+  is_blank_form: false,
   is_active: true,
   uploaded_by: 1,
   version: 2,
@@ -27,6 +28,7 @@ const rows = [
     template_type: "request_form",
     name: "request_form",
     original_filename: "request_form.pdf",
+    is_blank_form: true,
   }),
 ];
 
@@ -37,10 +39,10 @@ vi.mock("./templatesApi", () => ({
   useListTemplatesQuery: () => ({ data: rows, isLoading: false, isError: false }),
   useListTemplateTypesQuery: () => ({
     data: [
-      { code: "eligibility_single", display_key: "templates.types.eligibility_single", blank_form: false },
-      { code: "process_list", display_key: "templates.types.process_list", blank_form: false },
-      { code: "case_summary", display_key: "templates.types.case_summary", blank_form: false },
-      { code: "request_form", display_key: "templates.types.request_form", blank_form: true },
+      { code: "eligibility_single", display_key: "templates.types.eligibility_single" },
+      { code: "process_list", display_key: "templates.types.process_list" },
+      { code: "case_summary", display_key: "templates.types.case_summary" },
+      { code: "request_form", display_key: "templates.types.request_form" },
     ],
   }),
 }));

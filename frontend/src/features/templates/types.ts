@@ -3,8 +3,6 @@ export interface TemplateTypeOption {
   code: string;
   /** i18n key, so the code stays stable in the DB while labels stay translatable. */
   display_key: string;
-  /** A blank form the office prints as supplied, rather than a letter the system fills in (§6.6). */
-  blank_form: boolean;
 }
 
 export interface DocumentTemplate {
@@ -13,6 +11,8 @@ export interface DocumentTemplate {
   name: string;
   original_filename: string;
   size_bytes: number;
+  /** A blank form the office prints as supplied, rather than a letter the system fills in (§6.6). */
+  is_blank_form: boolean;
   is_active: boolean;
   uploaded_by: number | null;
   version: number;

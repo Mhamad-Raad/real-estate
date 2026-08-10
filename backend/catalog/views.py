@@ -53,8 +53,9 @@ class TemplateTypesView(APIView):
     not be chosen at all, and its label rendered as the raw i18n key. Same shape as
     `/institutes/` — machine `code` plus an i18n `display_key`, so labels stay translatable.
 
-    `blank_form` says which are printed as supplied rather than filled in per case, so the screen
-    can word itself correctly for both without re-deriving the split from the codes it is sent.
+    Deliberately only those two: whether a type is a blank form is carried by each template row
+    (`is_blank_form`), which is the object every screen actually holds. Answering it here as well
+    would give one fact two homes, and the screen would read it from whichever request landed.
     """
 
     permission_classes = (IsAuthenticated,)
@@ -64,11 +65,7 @@ class TemplateTypesView(APIView):
 
         return Response(
             [
-                {
-                    "code": value,
-                    "display_key": f"templates.types.{value}",
-                    "blank_form": value in DocumentTemplate.BLANK_FORM_TYPES,
-                }
+                {"code": value, "display_key": f"templates.types.{value}"}
                 for value in DocumentTemplate.TemplateType.values
             ]
         )

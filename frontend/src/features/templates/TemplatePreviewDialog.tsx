@@ -24,15 +24,15 @@ import type { DocumentTemplate } from "./types";
 // letter" — putting a Download and a Print on it hands the office a way to put one on paper.
 export function TemplatePreviewDialog({
   template,
-  blankForm = false,
   onClose,
 }: {
   template: DocumentTemplate | null;
-  blankForm?: boolean;
   onClose: () => void;
 }) {
   const { t } = useTranslation();
   const token = useAppSelector((s) => s.auth.access);
+  // Read off the row itself, never plumbed in from a second request (§6.6).
+  const blankForm = Boolean(template?.is_blank_form);
   const [url, setUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const frame = useRef<HTMLIFrameElement>(null);

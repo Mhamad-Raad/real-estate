@@ -20,6 +20,7 @@ const form: DocumentTemplate = {
   name: "request_form",
   original_filename: "request_form.pdf",
   size_bytes: 1779843,
+  is_blank_form: true,
   is_active: true,
   uploaded_by: 1,
   version: 1,
@@ -28,7 +29,7 @@ const form: DocumentTemplate = {
 
 describe("TemplatePreviewDialog", () => {
   it("can print and download — a blank form exists to leave this screen on paper (UC-039)", async () => {
-    render(<TemplatePreviewDialog template={form} blankForm onClose={() => {}} />);
+    render(<TemplatePreviewDialog template={form} onClose={() => {}} />);
 
     // Both start disabled until the bytes arrive; the office must never print an empty frame.
     const download = await screen.findByRole("button", { name: /download/i });
@@ -41,14 +42,17 @@ describe("TemplatePreviewDialog", () => {
   });
 
   it("tells the office what to do with it, not that it is a sample-data letter", async () => {
-    render(<TemplatePreviewDialog template={form} blankForm onClose={() => {}} />);
+    render(<TemplatePreviewDialog template={form} onClose={() => {}} />);
 
     expect(await screen.findByText(/have it signed/i)).toBeInTheDocument();
     expect(screen.queryByText(/sample/i)).not.toBeInTheDocument();
   });
 
   it("offers neither on a LETTER — its preview is sample data and must not reach paper", async () => {
-    render(<TemplatePreviewDialog template={{ ...form, template_type: "eligibility_single" }} onClose={() => {}} />);
+    render(<TemplatePreviewDialog
+        template={{ ...form, template_type: "eligibility_single", is_blank_form: false }}
+        onClose={() => {}}
+      />);
 
     expect(await screen.findByText(/sample values/i)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /download/i })).not.toBeInTheDocument();
