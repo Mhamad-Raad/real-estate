@@ -10,6 +10,8 @@ import { Spinner } from "@/components/ui/spinner";
 import { toast } from "@/lib/toast";
 import { fetchBlobUrl } from "@/features/documents/download";
 import { apiErrorMessage } from "@/lib/apiError";
+import { labeller } from "@/lib/fieldLabels";
+import { useFieldErrors } from "@/hooks/useFieldErrors";
 
 import { DraftFieldInput } from "./DraftFieldInput";
 import { useConfirmCardScanMutation } from "./cardScansApi";
@@ -44,6 +46,7 @@ export function CardReviewPanel({
   const { t } = useTranslation();
   const token = useAppSelector((s) => s.auth.access);
   const [confirm, { isLoading }] = useConfirmCardScanMutation();
+  const { errors, setFromError, clear } = useFieldErrors();
   const [values, setValues] = useState<Values>(EMPTY);
   const [acknowledged, setAcknowledged] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -104,7 +107,10 @@ export function CardReviewPanel({
       toast.success(t("cardScan.confirmed"));
       onConfirmed(confirmed);
     } catch (err) {
-      toast.error(apiErrorMessage(err, t("cardScan.confirmError")));
+      // Confirming creates the client, the case and the filed document in one transaction (§6.5),
+      // so a single bad field loses the whole act — the lawyer has to be told which one.
+      setFromError(err);
+      toast.error(apiErrorMessage(err, t("cardScan.confirmError"), labeller(t), t));
     }
   };
 
@@ -166,7 +172,11 @@ export function CardReviewPanel({
             draft={fields[name]}
             type={name === "date_of_birth" ? "date" : "text"}
             required
-            onChange={(value) => setValues((current) => ({ ...current, [name]: value }))}
+            error={errors[name]}
+            onChange={(value) => {
+              clear(name);
+              setValues((current) => ({ ...current, [name]: value }));
+            }}
           />
         ))}
 

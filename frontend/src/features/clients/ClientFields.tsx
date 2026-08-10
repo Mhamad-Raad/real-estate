@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next";
 
+import { FieldError } from "@/components/ui/field-error";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
@@ -17,32 +18,52 @@ export function ClientFields({
   onChange,
   idPrefix = "c",
   showCategory = true,
+  errors = {},
+  onFieldEdit,
 }: {
   value: ClientInput;
   onChange: (next: ClientInput) => void;
   idPrefix?: string;
   showCategory?: boolean;
+  /** Per-field messages from the server, keyed by API field name (see `useFieldErrors`). */
+  errors?: Record<string, string>;
+  /** Called as a field is edited, so its error clears instead of staying red until the next save. */
+  onFieldEdit?: (field: string) => void;
 }) {
   const { t } = useTranslation();
   const { data: categories } = useListCategoriesQuery(undefined, { skip: !showCategory });
 
-  const set = (key: keyof ClientInput) => (e: { target: { value: string } }) =>
+  const set = (key: keyof ClientInput) => (e: { target: { value: string } }) => {
+    onFieldEdit?.(key);
     onChange({ ...form, [key]: e.target.value });
+  };
   const id = (suffix: string) => `${idPrefix}-${suffix}`;
+  // Everything a field needs to show itself as rejected: red border, the reason, and the link
+  // between them for a screen reader.
+  const bad = (key: keyof ClientInput) => ({
+    invalid: Boolean(errors[key]),
+    "aria-describedby": errors[key] ? id(`${key}-error`) : undefined,
+  });
+  const err = (key: keyof ClientInput) => (
+    <FieldError id={id(`${key}-error`)} message={errors[key]} />
+  );
 
   return (
     <div className="grid gap-4 sm:grid-cols-2">
       <div className="space-y-2">
         <Label htmlFor={id("name")}>{t("clients.fullName")}</Label>
-        <Input id={id("name")} value={form.full_name} onChange={set("full_name")} required />
+        <Input id={id("name")} value={form.full_name} onChange={set("full_name")} required {...bad("full_name")} />
+        {err("full_name")}
       </div>
       <div className="space-y-2">
         <Label htmlFor={id("pid")}>{t("clients.pid")}</Label>
-        <Input id={id("pid")} dir="ltr" className="text-start" value={form.pid} onChange={set("pid")} required />
+        <Input id={id("pid")} dir="ltr" className="text-start" value={form.pid} onChange={set("pid")} required {...bad("pid")} />
+        {err("pid")}
       </div>
       <div className="space-y-2">
         <Label htmlFor={id("mother")}>{t("clients.motherName")}</Label>
-        <Input id={id("mother")} value={form.mother_full_name} onChange={set("mother_full_name")} required />
+        <Input id={id("mother")} value={form.mother_full_name} onChange={set("mother_full_name")} required {...bad("mother_full_name")} />
+        {err("mother_full_name")}
       </div>
       <div className="space-y-2">
         <Label htmlFor={id("marital")}>{t("clients.maritalStatus")}</Label>
@@ -60,7 +81,8 @@ export function ClientFields({
         <>
           <div className="space-y-2">
             <Label htmlFor={id("spouse")}>{t("clients.spouseName")}</Label>
-            <Input id={id("spouse")} value={form.spouse_name} onChange={set("spouse_name")} required />
+            <Input id={id("spouse")} value={form.spouse_name} onChange={set("spouse_name")} required {...bad("spouse_name")} />
+            {err("spouse_name")}
           </div>
           <div className="space-y-2">
             <Label htmlFor={id("spouse-dob")}>{t("clients.spouseDateOfBirth")}</Label>
@@ -70,7 +92,9 @@ export function ClientFields({
               value={form.spouse_date_of_birth ?? ""}
               onChange={set("spouse_date_of_birth")}
               required
+              {...bad("spouse_date_of_birth")}
             />
+            {err("spouse_date_of_birth")}
           </div>
           <div className="space-y-2">
             <Label htmlFor={id("spouse-mother")}>{t("clients.spouseMotherName")}</Label>
@@ -79,7 +103,9 @@ export function ClientFields({
               value={form.spouse_mother_full_name}
               onChange={set("spouse_mother_full_name")}
               required
+              {...bad("spouse_mother_full_name")}
             />
+            {err("spouse_mother_full_name")}
           </div>
           {/* Not printed on any letter — this is the household dedup key (§5.7), so a
               couple entered by hand is covered by the same rule as a scanned one. */}
@@ -91,7 +117,9 @@ export function ClientFields({
               className="text-start"
               value={form.spouse_pid}
               onChange={set("spouse_pid")}
+              {...bad("spouse_pid")}
             />
+            {err("spouse_pid")}
             <p className="text-xs text-muted-foreground">{t("clients.spousePidHint")}</p>
           </div>
         </>
@@ -104,19 +132,35 @@ export function ClientFields({
           value={form.date_of_birth ?? ""}
           onChange={set("date_of_birth")}
           required
+          {...bad("date_of_birth")}
         />
+        {err("date_of_birth")}
       </div>
       <div className="space-y-2">
         <Label htmlFor={id("pob")}>{t("clients.placeOfBirth")}</Label>
-        <Input id={id("pob")} value={form.place_of_birth} onChange={set("place_of_birth")} />
+        <Input id={id("pob")} value={form.place_of_birth} onChange={set("place_of_birth")} {...bad("place_of_birth")} />
+        {err("place_of_birth")}
       </div>
       <div className="space-y-2">
         <Label htmlFor={id("phone")}>{t("clients.phone")}</Label>
-        <Input id={id("phone")} value={form.phone} onChange={set("phone")} />
+        {/* `tel` + LTR: a phone is dialled left-to-right whatever the page direction, and the
+            input mode brings up a numeric keypad rather than a full keyboard. */}
+        <Input
+          id={id("phone")}
+          type="tel"
+          inputMode="tel"
+          dir="ltr"
+          className="text-start"
+          value={form.phone}
+          onChange={set("phone")}
+          {...bad("phone")}
+        />
+        {err("phone")}
       </div>
       <div className="space-y-2 sm:col-span-2">
         <Label htmlFor={id("address")}>{t("clients.address")}</Label>
-        <Input id={id("address")} value={form.address} onChange={set("address")} />
+        <Input id={id("address")} value={form.address} onChange={set("address")} {...bad("address")} />
+        {err("address")}
       </div>
       {/* Hidden on the intake form, where the case's own category is asked once and copied here. */}
       {showCategory && (

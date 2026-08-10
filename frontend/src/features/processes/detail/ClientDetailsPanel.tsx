@@ -9,6 +9,8 @@ import { toInput, withMaritalRules } from "@/features/clients/clientForm";
 import { useUpdateClientMutation } from "@/features/clients/clientsApi";
 import type { Client, ClientInput } from "@/features/clients/types";
 import { apiErrorMessage } from "@/lib/apiError";
+import { labeller } from "@/lib/fieldLabels";
+import { useFieldErrors } from "@/hooks/useFieldErrors";
 
 // The beneficiary's own details, edited from inside Step 1 — the generated letter prints exactly
 // these fields, so the lawyer fills them where the work happens rather than on the Clients page,
@@ -27,6 +29,7 @@ export function ClientDetailsPanel({
   const { t } = useTranslation();
   const [update, { isLoading }] = useUpdateClientMutation();
   const [form, setForm] = useState<ClientInput>(() => toInput(client));
+  const { errors, setFromError, clear, clearAll } = useFieldErrors();
 
   // Re-seed when the server's copy actually changes — a save elsewhere (or a card confirmation)
   // must not be silently overwritten by whatever is sitting in this form.
@@ -38,6 +41,7 @@ export function ClientDetailsPanel({
   // server-side write, so it is the exact signal and nothing else fires it.
   useEffect(() => {
     setForm(toInput(client));
+    clearAll(); // a newer server copy invalidates errors raised against the old one
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [client.id, client.version]);
 
@@ -58,8 +62,10 @@ export function ClientDetailsPanel({
         ...withMaritalRules(form),
       }).unwrap();
       toast.success(t("common.saved"));
+      clearAll();
     } catch (err) {
-      toast.error(apiErrorMessage(err, t("common.saveError")));
+      setFromError(err);
+      toast.error(apiErrorMessage(err, t("common.saveError"), labeller(t), t));
     }
   };
 
@@ -73,7 +79,14 @@ export function ClientDetailsPanel({
         {/* `ben-`, not `s1-`: Step 1's land block already owns `s1-address`, and two elements
             sharing an id is invalid HTML — the `htmlFor` label binds to whichever renders first,
             so one of the two labels focuses the wrong input. */}
-        <ClientFields value={form} onChange={setForm} idPrefix="ben" showCategory={false} />
+        <ClientFields
+          value={form}
+          onChange={setForm}
+          idPrefix="ben"
+          showCategory={false}
+          errors={errors}
+          onFieldEdit={clear}
+        />
       </fieldset>
 
       {/* Its own row: the fieldset above is `display: contents`, which drops the container's

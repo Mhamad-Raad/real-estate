@@ -8,6 +8,9 @@ import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "@/lib/toast";
 import { apiErrorMessage } from "@/lib/apiError";
+import { labeller } from "@/lib/fieldLabels";
+import { useFieldErrors } from "@/hooks/useFieldErrors";
+import { FieldError } from "@/components/ui/field-error";
 
 import { useCreateCategoryMutation, useUpdateCategoryMutation } from "./categoriesApi";
 import type { Category } from "./types";
@@ -27,6 +30,7 @@ export function CategoryFormDialog({
   const [update, { isLoading: updating }] = useUpdateCategoryMutation();
   const [code, setCode] = useState("");
   const [name, setName] = useState("");
+  const { errors, setFromError, clear } = useFieldErrors();
 
   useEffect(() => {
     if (open) {
@@ -46,7 +50,8 @@ export function CategoryFormDialog({
       toast.success(t("common.saved"));
       onClose();
     } catch (err) {
-      toast.error(apiErrorMessage(err, t("common.saveError")));
+      setFromError(err);
+      toast.error(apiErrorMessage(err, t("common.saveError"), labeller(t), t));
     }
   };
 
@@ -60,11 +65,34 @@ export function CategoryFormDialog({
       <form onSubmit={submit} className="space-y-4">
         <div className="space-y-2">
           <Label htmlFor="cat-code">{t("categories.code")}</Label>
-          <Input id="cat-code" value={code} onChange={(e) => setCode(e.target.value)} required autoFocus />
+          <Input
+            id="cat-code"
+            value={code}
+            onChange={(e) => {
+              clear("code");
+              setCode(e.target.value);
+            }}
+            required
+            autoFocus
+            invalid={Boolean(errors.code)}
+            aria-describedby={errors.code ? "cat-code-error" : undefined}
+          />
+          <FieldError id="cat-code-error" message={errors.code} />
         </div>
         <div className="space-y-2">
           <Label htmlFor="cat-name">{t("categories.name")}</Label>
-          <Input id="cat-name" value={name} onChange={(e) => setName(e.target.value)} required />
+          <Input
+            id="cat-name"
+            value={name}
+            onChange={(e) => {
+              clear("name");
+              setName(e.target.value);
+            }}
+            required
+            invalid={Boolean(errors.name)}
+            aria-describedby={errors.name ? "cat-name-error" : undefined}
+          />
+          <FieldError id="cat-name-error" message={errors.name} />
         </div>
         <DialogFooter>
           <Button type="button" variant="outline" onClick={onClose} disabled={busy}>

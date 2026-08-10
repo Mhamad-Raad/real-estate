@@ -13,6 +13,7 @@ from rest_framework.viewsets import GenericViewSet
 from accounts.serializers import AssignableLawyerField
 from catalog.models import Category
 from clients.models import Client
+from common.validators import validate_birth_date, validate_phone
 
 from documents.services import read_upload
 
@@ -121,6 +122,19 @@ class ConfirmSerializer(serializers.Serializer):
     # it rides the same transaction rather than a follow-up PATCH that could fail on its own (§5).
     land_id = serializers.CharField(required=False, allow_blank=True, max_length=100)
     land_address = serializers.CharField(required=False, allow_blank=True, max_length=300)
+
+    # The same rules `ClientSerializer` applies, because this endpoint creates a client too — the
+    # It.8 finding restated: when two doors perform the same act, the rule has to live on both, or
+    # the one the office actually uses (the scan) is the one with no guard. Shared functions rather
+    # than copied regexes, so the two can never drift.
+    def validate_phone(self, value):
+        return validate_phone(value)
+
+    def validate_date_of_birth(self, value):
+        return validate_birth_date(value)
+
+    def validate_spouse_date_of_birth(self, value):
+        return validate_birth_date(value)
 
     def validate(self, attrs):
         if not any(name in attrs for name in CLIENT_FIELDS):

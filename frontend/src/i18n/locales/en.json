@@ -588,5 +588,18 @@
     "empty": "Nothing has been deleted.",
     "confirmTitle": "Restore this record?",
     "confirmBody": "{{name}} will be returned to the register. A deleted case brings its beneficiary back with it."
+  },
+  "errors": {
+    "phone": {
+      "chars": "A phone number may contain only digits and the separators + - ( ) and spaces.",
+      "length": "A phone number must have 10–11 digits."
+    },
+    "birthDate": {
+      "future": "A date of birth cannot be in the future.",
+      "tooOld": "A date of birth must be 1900 or later — check the year."
+    },
+    "stepDate": {
+      "endBeforeStart": "The end date cannot be before the start date."
+    }
   }
 }

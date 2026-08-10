@@ -106,3 +106,51 @@ describe("ClientDetailsPanel", () => {
     ).not.toBeInTheDocument();
   });
 });
+
+describe("ClientDetailsPanel field errors", () => {
+  it("marks the field the server rejected and shows why, instead of failing silently", async () => {
+    // The whole point of the change: a 400 used to surface as a generic "Could not save" with
+    // nothing indicating which input was at fault.
+    unwrap.mockRejectedValueOnce({
+      status: 400,
+      data: { phone: ["A phone number must have 10–11 digits; this has 4."] },
+    });
+    render(<ClientDetailsPanel client={client()} canEdit />);
+
+    await userEvent.type(screen.getByLabelText("Phone"), "0770");
+    await userEvent.click(screen.getByRole("button", { name: /save beneficiary details/i }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/10–11 digits/);
+    expect(screen.getByLabelText("Phone")).toHaveAttribute("aria-invalid", "true");
+  });
+
+  it("reads an error nested under the API's own wrapper key", async () => {
+    // DRF nests under a nested serializer; the old reader could not see through it at all.
+    unwrap.mockRejectedValueOnce({
+      status: 400,
+      data: { client_data: { date_of_birth: ["A date of birth cannot be in the future."] } },
+    });
+    render(<ClientDetailsPanel client={client()} canEdit />);
+
+    await userEvent.clear(screen.getByLabelText("Date of birth"));
+    await userEvent.type(screen.getByLabelText("Date of birth"), "2099-01-01");
+    await userEvent.click(screen.getByRole("button", { name: /save beneficiary details/i }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/cannot be in the future/);
+    expect(screen.getByLabelText("Date of birth")).toHaveAttribute("aria-invalid", "true");
+  });
+
+  it("clears a field's error as soon as the user edits it", async () => {
+    unwrap.mockRejectedValueOnce({ status: 400, data: { phone: ["Bad phone."] } });
+    render(<ClientDetailsPanel client={client()} canEdit />);
+    await userEvent.type(screen.getByLabelText("Phone"), "0770");
+    await userEvent.click(screen.getByRole("button", { name: /save beneficiary details/i }));
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+
+    await userEvent.type(screen.getByLabelText("Phone"), "1234567");
+
+    // Staying red while the user fixes it would keep pointing at a value that no longer exists.
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Phone")).not.toHaveAttribute("aria-invalid");
+  });
+});

@@ -9,6 +9,9 @@ import { Select } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "@/lib/toast";
 import { apiErrorMessage } from "@/lib/apiError";
+import { labeller } from "@/lib/fieldLabels";
+import { useFieldErrors } from "@/hooks/useFieldErrors";
+import { FieldError } from "@/components/ui/field-error";
 
 import { useCreateUserMutation, useUpdateUserMutation } from "./usersApi";
 import type { AdminUser, Role } from "./types";
@@ -30,6 +33,7 @@ export function UserFormDialog({
   const [update, { isLoading: updating }] = useUpdateUserMutation();
   const [form, setForm] = useState(EMPTY);
   const [password, setPassword] = useState("");
+  const { errors, setFromError, clear, clearAll } = useFieldErrors();
 
   useEffect(() => {
     if (open) {
@@ -45,11 +49,14 @@ export function UserFormDialog({
           : EMPTY,
       );
       setPassword("");
+      clearAll(); // reopening on a different user must not inherit the last one's errors
     }
-  }, [open, user]);
+  }, [open, user, clearAll]);
 
-  const set = (key: keyof typeof form) => (e: { target: { value: string } }) =>
+  const set = (key: keyof typeof form) => (e: { target: { value: string } }) => {
+    clear(key);
     setForm((f) => ({ ...f, [key]: e.target.value }));
+  };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -77,7 +84,8 @@ export function UserFormDialog({
       toast.success(t("common.saved"));
       onClose();
     } catch (err) {
-      toast.error(apiErrorMessage(err, t("common.saveError")));
+      setFromError(err);
+      toast.error(apiErrorMessage(err, t("common.saveError"), labeller(t), t));
     }
   };
 
@@ -94,21 +102,27 @@ export function UserFormDialog({
             required
             disabled={Boolean(user)}
             autoFocus={!user}
+            invalid={Boolean(errors.username)}
+            aria-describedby={errors.username ? "u-username-error" : undefined}
           />
+          <FieldError id="u-username-error" message={errors.username} />
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">
             <Label htmlFor="u-first">{t("users.firstName")}</Label>
-            <Input id="u-first" value={form.first_name} onChange={set("first_name")} />
+            <Input id="u-first" value={form.first_name} onChange={set("first_name")} invalid={Boolean(errors.first_name)} />
+            <FieldError message={errors.first_name} />
           </div>
           <div className="space-y-2">
             <Label htmlFor="u-last">{t("users.lastName")}</Label>
-            <Input id="u-last" value={form.last_name} onChange={set("last_name")} />
+            <Input id="u-last" value={form.last_name} onChange={set("last_name")} invalid={Boolean(errors.last_name)} />
+            <FieldError message={errors.last_name} />
           </div>
         </div>
         <div className="space-y-2">
           <Label htmlFor="u-email">{t("users.email")}</Label>
-          <Input id="u-email" type="email" value={form.email} onChange={set("email")} />
+          <Input id="u-email" type="email" value={form.email} onChange={set("email")} invalid={Boolean(errors.email)} />
+          <FieldError message={errors.email} />
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">
@@ -126,11 +140,17 @@ export function UserFormDialog({
               id="u-password"
               type="password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e) => {
+                clear("password");
+                setPassword(e.target.value);
+              }}
               autoComplete="new-password"
               placeholder={user ? t("users.passwordKeep") : undefined}
               required={!user}
+              invalid={Boolean(errors.password)}
+              aria-describedby={errors.password ? "u-password-error" : undefined}
             />
+            <FieldError id="u-password-error" message={errors.password} />
           </div>
         </div>
         <DialogFooter>

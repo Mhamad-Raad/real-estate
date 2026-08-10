@@ -12,6 +12,7 @@ from rest_framework.exceptions import APIException, ValidationError
 from clients.selectors import duplicate_matches
 from clients.services import assert_pid_is_free, create_client
 from common.locking import check_version
+from common.validators import STEP_END_BEFORE_START
 from common.models import ActivityLog
 from common.services import record_activity
 
@@ -342,6 +343,17 @@ def save_step(*, process, step_number, data, actor, expected_version=None, reque
     for field in EDITABLE_STEP_FIELDS:
         if field in data:
             setattr(step, field, data[field])
+
+    # A step cannot finish before it started. Checked **here** rather than on the serializer,
+    # because this service writes the row by `setattr` and never runs one — a rule added there
+    # would read like a guard and enforce nothing. Both dates print on the compiled cover sheet
+    # (§10.3), so an inverted pair goes out on a signed government document.
+    #
+    # Only the ordering: whether a step date may be in the *future* is a question about how the
+    # office works — a planned date is plausible — and inventing an answer would refuse real
+    # paperwork. This pair is self-contradictory under any such policy.
+    if step.start_date and step.end_date and step.end_date < step.start_date:
+        raise ValidationError({"end_date": STEP_END_BEFORE_START})
     step.status = step_status.compute_step_status(process, step_number, step)
     step.version += 1
     step.save()

@@ -20,6 +20,8 @@ import { useCheckDuplicateMutation } from "@/features/clients/clientsApi";
 import type { DuplicateCheckResult } from "@/features/clients/types";
 import { useListLawyersQuery } from "@/features/users/lawyersApi";
 import { apiErrorMessage, apiErrorStatus } from "@/lib/apiError";
+import { labeller } from "@/lib/fieldLabels";
+import { useFieldErrors } from "@/hooks/useFieldErrors";
 
 import { useCreateProcessMutation } from "./processesApi";
 
@@ -42,6 +44,7 @@ export function ProcessCreatePage() {
   const [lawyer, setLawyer] = useState("");
 
   const [draft, setDraft] = useState<ClientDraft>(EMPTY_CLIENT);
+  const { errors, setFromError, clear, clearAll } = useFieldErrors();
 
   const { data: categories } = useListCategoriesQuery();
   // `/lawyers/`, not the paginated `/users/`: that one stops at 25 and lists people who have left.
@@ -101,7 +104,8 @@ export function ProcessCreatePage() {
   // Switching how the beneficiary is identified must not carry the other mode's half-entry along.
   useEffect(() => {
     setDraft(EMPTY_CLIENT);
-  }, [mode]);
+    clearAll(); // the errors described the abandoned draft, not the blank one replacing it
+  }, [mode, clearAll]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -130,10 +134,13 @@ export function ProcessCreatePage() {
       // Straight into the case — the lawyer's next act is always the rest of Step 1.
       navigate(`/processes/${process.id}`);
     } catch (err) {
+      // Mark every field the server named, so the offending input is red rather than the user
+      // re-reading the whole form. The toast carries the first one, named.
+      setFromError(err);
       toast.error(
         apiErrorStatus(err) === 409
           ? t("processes.duplicateAllocation")
-          : apiErrorMessage(err, t("common.saveError")),
+          : apiErrorMessage(err, t("common.saveError"), labeller(t), t),
       );
     }
   };
@@ -234,7 +241,13 @@ export function ProcessCreatePage() {
             A second picker here looked editable but was discarded — `submit` overwrites
             `client_data.category` with the case-level one. */}
         {mode === "manual" && (
-          <ClientFields value={draft} onChange={setDraft} showCategory={false} />
+          <ClientFields
+            value={draft}
+            onChange={setDraft}
+            showCategory={false}
+            errors={errors}
+            onFieldEdit={clear}
+          />
         )}
       </FormSection>
 

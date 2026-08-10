@@ -8,6 +8,9 @@ import { Spinner } from "@/components/ui/spinner";
 import { toast } from "@/lib/toast";
 import { useListCategoriesQuery } from "@/features/categories/categoriesApi";
 import { apiErrorMessage } from "@/lib/apiError";
+import { labeller } from "@/lib/fieldLabels";
+import { useFieldErrors } from "@/hooks/useFieldErrors";
+import { FieldError } from "@/components/ui/field-error";
 
 import { useUpdateProcessMutation } from "../processesApi";
 import type { ProcessDetail } from "../types";
@@ -43,6 +46,7 @@ export function LandDetailsForm({
 
   const [landId, setLandId] = useState(process.land_id);
   const [landAddress, setLandAddress] = useState(process.land_address);
+  const { errors, setFromError, clear, clearAll } = useFieldErrors();
 
   useEffect(() => {
     setLandId(process.land_id);
@@ -64,10 +68,12 @@ export function LandDetailsForm({
         ...(fields.includes("land_address") ? { land_address: landAddress } : {}),
       }).unwrap();
       toast.success(t("common.saved"));
+      clearAll();
     } catch (err) {
       // A refused case number is the one failure here a lawyer causes by simply mistyping, so it
       // is named in their own language rather than left as the server's English (UC-062).
-      toast.error(apiErrorMessage(err, t("common.saveError")));
+      setFromError(err);
+      toast.error(apiErrorMessage(err, t("common.saveError"), labeller(t), t));
     }
   };
 
@@ -125,9 +131,14 @@ export function LandDetailsForm({
               id={`${idPrefix}-landid`}
               value={landId}
               disabled={!canEdit}
-              onChange={(e) => setLandId(e.target.value)}
+              onChange={(e) => {
+                clear("land_id");
+                setLandId(e.target.value);
+              }}
               placeholder={t("workflow.landIdPlaceholder")}
+              invalid={Boolean(errors.land_id)}
             />
+            <FieldError message={errors.land_id} />
           </div>
         )}
         {fields.includes("land_address") && (
@@ -137,9 +148,14 @@ export function LandDetailsForm({
               id={`${idPrefix}-address`}
               value={landAddress}
               disabled={!canEdit}
-              onChange={(e) => setLandAddress(e.target.value)}
+              onChange={(e) => {
+                clear("land_address");
+                setLandAddress(e.target.value);
+              }}
               placeholder={t("workflow.landAddressPlaceholder")}
+              invalid={Boolean(errors.land_address)}
             />
+            <FieldError message={errors.land_address} />
           </div>
         )}
       </div>

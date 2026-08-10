@@ -1,5 +1,7 @@
 from rest_framework import serializers
 
+from common.validators import validate_birth_date, validate_phone
+
 from .models import Client
 
 
@@ -35,6 +37,18 @@ class ClientSerializer(serializers.ModelSerializer):
     # The letter prints a spouse row of name / birth date / mother's name, so a married client
     # needs all three — the same set the DB check constraint enforces (§6.6).
     SPOUSE_FIELDS = ("spouse_name", "spouse_date_of_birth", "spouse_mother_full_name")
+
+    # Per-field, so DRF reports each against the input that caused it and the screen can mark that
+    # one red. A `validate()` check would name the whole object instead (the trap batch 26 hit).
+    # `pid`/`spouse_pid` are deliberately unvalidated — see `common.validators`.
+    def validate_phone(self, value):
+        return validate_phone(value)
+
+    def validate_date_of_birth(self, value):
+        return validate_birth_date(value)
+
+    def validate_spouse_date_of_birth(self, value):
+        return validate_birth_date(value)
 
     def validate(self, attrs):
         def resolved(field):

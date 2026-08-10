@@ -1,6 +1,7 @@
 import { AlertTriangle, CheckCircle2, PencilLine } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
+import { FieldError } from "@/components/ui/field-error";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useNum } from "@/hooks/useNum";
@@ -19,6 +20,7 @@ export function DraftFieldInput({
   draft,
   type = "text",
   required = false,
+  error,
   onChange,
 }: {
   name: string;
@@ -27,6 +29,8 @@ export function DraftFieldInput({
   draft?: DraftField;
   type?: string;
   required?: boolean;
+  /** The server rejected this value. Outranks the OCR-confidence warning below. */
+  error?: string;
   onChange: (value: string) => void;
 }) {
   const { t } = useTranslation();
@@ -55,14 +59,19 @@ export function DraftFieldInput({
         required={required}
         onChange={(e) => onChange(e.target.value)}
         // Latin digits and dates scramble inside an RTL paragraph without an explicit direction.
-        dir={type === "date" || name === "pid" ? "ltr" : undefined}
+        dir={type === "date" || name === "pid" || name === "phone" ? "ltr" : undefined}
+        invalid={Boolean(error)}
+        aria-describedby={error ? `${name}-error` : undefined}
         className={cn(
           "text-start",
-          uncertain && !corrected && "border-warning focus-visible:ring-warning",
+          // Only while the value is still merely *doubted*. A rejected value is not uncertain,
+          // it is wrong, and two colours on one border would say neither clearly.
+          uncertain && !corrected && !error && "border-warning focus-visible:ring-warning",
         )}
       />
 
-      {uncertain && !corrected ? (
+      <FieldError id={`${name}-error`} message={error} />
+      {uncertain && !corrected && !error ? (
         <p className="text-xs text-warning">{t("cardScan.lowConfidence")}</p>
       ) : null}
     </div>

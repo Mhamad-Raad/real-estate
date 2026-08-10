@@ -171,12 +171,18 @@ class ProcessViewSet(AuditedSoftDeleteViewSet, ModelViewSet):
         """GET a step's data + computed status, or PATCH it (save incomplete) — §5.2."""
         process = self.get_object()  # object permission: read=all, write=assignee/admin
         step_number = int(n)
+        step_row = process.steps.get(step_number=step_number)
         if request.method == "GET":
-            return Response(ProcessStepSerializer(process.steps.get(step_number=step_number)).data)
+            return Response(ProcessStepSerializer(step_row).data)
+        # Deserialize before writing. The service assigns these straight onto the model, so an
+        # unparseable date (`"not-a-date"`) used to reach `save()` and surface as a **500**;
+        # through the serializer it is a 400 naming the field, like every other bad input.
+        payload = ProcessStepSerializer(step_row, data=request.data, partial=True)
+        payload.is_valid(raise_exception=True)
         step = save_step(
             process=process,
             step_number=step_number,
-            data=request.data,
+            data=payload.validated_data,
             actor=request.user,
             expected_version=request.data.get("version"),
             request=request,
