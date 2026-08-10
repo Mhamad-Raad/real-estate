@@ -1147,6 +1147,8 @@ Running generation in Celery (not the request) keeps LibreOffice's startup cost 
 >
 > **Print and Download are on the blank form only.** A letter's preview is filled with clearly-marked sample values, and this module exists because a preview must never be mistaken for a real beneficiary's letter — putting a Download and a Print on one hands the office a way to put sample data on paper. The blank form needs both: printing from here is the whole purpose of the entry, and the PDF viewer's own download would name the file after the blob id (UC-058).
 >
+> **The screen is open to lawyers** (user decision, 2026-08-10). It had been behind `AdminRoute` since It.0, which contradicted §6.8's own note that *"Lawyers and Admins may use templates; only Admins create/edit them"* — and nobody creates or edits them any more (UC-010). The blank form makes the mismatch bite: the person who prints it is the lawyer opening the case. **This widened no server surface** — `DocumentTemplateViewSet` and `/template-types/` were always plain `IsAuthenticated`, verified by probe (a lawyer token gets 200 on list, types and the form preview). Only the route and the nav entry moved; the five management screens stay admin-only, pinned by `Sidebar.test.tsx`.
+>
 > **Known limitation:** the supplied file is a **scan**, so its wording cannot be edited in Word the way a letter's can. Changing the form means the office sends a new file and it is reinstalled — the same site visit the letters already require.
 
 ### 6.7 Document file-store directory layout & file naming (category → person → document)

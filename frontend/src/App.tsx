@@ -33,12 +33,14 @@ export default function App() {
             {/* Before `:id`, or "new" would be parsed as a process id. */}
             <Route path="processes/new" element={<ProcessCreatePage />} />
             <Route path="processes/:id" element={<ProcessDetailPage />} />
+            {/* Read-only, and open to lawyers: they print the blank Request form from here before
+                Step 1 (UC-039). The API was never admin-gated. */}
+            <Route path="templates" element={<TemplatesPage />} />
             {/* Admin-only management screens (server enforces RBAC too). */}
             <Route element={<AdminRoute />}>
               <Route path="reports" element={<ReportsPage />} />
               <Route path="activities" element={<ActivitiesPage />} />
               <Route path="categories" element={<CategoriesPage />} />
-              <Route path="templates" element={<TemplatesPage />} />
               <Route path="users" element={<UsersPage />} />
               <Route path="deleted" element={<DeletedPage />} />
             </Route>

@@ -37,7 +37,10 @@ const NAV_ITEMS: NavItem[] = [
   { to: "/reports", labelKey: "nav.reports", icon: FileBarChart, adminOnly: true },
   { to: "/activities", labelKey: "nav.activities", icon: ScrollText, adminOnly: true },
   { to: "/categories", labelKey: "nav.categories", icon: Tags, adminOnly: true },
-  { to: "/templates", labelKey: "nav.templates", icon: FileType, adminOnly: true },
+  // Open to lawyers (user decision, 2026-08-10): the office prints the blank Request form from
+  // here before Step 1, and the lawyer working the case is who needs it. Read-only for everyone —
+  // the API was never admin-gated, so this widens no server surface (§6.6, UC-039).
+  { to: "/templates", labelKey: "nav.templates", icon: FileType },
   { to: "/users", labelKey: "nav.users", icon: UserCog, adminOnly: true },
   // The restore desk (UC-063) — last of the admin group, since it is reached after a mistake.
   { to: "/deleted", labelKey: "nav.deleted", icon: Trash2, adminOnly: true },
