@@ -42,6 +42,10 @@ DOCUMENT_TYPES: list[DocumentType] = [
     # The office files it as two papers (UC-055).
     DocumentType("RealEstate", "workflow.docType.RealEstate", 4, True, expected_files=2),
     DocumentType("SignedAgreement", "workflow.docType.SignedAgreement", 1, True),
+    # The citizen's own request. Optional on purpose — not every case arrives with one, so it must
+    # never hold Step 1 back. The office prints the blank form, has it signed, and scans it back,
+    # which is why it is an upload slot and not a `generated` output like the letter below.
+    DocumentType("Request", "workflow.docType.Request", 1, False),
     DocumentType(
         "EligibilityLetter", "workflow.docType.EligibilityLetter", 1, False, generated=True
     ),
@@ -62,6 +66,7 @@ DOCUMENT_TYPE_NAMES_CKB: dict[str, str] = {
     SPOUSE_ID: "ناسنامەی هاوسەر",
     "RealEstate": "بەڵگەنامەی خانووبەرە",
     "SignedAgreement": "ڕێککەوتنی واژۆکراو",
+    "Request": "داواکاری",
     "EligibilityLetter": "نامەی سۆراغکردنی سوودمەندی",
     "InstituteDoc": "بەڵگەنامەی دامەزراوە",
     "CompiledCase": "دۆسیەی کۆکراوەی کەیس",
