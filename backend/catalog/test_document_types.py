@@ -6,28 +6,21 @@ a type like `Request` could ship with no label at all and no test would notice â
 let `case_summary` reach production label-less in It.4. These guards cover the whole list instead.
 """
 
-import json
-
-from django.conf import settings
 from django.test import SimpleTestCase
+
+from common import translations
 
 from .document_types import DOCUMENT_TYPE_NAMES_CKB, DOCUMENT_TYPES, name_ckb
 
 
 class DocumentTypeVocabularyTests(SimpleTestCase):
     def test_every_type_has_an_english_label(self):
-        locales = settings.FRONTEND_LOCALES_DIR
-        self.assertIsNotNone(locales, "frontend locales not found â€” expected beside backend/")
-        translations = json.loads((locales / "en.json").read_text(encoding="utf-8"))
-
-        unlabelled = []
-        for dt in DOCUMENT_TYPES:
-            value = translations
-            for part in dt.display_key.split("."):
-                value = value.get(part) if isinstance(value, dict) else None
-            if not value:
-                unlabelled.append(f"{dt.code} -> {dt.display_key}")
-
+        english = translations.load("en")
+        unlabelled = [
+            f"{dt.code} -> {dt.display_key}"
+            for dt in DOCUMENT_TYPES
+            if not translations.has_label(english, dt.display_key)
+        ]
         self.assertEqual(unlabelled, [], f"missing en.json labels: {unlabelled}")
 
     def test_every_type_has_a_sorani_name_for_its_filename(self):

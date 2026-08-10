@@ -6,28 +6,15 @@ no second list to keep in step — and checks it against the shipped English tra
 existing i18n parity test then guarantees ar/ckb carry the same keys.
 """
 
-import json
-
-from django.conf import settings
 from django.test import TestCase
 
 from accounts.models import User
-from catalog.models import Category
-from clients.models import Client
+from common import translations
 
 from .models import ProcessStep
 from .services import create_process
 from .status import missing_requirements
 from clients.factories import make_client
-
-
-def _lookup(translations: dict, dotted_key: str) -> bool:
-    node = translations
-    for part in dotted_key.split("."):
-        if not isinstance(node, dict) or part not in node:
-            return False
-        node = node[part]
-    return isinstance(node, str) and bool(node)
 
 
 class MissingCodeVocabularyTests(TestCase):
@@ -66,11 +53,7 @@ class MissingCodeVocabularyTests(TestCase):
             self.assertIn(expected, codes)
 
     def test_every_code_has_an_english_label(self):
-        locales = settings.FRONTEND_LOCALES_DIR
-        self.assertIsNotNone(
-            locales, "frontend locales not found — compose must mount them at /frontend_locales"
-        )
-        translations = json.loads((locales / "en.json").read_text(encoding="utf-8"))
+        english = translations.load("en")
 
         from catalog.institutes import INSTITUTES
 
@@ -87,7 +70,7 @@ class MissingCodeVocabularyTests(TestCase):
                 key = f"workflow.step{value}"
             else:
                 key = f"workflow.missing.{code}"
-            if not key or not _lookup(translations, key):
+            if not key or not translations.has_label(english, key):
                 untranslated.append(f"{code} -> {key}")
 
         self.assertEqual(untranslated, [], f"missing en.json labels: {untranslated}")
