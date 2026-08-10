@@ -16,10 +16,11 @@ import type { DocumentTemplate } from "./types";
 
 const kb = (bytes: number) => `${Math.max(1, Math.round(bytes / 1024))} KB`;
 
-// Admin-only, and **view-only** (§6.6, UC-010): templates are installed from the codebase, so
-// there is nothing to upload, activate or delete here. Grouped by letter with the active version
-// first and retired ones folded away — retired versions are kept for traceability, but showing a
-// dozen of them inline buried the two rows that matter (UC-009).
+// **View-only for everyone** (§6.6, UC-010): templates are installed from the codebase, so there
+// is nothing to upload, activate or delete here — which is why the screen is open to lawyers too,
+// who print the blank Request form from it. Grouped by letter with the active version first and
+// retired ones folded away — retired versions are kept for traceability, but showing a dozen of
+// them inline buried the two rows that matter (UC-009).
 //
 // Blank forms sit in the same list because this is where the office comes to print one (UC-039);
 // each row says whether it is one, so a slow vocabulary request cannot leave a form worded — and

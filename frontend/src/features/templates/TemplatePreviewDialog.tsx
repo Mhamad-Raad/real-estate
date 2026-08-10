@@ -15,9 +15,9 @@ import type { DocumentTemplate } from "./types";
 // a size, which says nothing about the document the office is about to send. The server renders
 // the `.docx` to PDF with sample values; the bytes need an auth header, so they arrive as a blob.
 //
-// `blankForm` switches this from "here is the letter" to a working tool: the request form is
-// printed FROM here, signed, and scanned back in on Step 1 (UC-039), so Print and Download are the
-// point of the dialog rather than a convenience.
+// A row that is a blank form turns this from "here is the letter" into a working tool: the request
+// form is printed FROM here, signed, and scanned back in on Step 1 (UC-039), so Print and Download
+// are the point of the dialog rather than a convenience.
 //
 // They are deliberately NOT offered for a letter. A letter preview is filled with sample values,
 // and this module exists because "a preview must never be mistaken for a real beneficiary's
