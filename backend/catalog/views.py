@@ -46,12 +46,15 @@ class DocumentTypesView(APIView):
 
 
 class TemplateTypesView(APIView):
-    """The letter-template types the backend actually supports — read-only (§6.6, UC-008).
+    """The template types the backend actually supports — read-only (§6.6, UC-008).
 
     Served rather than hard-coded because the frontend kept its own copy in three places and fell
     a whole type behind when `case_summary` was added in It.4: the compiled-case cover sheet could
     not be chosen at all, and its label rendered as the raw i18n key. Same shape as
     `/institutes/` — machine `code` plus an i18n `display_key`, so labels stay translatable.
+
+    `blank_form` says which are printed as supplied rather than filled in per case, so the screen
+    can word itself correctly for both without re-deriving the split from the codes it is sent.
     """
 
     permission_classes = (IsAuthenticated,)
@@ -61,7 +64,11 @@ class TemplateTypesView(APIView):
 
         return Response(
             [
-                {"code": value, "display_key": f"templates.types.{value}"}
+                {
+                    "code": value,
+                    "display_key": f"templates.types.{value}",
+                    "blank_form": value in DocumentTemplate.BLANK_FORM_TYPES,
+                }
                 for value in DocumentTemplate.TemplateType.values
             ]
         )

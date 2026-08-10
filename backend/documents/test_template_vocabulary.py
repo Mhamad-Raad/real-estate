@@ -7,22 +7,14 @@ this** — it only checks the three locales agree with *each other*, and all thr
 missing the key. Deriving the vocabulary from the enum is the only check that catches it.
 """
 
-import json
 import unittest
 
 from django.conf import settings
 from django.test import TestCase
 
+from common.translations import has_label, load
+
 from .models import DocumentTemplate
-
-
-def _lookup(translations: dict, dotted_key: str) -> bool:
-    node = translations
-    for part in dotted_key.split("."):
-        if not isinstance(node, dict) or part not in node:
-            return False
-        node = node[part]
-    return isinstance(node, str) and bool(node)
 
 
 @unittest.skipIf(
@@ -30,13 +22,11 @@ def _lookup(translations: dict, dotted_key: str) -> bool:
 )
 class TemplateTypeVocabularyTests(TestCase):
     def test_every_template_type_has_an_english_label(self):
-        translations = json.loads(
-            (settings.FRONTEND_LOCALES_DIR / "en.json").read_text(encoding="utf-8")
-        )
+        translations = load("en")
         missing = [
             value
             for value in DocumentTemplate.TemplateType.values
-            if not _lookup(translations, f"templates.types.{value}")
+            if not has_label(translations, f"templates.types.{value}")
         ]
         # ar/ckb are then guaranteed by the frontend's key-parity test.
         self.assertEqual(missing, [], f"No `templates.types.*` label for: {missing}")

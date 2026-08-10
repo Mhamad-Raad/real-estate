@@ -258,14 +258,15 @@ def looks_like_docx(content: bytes) -> bool:
     return content[:4] == DOCX_MAGIC
 
 
-def write_template(*, template_type: str, name: str, content: bytes) -> Path:
-    """Store an uploaded .docx under LETTER_TEMPLATES_ROOT, returning its relative path.
+def write_template(*, template_type: str, name: str, content: bytes, suffix: str = ".docx") -> Path:
+    """Store a template file under LETTER_TEMPLATES_ROOT, returning its relative path.
 
     Same naming discipline as documents: sanitized name plus a short id, so re-uploading a
-    template never overwrites the file the previous version still points at.
+    template never overwrites the file the previous version still points at. `suffix` is the
+    caller's already-validated format — a letter is a `.docx`, a blank form a `.pdf` (§6.6).
     """
     rel = Path(sanitize(template_type, "template", 32)) / (
-        f"{sanitize(name, 'template')}__{short_id()}.docx"
+        f"{sanitize(name, 'template')}__{short_id()}{suffix}"
     )
     dest = Path(settings.LETTER_TEMPLATES_ROOT) / rel
     dest.parent.mkdir(parents=True, exist_ok=True)

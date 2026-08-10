@@ -9,11 +9,14 @@ the letter", so every value here is deliberately marked as a sample.
 import tempfile
 from pathlib import Path
 
+from django.conf import settings
+
 from processes.constants import STEP_NUMBERS
 
 from .generation import render_to_pdf
 from .letters import to_arabic_indic
 from .models import DocumentTemplate
+from .rendering import RenderError
 from .summary import LABELS
 
 # Obviously-not-real values. A preview must never be mistaken for a real beneficiary's letter, and
@@ -83,6 +86,15 @@ def _sample_context(template_type: str) -> dict:
 
 
 def render_template_preview(template: DocumentTemplate) -> bytes:
-    """PDF bytes for this template, filled with sample values. Raises `RenderError` on failure."""
+    """PDF bytes for this template, filled with sample values. Raises `RenderError` on failure.
+
+    A blank form has nothing to fill in and is already a PDF, so it is served byte-for-byte: this
+    is the sheet the office prints and has signed, and it must be their file, not a re-render.
+    """
+    if template.is_blank_form:
+        source = Path(settings.LETTER_TEMPLATES_ROOT) / template.file_path
+        if not source.is_file():
+            raise RenderError(f"Template file is missing on disk: {source}")
+        return source.read_bytes()
     with tempfile.TemporaryDirectory() as tmp:
         return render_to_pdf(template, _sample_context(template.template_type), Path(tmp))

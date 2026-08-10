@@ -67,10 +67,13 @@ class Document(SoftDeleteModel):
 
 
 class DocumentTemplate(SoftDeleteModel):
-    """An admin-uploaded `.docx` letter template (§3.5, §6.6).
+    """A stored office form (§3.5, §6.6). Two kinds, and the difference is load-bearing.
 
-    The office edits these in Word — the signatory, the CC list and the phone numbers all change
-    over time — so the shape of a letter is data, not code.
+    Most are `.docx` **letters the system fills in**: `docxtpl` renders them per case, so the shape
+    of a letter is data, not code. `REQUEST_FORM` is the other kind — a **blank form the office
+    prints, has signed and scans back** as the optional `Request` document (UC-039). It carries no
+    placeholders and is stored as the PDF the office supplied, so what goes on paper is their own
+    file rather than a re-render of it.
     """
 
     class TemplateType(models.TextChoices):
@@ -78,6 +81,15 @@ class DocumentTemplate(SoftDeleteModel):
         PROCESS_LIST = "process_list", "Beneficiary list letter"
         CASE_SUMMARY = "case_summary", "Compiled case summary (Step 5)"
         PROCESS_CODES = "process_codes", "Beneficiary code list"
+        REQUEST_FORM = "request_form", "Request form (blank, for printing)"
+
+    # The types the system never fills in. Named once here because three call sites branch on it —
+    # what a valid upload is, what `preview` returns, and what generation refuses to touch.
+    BLANK_FORM_TYPES = frozenset({TemplateType.REQUEST_FORM})
+
+    @property
+    def is_blank_form(self) -> bool:
+        return self.template_type in self.BLANK_FORM_TYPES
 
     template_type = models.CharField(max_length=32, choices=TemplateType.choices)
     name = models.CharField(max_length=120)

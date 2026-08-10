@@ -347,8 +347,8 @@
     "back": "Back to dashboard"
   },
   "templates": {
-    "title": "Letter templates",
-    "subtitle": "The letters the system fills in. Installed by a developer — view only.",
+    "title": "Templates and forms",
+    "subtitle": "The letters the system fills in, and the blank forms the office prints. Installed by a developer — view only.",
     "upload": "Upload template",
     "name": "Name",
     "type": "Letter",
@@ -367,12 +367,16 @@
       "eligibility_single": "Eligibility letter (one beneficiary)",
       "process_list": "Beneficiary list letter",
       "case_summary": "Compiled case cover sheet",
-      "process_codes": "Beneficiary code list"
+      "process_codes": "Beneficiary code list",
+      "request_form": "Request form (blank)"
     },
     "deleteActiveConfirm": "Delete template “{{name}}”? It is the ACTIVE template — letters cannot be generated until another one is activated.",
     "preview": "View letter",
     "previewTitle": "Letter preview (sample data)",
     "previewHint": "Rendered with sample values, not a real beneficiary.",
+    "previewForm": "View form",
+    "previewTitleForm": "Blank form",
+    "previewHintForm": "Print this blank form, have it signed, then upload the scan on Step 1.",
     "readOnlyNote": "Templates are installed from the codebase and cannot be changed here.",
     "showRetired": "Show previous versions ({{total}})",
     "hideRetired": "Hide previous versions"

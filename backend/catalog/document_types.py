@@ -34,6 +34,10 @@ CLIENT_ID = "ClientID"
 SPOUSE_ID = "SpouseID"
 IDENTITY_TYPE_CODES = (CLIENT_ID, SPOUSE_ID)
 
+# Named for the same reason: the blank `request_form` template the office prints is the blank of
+# *this* paper, and it takes its download name from here rather than inventing a second one (§6.6).
+REQUEST = "Request"
+
 DOCUMENT_TYPES: list[DocumentType] = [
     DocumentType(CLIENT_ID, "workflow.docType.ClientID", 1, True),
     DocumentType(SPOUSE_ID, "workflow.docType.SpouseID", 1, True, only_when_married=True),
@@ -45,7 +49,7 @@ DOCUMENT_TYPES: list[DocumentType] = [
     # The citizen's own request. Optional on purpose — not every case arrives with one, so it must
     # never hold Step 1 back. The office prints the blank form, has it signed, and scans it back,
     # which is why it is an upload slot and not a `generated` output like the letter below.
-    DocumentType("Request", "workflow.docType.Request", 1, False),
+    DocumentType(REQUEST, "workflow.docType.Request", 1, False),
     DocumentType(
         "EligibilityLetter", "workflow.docType.EligibilityLetter", 1, False, generated=True
     ),
@@ -66,7 +70,7 @@ DOCUMENT_TYPE_NAMES_CKB: dict[str, str] = {
     SPOUSE_ID: "ناسنامەی هاوسەر",
     "RealEstate": "بەڵگەنامەی خانووبەرە",
     "SignedAgreement": "ڕێککەوتنی واژۆکراو",
-    "Request": "داواکاری",
+    REQUEST: "داواکاری",
     "EligibilityLetter": "نامەی سۆراغکردنی سوودمەندی",
     "InstituteDoc": "بەڵگەنامەی دامەزراوە",
     "CompiledCase": "دۆسیەی کۆکراوەی کەیس",

@@ -66,7 +66,16 @@ export async function fetchDocumentBlobUrl(id: number, token: string | null) {
   return fetchBlobUrl(`/api/v1/documents/${id}/file/`, token);
 }
 
-/** A template is a `.docx`; the server renders it to PDF with sample data first (§6.6). */
+const templatePreviewUrl = (id: number) => `/api/v1/document-templates/${id}/preview/`;
+
+/** A letter is a `.docx` the server renders to PDF with sample data; a blank form is served as
+ * the stored PDF itself (§6.6). Both arrive here as PDF bytes. */
 export async function fetchTemplatePreviewUrl(id: number, token: string | null) {
-  return fetchBlobUrl(`/api/v1/document-templates/${id}/preview/`, token);
+  return fetchBlobUrl(templatePreviewUrl(id), token);
+}
+
+/** Saves what the dialog is showing. The blank form is the one the office keeps a paper copy of,
+ * so it must land under the Sorani name the server sends, not the blob id (UC-058). */
+export async function downloadTemplatePreview(id: number, filename: string, token: string | null) {
+  return downloadFile(templatePreviewUrl(id), filename, token);
 }

@@ -19,11 +19,13 @@ from documents.services import create_template
 TEMPLATES_DIR = Path(__file__).resolve().parents[3] / "documents" / "letter_templates"
 
 # Filename → the type it is installed as. Adding a template type means adding one line here.
+# The blank forms are `.pdf` — they are printed as supplied, never filled in (§6.6).
 FILENAMES = {
     DocumentTemplate.TemplateType.ELIGIBILITY_SINGLE: "eligibility_single.docx",
     DocumentTemplate.TemplateType.PROCESS_LIST: "process_list.docx",
     DocumentTemplate.TemplateType.PROCESS_CODES: "process_codes.docx",
     DocumentTemplate.TemplateType.CASE_SUMMARY: "case_summary.docx",
+    DocumentTemplate.TemplateType.REQUEST_FORM: "request_form.pdf",
 }
 
 

@@ -205,23 +205,33 @@ def create_document(
 
 
 def create_template(*, template_type: str, name: str, upload, actor, request=None):
-    """Validate and store a `.docx` letter template, making it the active one for its type.
+    """Validate and store a template file, making it the active one for its type.
 
-    The previous active template is deactivated rather than deleted — a regenerated letter must
-    still be traceable to the exact file that produced the earlier one (§6.6).
+    A letter is a `.docx` the system later fills in; a blank form (§6.6) is the PDF the office
+    prints as-is. Either way the file is parsed here, so a corrupt one fails at install rather
+    than in front of the office. The previous active template is deactivated rather than deleted —
+    a regenerated letter must still be traceable to the exact file that produced the earlier one.
     """
     content = upload.read()
     if len(content) > settings.MAX_UPLOAD_BYTES:
         raise PayloadTooLarge()
-    if not filestore.looks_like_docx(content):
-        raise ValidationError({"file": "File is not a .docx document."})
-    # Opening it here means a corrupt template fails at upload, not mid-generation.
-    try:
-        DocxTemplate(io.BytesIO(content)).get_undeclared_template_variables()
-    except Exception as exc:
-        raise ValidationError({"file": f"File is not a readable Word template: {exc}"}) from exc
+    if template_type in DocumentTemplate.BLANK_FORM_TYPES:
+        if not filestore.is_readable_pdf(content):
+            raise ValidationError({"file": "File is not a readable PDF."})
+        suffix = ".pdf"
+    else:
+        if not filestore.looks_like_docx(content):
+            raise ValidationError({"file": "File is not a .docx document."})
+        # Opening it here means a corrupt template fails at upload, not mid-generation.
+        try:
+            DocxTemplate(io.BytesIO(content)).get_undeclared_template_variables()
+        except Exception as exc:
+            raise ValidationError({"file": f"File is not a readable Word template: {exc}"}) from exc
+        suffix = ".docx"
 
-    rel = filestore.write_template(template_type=template_type, name=name, content=content)
+    rel = filestore.write_template(
+        template_type=template_type, name=name, content=content, suffix=suffix
+    )
     try:
         with transaction.atomic():
             DocumentTemplate.objects.filter(

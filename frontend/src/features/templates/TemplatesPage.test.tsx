@@ -22,6 +22,12 @@ const rows = [
   template(),
   template({ id: 2, name: "Old letter", is_active: false, version: 5 }),
   template({ id: 3, name: "Older letter", is_active: false, version: 4 }),
+  template({
+    id: 4,
+    template_type: "request_form",
+    name: "request_form",
+    original_filename: "request_form.pdf",
+  }),
 ];
 
 vi.mock("@/lib/toast", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
@@ -31,9 +37,10 @@ vi.mock("./templatesApi", () => ({
   useListTemplatesQuery: () => ({ data: rows, isLoading: false, isError: false }),
   useListTemplateTypesQuery: () => ({
     data: [
-      { code: "eligibility_single", display_key: "templates.types.eligibility_single" },
-      { code: "process_list", display_key: "templates.types.process_list" },
-      { code: "case_summary", display_key: "templates.types.case_summary" },
+      { code: "eligibility_single", display_key: "templates.types.eligibility_single", blank_form: false },
+      { code: "process_list", display_key: "templates.types.process_list", blank_form: false },
+      { code: "case_summary", display_key: "templates.types.case_summary", blank_form: false },
+      { code: "request_form", display_key: "templates.types.request_form", blank_form: true },
     ],
   }),
 }));
@@ -64,5 +71,19 @@ describe("TemplatesPage", () => {
 
     expect(screen.getByText(/Old letter/)).toBeInTheDocument();
     expect(screen.getByText(/Older letter/)).toBeInTheDocument();
+  });
+
+  it("lists the blank request form the office prints from here (UC-039)", () => {
+    render(<TemplatesPage />);
+
+    expect(screen.getByText("Request form (blank)")).toBeInTheDocument();
+  });
+
+  it("calls a blank form a form, not a letter — it is not something the system fills in", () => {
+    render(<TemplatesPage />);
+
+    // The letter groups keep "View letter"; only the form group is worded for a form.
+    expect(screen.getAllByRole("button", { name: /view letter/i })).toHaveLength(1);
+    expect(screen.getByRole("button", { name: /view form/i })).toBeInTheDocument();
   });
 });

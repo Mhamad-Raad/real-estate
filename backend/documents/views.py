@@ -11,6 +11,7 @@ from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet, ReadOnlyModelViewSet
 
+from catalog import document_types
 from common.viewsets import AuditedSoftDeleteViewSet
 from processes.services import recompute_step
 
@@ -117,16 +118,23 @@ class DocumentTemplateViewSet(ReadOnlyModelViewSet):
         Filled with clearly-marked **sample** data: a blank template renders empty gaps and an
         empty beneficiary table, which reads as broken rather than as "this is the letter".
         Rendered on demand — LibreOffice takes a second or two and this is an occasional click.
+        A blank form (§6.6) has nothing to fill in, so it comes back as the stored PDF itself —
+        which is what the office prints, hence the Sorani name it reads on paper (§6.7, UC-060).
         """
         template = self.get_object()
         try:
             pdf = render_template_preview(template)
         except RenderError as exc:
             raise Http404(str(exc))
+        filename = (
+            f"{document_types.name_ckb(document_types.REQUEST)}.pdf"
+            if template.is_blank_form
+            else f"{template.template_type}_preview.pdf"
+        )
         return FileResponse(
             io.BytesIO(pdf),
             as_attachment=False,
-            filename=f"{template.template_type}_preview.pdf",
+            filename=filename,
             content_type="application/pdf",
         )
 

@@ -31,6 +31,11 @@ GENERATED_LISTS_DIR = "_generated/lists"
 
 def render_to_pdf(template: DocumentTemplate, context: dict, out_dir: Path) -> bytes:
     """Fill the template and render it, returning the PDF bytes."""
+    # A blank form carries no placeholders and is not a `.docx` at all (§6.6); docxtpl would fail
+    # here with an unreadable-zip error. Refused at the choke point every render passes through,
+    # so a future job kind cannot wire one up by mistake.
+    if template.is_blank_form:
+        raise RenderError(f"'{template.template_type}' is a blank form and is never filled in.")
     source = Path(settings.LETTER_TEMPLATES_ROOT) / template.file_path
     if not source.is_file():
         raise RenderError(f"Template file is missing on disk: {source}")
