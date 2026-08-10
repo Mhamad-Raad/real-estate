@@ -349,20 +349,9 @@
   "templates": {
     "title": "Templates and forms",
     "subtitle": "The letters the system fills in, and the blank forms the office prints. Installed by a developer — view only.",
-    "upload": "Upload template",
-    "name": "Name",
-    "type": "Letter",
-    "file": "Word file (.docx)",
-    "fileHint": "The new file becomes the active template for this letter.",
-    "fileColumn": "File",
-    "statusLabel": "Status",
     "active": "Active",
     "retired": "Retired",
-    "activate": "Make active",
-    "activated": "Template activated.",
     "empty": "No templates installed yet.",
-    "deleteTitle": "Delete template",
-    "deleteConfirm": "Delete template “{{name}}”? It can be restored later.",
     "types": {
       "eligibility_single": "Eligibility letter (one beneficiary)",
       "process_list": "Beneficiary list letter",
@@ -370,7 +359,6 @@
       "process_codes": "Beneficiary code list",
       "request_form": "Request form (blank)"
     },
-    "deleteActiveConfirm": "Delete template “{{name}}”? It is the ACTIVE template — letters cannot be generated until another one is activated.",
     "preview": "View letter",
     "previewTitle": "Letter preview (sample data)",
     "previewHint": "Rendered with sample values, not a real beneficiary.",

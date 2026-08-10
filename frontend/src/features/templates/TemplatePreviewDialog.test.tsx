@@ -46,4 +46,12 @@ describe("TemplatePreviewDialog", () => {
     expect(await screen.findByText(/have it signed/i)).toBeInTheDocument();
     expect(screen.queryByText(/sample/i)).not.toBeInTheDocument();
   });
+
+  it("offers neither on a LETTER — its preview is sample data and must not reach paper", async () => {
+    render(<TemplatePreviewDialog template={{ ...form, template_type: "eligibility_single" }} onClose={() => {}} />);
+
+    expect(await screen.findByText(/sample values/i)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /download/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /print/i })).not.toBeInTheDocument();
+  });
 });

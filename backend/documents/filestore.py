@@ -258,12 +258,14 @@ def looks_like_docx(content: bytes) -> bool:
     return content[:4] == DOCX_MAGIC
 
 
-def write_template(*, template_type: str, name: str, content: bytes, suffix: str = ".docx") -> Path:
+def write_template(*, template_type: str, name: str, content: bytes, suffix: str) -> Path:
     """Store a template file under LETTER_TEMPLATES_ROOT, returning its relative path.
 
     Same naming discipline as documents: sanitized name plus a short id, so re-uploading a
     template never overwrites the file the previous version still points at. `suffix` is the
     caller's already-validated format — a letter is a `.docx`, a blank form a `.pdf` (§6.6).
+    Required, not defaulted: only the validator knows which one it just proved, and a default
+    would quietly file the next non-Word template under a name that misdescribes it.
     """
     rel = Path(sanitize(template_type, "template", 32)) / (
         f"{sanitize(name, 'template')}__{short_id()}{suffix}"

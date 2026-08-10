@@ -18,6 +18,10 @@ import type { DocumentTemplate } from "./types";
 // `blankForm` switches this from "here is the letter" to a working tool: the request form is
 // printed FROM here, signed, and scanned back in on Step 1 (UC-039), so Print and Download are the
 // point of the dialog rather than a convenience.
+//
+// They are deliberately NOT offered for a letter. A letter preview is filled with sample values,
+// and this module exists because "a preview must never be mistaken for a real beneficiary's
+// letter" — putting a Download and a Print on it hands the office a way to put one on paper.
 export function TemplatePreviewDialog({
   template,
   blankForm = false,
@@ -70,35 +74,38 @@ export function TemplatePreviewDialog({
       className="max-w-4xl"
     >
       <div className="space-y-2">
-        <div className="flex items-center justify-end gap-2">
-          {/* Without these the only controls are the PDF viewer's own, inside the iframe — and its
-              download names the file after the blob URL rather than the composed name (UC-058). */}
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={!url || !template}
-            onClick={() =>
-              template &&
-              downloadTemplatePreview(template.id, `${template.name}.pdf`, token).catch(() =>
-                toast.error(t("workflow.downloadError")),
-              )
-            }
-          >
-            <Download className="size-4" />
-            {t("common.download")}
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={!url}
-            onClick={() => frame.current?.contentWindow?.print()}
-          >
-            <Printer className="size-4" />
-            {t("workflow.print")}
-          </Button>
-        </div>
+        {blankForm && (
+          <div className="flex items-center justify-end gap-2">
+            {/* Without these the only controls are the PDF viewer's own, inside the iframe — and
+                its download names the file after the blob URL, not the name the office reads on
+                paper (UC-058). */}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={!url || !template}
+              onClick={() =>
+                template &&
+                downloadTemplatePreview(template.id, `${template.name}.pdf`, token).catch(() =>
+                  toast.error(t("workflow.downloadError")),
+                )
+              }
+            >
+              <Download className="size-4" />
+              {t("common.download")}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={!url}
+              onClick={() => frame.current?.contentWindow?.print()}
+            >
+              <Printer className="size-4" />
+              {t("workflow.print")}
+            </Button>
+          </div>
+        )}
 
         <div className="h-[70vh] w-full overflow-hidden rounded-md border border-border bg-muted">
           {loading || !url ? (
