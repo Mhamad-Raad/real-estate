@@ -10,6 +10,7 @@ import { FieldError } from "@/components/ui/field-error";
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "@/lib/toast";
 import { apiErrorMessage } from "@/lib/apiError";
+import { sanitisePhoneInput } from "@/lib/phone";
 
 import { CardCapture, type CardSide } from "./CardCapture";
 import { CardReviewPanel } from "./CardReviewPanel";
@@ -206,7 +207,9 @@ export function ScanIntakePanel({
                       value={details[name]}
                       onChange={(e) => {
                         clear(name);
-                        setDetails((current) => ({ ...current, [name]: e.target.value }));
+                        const value =
+                          name === "phone" ? sanitisePhoneInput(e.target.value) : e.target.value;
+                        setDetails((current) => ({ ...current, [name]: value }));
                       }}
                       invalid={Boolean(errors[name])}
                     />

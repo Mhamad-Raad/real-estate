@@ -6,6 +6,8 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { useListCategoriesQuery } from "@/features/categories/categoriesApi";
 
+import { sanitisePhoneInput } from "@/lib/phone";
+
 import type { ClientInput, MaritalStatus } from "./types";
 
 const MARITAL: MaritalStatus[] = ["single", "married", "divorced", "widowed"];
@@ -158,7 +160,12 @@ export function ClientFields({
           dir="ltr"
           className="text-start"
           value={form.phone}
-          onChange={set("phone")}
+          // Filtered as it is typed: the server refuses a bad number, but a box that swallows
+          // letters until Save tells the lawyer at the end of the form, not at the keystroke.
+          onChange={(e) => {
+            onFieldEdit?.("phone");
+            onChange({ ...form, phone: sanitisePhoneInput(e.target.value) });
+          }}
           {...bad("phone")}
         />
         {err("phone")}
