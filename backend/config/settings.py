@@ -187,6 +187,15 @@ REST_FRAMEWORK = {
         "rest_framework_simplejwt.authentication.JWTAuthentication",
     ),
     "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.IsAuthenticated",),
+    # Throttling is applied per view, not globally: an authenticated lawyer filing papers all day
+    # must never be rate-limited out of their own work. Only the unauthenticated door is guarded.
+    "DEFAULT_THROTTLE_CLASSES": (),
+    "DEFAULT_THROTTLE_RATES": {
+        # Password guessing from the other office computer was unbounded (It.8). Generous enough
+        # that a lawyer mistyping their password a few times never notices, tight enough that a
+        # dictionary run dies: ~10 attempts/minute is hours of work for a handful of guesses.
+        "login": os.getenv("LOGIN_THROTTLE_RATE", "10/min"),
+    },
     "DEFAULT_FILTER_BACKENDS": ("django_filters.rest_framework.DjangoFilterBackend",),
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 25,

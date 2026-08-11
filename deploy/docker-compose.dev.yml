@@ -83,6 +83,16 @@ services:
     ports:
       - "8000:8000"
 
+    # Now that `/health/` checks its dependencies for real (§4.2), Compose can gate on it —
+    # `service_started` only means the process launched, which says nothing about whether the
+    # database is reachable or the document store is mounted.
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health/', timeout=5).status==200 else 1)\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
   worker:
     <<: *django
     # Celery has no autoreload — restart this service after changing task code.

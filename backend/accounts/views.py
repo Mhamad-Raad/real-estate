@@ -12,6 +12,7 @@ from rest_framework.views import APIView
 from rest_framework.viewsets import ModelViewSet
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework.throttling import ScopedRateThrottle
 from rest_framework_simplejwt.views import TokenObtainPairView
 
 from common.models import ActivityLog
@@ -24,13 +25,53 @@ from .selectors import assignable_lawyers
 from .serializers import AdminUserSerializer, LoginSerializer, UserSerializer
 
 
+class LoginThrottle(ScopedRateThrottle):
+    """Rate-limit sign-in attempts by IP (§12).
+
+    **Counts failures only.** A throttle that also counted successes would lock out the shared
+    office computer that several lawyers sign in from during a shift — the two computers are used
+    by the whole office, so per-IP is per-*desk*, not per-person. A correct password is evidence
+    of a legitimate user, so only rejections consume the allowance.
+    """
+
+    scope = "login"
+
+    def throttle_success(self):
+        """A successful *request* is not a failed *login*, so the normal path records nothing.
+
+        DRF charges the allowance here, on every request that passes the check. Overriding it to
+        do nothing moves the decision to the view, which is the only place that knows whether the
+        credentials were actually right.
+        """
+        return True
+
+    def record_failure(self, request, view):
+        """Charge one failed attempt.
+
+        `allow_request` is re-run first because DRF hands the view a **fresh** throttle instance:
+        the one that ran during `check_throttles` is gone, and without its `history` loaded there
+        is nothing to append to. It records nothing itself — `throttle_success` above is a no-op —
+        so this re-check is free.
+        """
+        super().allow_request(request, view)
+        super().throttle_success()
+
+
 class LoginView(TokenObtainPairView):
     """Issue tokens + user profile; records a login audit row on success."""
 
     serializer_class = LoginSerializer
+    throttle_classes = (LoginThrottle,)
+    throttle_scope = "login"
 
     def post(self, request, *args, **kwargs):
-        response = super().post(request, *args, **kwargs)
+        try:
+            response = super().post(request, *args, **kwargs)
+        except Exception:
+            self._count_failure(request)
+            raise
+        if response.status_code != status.HTTP_200_OK:
+            self._count_failure(request)
         if response.status_code == status.HTTP_200_OK:
             user = response.data.get("user", {})
             # Attribute the row to the user who just authenticated (request.user is anonymous here).
@@ -44,6 +85,13 @@ class LoginView(TokenObtainPairView):
                 after={"username": user.get("username")},
             )
         return response
+
+    def _count_failure(self, request):
+        """Charge a failed attempt against the throttle. A wrong password raises from the
+        serializer, so this runs on the exception path as well as a plain non-200."""
+        for throttle in self.get_throttles():
+            if isinstance(throttle, LoginThrottle):
+                throttle.record_failure(request, self)
 
 
 class LogoutView(APIView):
