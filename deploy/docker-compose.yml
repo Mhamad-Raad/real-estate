@@ -1,0 +1,124 @@
+# Production stack — the two office computers, offline (§2.3, §2.4).
+#
+# Bring up with:
+#     cd deploy && docker compose up -d
+#
+# Reads **`.env`** in this directory, which is NOT in git. Copy `.env.example`, fill in the real
+# secrets, and keep it on the external drive with the images — a restored database is not much use
+# without the key that opens it (§13.3).
+#
+# The filename is `.env` and not something more descriptive for one reason: Compose auto-loads
+# **only** that name for `${...}` substitution. `env_file:` populates the *container's* environment
+# but is invisible to the compose file itself, so `${DATA_ROOT}` resolved to nothing and the
+# office's documents mounted at `/documents` inside the container instead of on the Desktop —
+# silently, with the stack otherwise appearing to start. Found by running it (2026-08-11).
+#
+# Differs from `docker-compose.dev.yml` deliberately: no source bind-mounts (the code is baked into
+# the image), Gunicorn instead of the dev server, Nginx in front, and no exposed database port.
+
+x-django: &django
+  # Tagged `:latest`, deliberately not `:${APP_BUILD}`. Compose interpolates from `.env`, which
+  # does not carry the build number — so the tag silently depended on whether someone had exported
+  # it, and the office (who will just run `docker compose up -d`) would have asked for an image
+  # `docker load` never created. The build identity is not the tag: it is baked into the image as
+  # `APP_VERSION`/`APP_BUILD` and shown on the About screen and `/health/` (§2.6).
+  image: landalloc-backend:latest
+  build:
+    context: ../backend
+    args:
+      # Defaulted so `docker compose` is quiet when they are not exported; the real values
+      # come from `../VERSION` at build time via the shell, and are baked into the image.
+      APP_VERSION: ${APP_VERSION:-0.0.0}
+      APP_BUILD: ${APP_BUILD:-0}
+  env_file:
+    # Auto-loaded by Compose for `${...}` too — see the note at the top of this file.
+    - .env
+    # The build stamp lives in the repo-root VERSION file, which is itself a valid env file —
+    # that is why its keys are named `APP_*` (§2.6).
+    - ../VERSION
+  restart: unless-stopped
+  volumes:
+    # The office's archive, on the Desktop where they can reach it by hand (§2.5, §6.7). A named
+    # volume would seal it inside the Docker VM: unreachable in Explorer, invisible to the backup
+    # that copies this folder to the drive, and destroyed by a Docker factory reset.
+    - ${DATA_ROOT}/documents:/data/documents
+    - ${DATA_ROOT}/db-backups:/data/db-backups
+  depends_on:
+    db:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      # A NAMED volume on purpose (D12): live Postgres on a Windows bind mount is slow and
+      # unsafe. Its durable copy is the nightly `pg_dump` in `db-backups/`, not this directory.
+      - db_data:/var/lib/postgresql/data
+    # Deliberately NO published port. Nothing outside the compose network needs the database, and
+    # publishing it would put an authenticated service on the office LAN for no reason (§12).
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    # Celery's broker only — no app data lives here, so it is not backed up and needs no volume.
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    <<: *django
+    healthcheck:
+      # The real readiness check (§4.2): database, broker and a *write* to the document store.
+      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health/', timeout=5).status==200 else 1)\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  worker:
+    <<: *django
+    command: celery -A config worker --loglevel=warning --concurrency=2
+
+  # The clock. **A worker alone runs nothing on a schedule** — without this the nightly backup and
+  # the card-scan sweeps never fire, silently (§13.2, §6.3). One replica only: a second beat would
+  # double-fire every schedule.
+  beat:
+    <<: *django
+    command: celery -A config beat --loglevel=warning
+
+  web:
+    image: landalloc-frontend:latest
+    build:
+      context: ../frontend
+      args:
+        APP_VERSION: ${APP_VERSION:-0.0.0}
+        APP_BUILD: ${APP_BUILD:-0}
+    restart: unless-stopped
+    ports:
+      # The only published port. Both office computers reach the app here (§2.4).
+      - "${WEB_PORT:-80}:80"
+    volumes:
+      - ./nginx/app.conf:/etc/nginx/conf.d/app.conf:ro
+      - ./nginx/security-headers.conf:/etc/nginx/conf.d/security-headers.conf:ro
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  db_data:

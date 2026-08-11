@@ -29,7 +29,11 @@ build/
 dist/
 .venv/
 venv/
-env/
+# Python virtualenvs. **Anchored** — an unanchored `env/` also swallowed `deploy/env/`, so the
+# production env template was invisible to git and a fresh clone had no idea which variables the
+# stack needs (caught while writing it, 2026-08-11).
+/env/
+backend/env/
 *.log
 db.sqlite3
 staticfiles/
@@ -75,3 +79,8 @@ samples/
 
 # Word lock files (created whenever a template is open in Word)
 ~$*
+
+# Production secrets — never commit (§12). The template beside it IS committed: it is the only
+# record of what the office install has to be told.
+deploy/.env
+!deploy/.env.example
