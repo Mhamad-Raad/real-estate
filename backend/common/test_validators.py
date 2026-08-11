@@ -30,6 +30,18 @@ class PhoneValidatorTests(TestCase):
         for value in ("07701234567", "0770 123 4567", "+964 770 123 4567", "0770-123-4567"):
             self.assertEqual(validate_phone(value), value)
 
+    def test_accepts_arabic_indic_digits(self):
+        """The office writes numbers in these — the letters, the ID cards and the screens all do.
+        An ASCII-only gate told a lawyer who typed digits that the field needs digits."""
+        for value in ("٠٧٧٠١٢٣٤٥٦٧", "٠٧٧٠ ١٢٣ ٤٥٦٧", "۰۷۷۰۱۲۳۴۵۶۷"):
+            self.assertEqual(validate_phone(value), value)
+
+    def test_arabic_indic_digits_are_still_counted_for_length(self):
+        """Accepting the script must not accidentally exempt it from the length rule."""
+        with self.assertRaises(serializers.ValidationError) as caught:
+            validate_phone("٠٧٧٠")
+        self.assertEqual(str(caught.exception.detail[0]), PHONE_LENGTH)
+
     def test_blank_is_still_allowed(self):
         """The field is optional; not every beneficiary leaves a number."""
         self.assertEqual(validate_phone(""), "")

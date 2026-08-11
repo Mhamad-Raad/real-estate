@@ -154,3 +154,21 @@ describe("ClientDetailsPanel field errors", () => {
     expect(screen.getByLabelText("Phone")).not.toHaveAttribute("aria-invalid");
   });
 });
+
+describe("ClientDetailsPanel select errors", () => {
+  it("marks a rejected SELECT too — category is required and can block a case on its own", async () => {
+    // `Select` had no error state at all, so the one control that can stop a case from opening
+    // was the one control that could not show it had.
+    unwrap.mockRejectedValueOnce({
+      status: 400,
+      data: { client_data: { marital_status: ["Not a valid choice."] } },
+    });
+    render(<ClientDetailsPanel client={client()} canEdit />);
+
+    await userEvent.type(screen.getByLabelText("Phone"), "07701234567");
+    await userEvent.click(screen.getByRole("button", { name: /save beneficiary details/i }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/not a valid choice/i);
+    expect(screen.getByLabelText("Marital status")).toHaveAttribute("aria-invalid", "true");
+  });
+});

@@ -67,13 +67,19 @@ export function ClientFields({
       </div>
       <div className="space-y-2">
         <Label htmlFor={id("marital")}>{t("clients.maritalStatus")}</Label>
-        <Select id={id("marital")} value={form.marital_status} onChange={set("marital_status")}>
+        <Select
+          id={id("marital")}
+          value={form.marital_status}
+          onChange={set("marital_status")}
+          invalid={Boolean(errors.marital_status)}
+        >
           {MARITAL.map((m) => (
             <option key={m} value={m}>
               {t(`clients.marital.${m}`)}
             </option>
           ))}
         </Select>
+        {err("marital_status")}
       </div>
       {/* The generated letter prints a spouse row of name / birth date / mother's name,
           so a married client needs all three (§6.6). */}
@@ -169,9 +175,11 @@ export function ClientFields({
           <Select
             id={id("category")}
             value={form.category ?? ""}
-            onChange={(e) =>
-              onChange({ ...form, category: e.target.value ? Number(e.target.value) : null })
-            }
+            onChange={(e) => {
+              onFieldEdit?.("category");
+              onChange({ ...form, category: e.target.value ? Number(e.target.value) : null });
+            }}
+            invalid={Boolean(errors.category)}
           >
             <option value="">{t("common.none")}</option>
             {(categories ?? []).map((c) => (
@@ -180,6 +188,7 @@ export function ClientFields({
               </option>
             ))}
           </Select>
+          {err("category")}
         </div>
       )}
     </div>

@@ -22,6 +22,7 @@ import { useListLawyersQuery } from "@/features/users/lawyersApi";
 import { apiErrorMessage, apiErrorStatus } from "@/lib/apiError";
 import { labeller } from "@/lib/fieldLabels";
 import { useFieldErrors } from "@/hooks/useFieldErrors";
+import { FieldError } from "@/components/ui/field-error";
 
 import { useCreateProcessMutation } from "./processesApi";
 
@@ -44,7 +45,7 @@ export function ProcessCreatePage() {
   const [lawyer, setLawyer] = useState("");
 
   const [draft, setDraft] = useState<ClientDraft>(EMPTY_CLIENT);
-  const { errors, setFromError, clear, clearAll } = useFieldErrors();
+  const { errors, setErrors, setFromError, clear, clearAll } = useFieldErrors();
 
   const { data: categories } = useListCategoriesQuery();
   // `/lawyers/`, not the paginated `/users/`: that one stops at 25 and lists people who have left.
@@ -71,6 +72,9 @@ export function ProcessCreatePage() {
     spouse_pid: string;
   }) => {
     if (!category) {
+      // Marked as well as announced: a client-side refusal has to point at the same control a
+      // server-side one would, or the user learns to trust the red border only half the time.
+      setErrors({ category: t("processes.pickCategory") });
       toast.error(t("processes.pickCategory"));
       return false;
     }
@@ -110,6 +114,7 @@ export function ProcessCreatePage() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isAdmin && !lawyer) {
+      setErrors({ assigned_lawyer: t("processes.pickLawyer") });
       toast.error(t("processes.pickLawyer"));
       return;
     }
@@ -157,7 +162,15 @@ export function ProcessCreatePage() {
     <div className="grid gap-4 sm:grid-cols-2">
       <div className="space-y-1.5">
         <Label htmlFor="i-category">{t("processes.category")}</Label>
-        <Select id="i-category" value={category} onChange={(e) => setCategory(e.target.value)}>
+        <Select
+          id="i-category"
+          value={category}
+          onChange={(e) => {
+            clear("category");
+            setCategory(e.target.value);
+          }}
+          invalid={Boolean(errors.category)}
+        >
           <option value="">{t("processes.chooseCategory")}</option>
           {(categories ?? []).map((c) => (
             <option key={c.id} value={c.id}>
@@ -165,11 +178,20 @@ export function ProcessCreatePage() {
             </option>
           ))}
         </Select>
+        <FieldError message={errors.category} />
       </div>
       {isAdmin && (
         <div className="space-y-1.5">
           <Label htmlFor="i-lawyer">{t("processes.assignedLawyer")}</Label>
-          <Select id="i-lawyer" value={lawyer} onChange={(e) => setLawyer(e.target.value)}>
+          <Select
+            id="i-lawyer"
+            value={lawyer}
+            onChange={(e) => {
+              clear("assigned_lawyer");
+              setLawyer(e.target.value);
+            }}
+            invalid={Boolean(errors.assigned_lawyer)}
+          >
             <option value="">{t("cardScan.selectLawyer")}</option>
             {(lawyers ?? []).map((l) => (
               <option key={l.id} value={l.id}>
@@ -177,6 +199,7 @@ export function ProcessCreatePage() {
               </option>
             ))}
           </Select>
+          <FieldError message={errors.assigned_lawyer} />
         </div>
       )}
       <div className="space-y-1.5">
@@ -184,18 +207,28 @@ export function ProcessCreatePage() {
         <Input
           id="i-landid"
           value={landId}
-          onChange={(e) => setLandId(e.target.value)}
+          onChange={(e) => {
+            clear("land_id");
+            setLandId(e.target.value);
+          }}
           placeholder={t("workflow.landIdPlaceholder")}
+          invalid={Boolean(errors.land_id)}
         />
+        <FieldError message={errors.land_id} />
       </div>
       <div className="space-y-1.5">
         <Label htmlFor="i-address">{t("workflow.landAddress")}</Label>
         <Input
           id="i-address"
           value={landAddress}
-          onChange={(e) => setLandAddress(e.target.value)}
+          onChange={(e) => {
+            clear("land_address");
+            setLandAddress(e.target.value);
+          }}
           placeholder={t("workflow.landAddressPlaceholder")}
+          invalid={Boolean(errors.land_address)}
         />
+        <FieldError message={errors.land_address} />
       </div>
     </div>
   );

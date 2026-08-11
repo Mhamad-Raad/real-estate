@@ -31,14 +31,10 @@ export function translateApiMessage(message: string, t?: (key: string) => string
  * with nothing naming the field they had mistyped. Flattening is what makes those reachable.
  *
  * The leaf key wins (`client_data.date_of_birth` → `date_of_birth`) because that is what the form
- * calls its input. A form that renders the same field twice — beneficiary and spouse — passes a
- * prefix so the two stay apart.
+ * calls its input. The API never collides on one: a beneficiary's birth date and their spouse's
+ * are `date_of_birth` and `spouse_date_of_birth`, distinct all the way down.
  */
-export function fieldErrors(
-  err: unknown,
-  prefix = "",
-  t?: (key: string) => string,
-): Record<string, string> {
+export function fieldErrors(err: unknown, t?: (key: string) => string): Record<string, string> {
   const out: Record<string, string> = {};
 
   const walk = (node: unknown, key: string) => {
@@ -60,8 +56,7 @@ export function fieldErrors(
   };
 
   walk((err as { data?: unknown })?.data, "");
-  if (!prefix) return out;
-  return Object.fromEntries(Object.entries(out).map(([k, v]) => [`${prefix}${k}`, v]));
+  return out;
 }
 
 /** Turn an RTK Query error into a human message: DRF's `detail`, else the first field error.
@@ -85,7 +80,7 @@ export function apiErrorMessage(
     if (Array.isArray(nonField) && typeof nonField[0] === "string")
       return translateApiMessage(nonField[0], t);
 
-    const [field, message] = Object.entries(fieldErrors(err, "", t))[0] ?? [];
+    const [field, message] = Object.entries(fieldErrors(err, t))[0] ?? [];
     if (message) {
       const name = label?.(field);
       return name ? `${name}: ${message}` : message;

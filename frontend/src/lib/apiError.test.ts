@@ -65,12 +65,6 @@ describe("fieldErrors", () => {
     expect(fieldErrors(err)).toEqual({ phone: "Bad." });
   });
 
-  it("prefixes when a form renders the same field twice (beneficiary vs spouse)", () => {
-    expect(fieldErrors({ data: { date_of_birth: ["Bad."] } }, "spouse_")).toEqual({
-      spouse_date_of_birth: "Bad.",
-    });
-  });
-
   it("is empty for a network or server error, so the caller shows its own message", () => {
     expect(fieldErrors({ status: 500 })).toEqual({});
     expect(fieldErrors(undefined)).toEqual({});
@@ -121,7 +115,7 @@ describe("translateApiMessage", () => {
 
   it("flows through fieldErrors, so the inline message is translated too", () => {
     const err = { data: { client_data: { phone: ["errors.phone.chars"] } } };
-    expect(fieldErrors(err, "", t)).toEqual({ phone: "ژمارەی تەلەفۆن…" });
+    expect(fieldErrors(err, t)).toEqual({ phone: "ژمارەی تەلەفۆن…" });
   });
 
   it("flows through apiErrorMessage alongside the field label", () => {

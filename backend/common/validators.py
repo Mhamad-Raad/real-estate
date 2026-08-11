@@ -46,7 +46,14 @@ VALIDATION_KEYS = (
 
 # Digits, plus the separators people actually type on a form. Anything else — a letter above all —
 # is a typo or a note that does not belong in a dialable number.
-_PHONE_ALLOWED = re.compile(r"^[0-9+\-\s()]+$")
+#
+# **Arabic-Indic digits count as digits.** This office's whole world is written in them — the
+# generated letters render every number through `to_arabic_indic`, the ID cards OCR reads carry
+# them, and the screens format them with `useNum`. An ASCII-only rule told a lawyer who had typed
+# `٠٧٧٠١٢٣٤٥٦٧` that the field "may contain only digits", which is both wrong and baffling, since
+# digits are exactly what they typed. `\d` already matches them when counting; only the character
+# gate was ASCII. U+0660–0669 is Arabic-Indic, U+06F0–06F9 the Extended (Persian) form.
+_PHONE_ALLOWED = re.compile(r"^[0-9٠-٩۰-۹+\-\s()]+$")
 _DIGITS = re.compile(r"\d")
 
 # The office's own numbers are 10 or 11 digits (measured across their live rows: `07XXXXXXXXX`,
