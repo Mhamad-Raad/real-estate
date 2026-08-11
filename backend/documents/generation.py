@@ -21,7 +21,7 @@ from processes.models import Process
 from .letters import eligibility_context, process_codes_context, process_list_context
 from .models import Document, DocumentTemplate, GenerationJob
 from .rendering import RenderError, docx_to_pdf
-from .services import create_document
+from .services import create_document, supersede_generated_documents
 
 # Generated letters are Step-1 output and carry this controlled type (§6.7).
 ELIGIBILITY_DOC_TYPE = "EligibilityLetter"
@@ -67,25 +67,15 @@ def run_eligibility_job(job_id: int) -> None:
             # Same lock as the compiled export: two concurrent regenerations would otherwise
             # both leave a live letter on the case.
             Process.objects.select_for_update().get(pk=job.process_id)
-            # A regenerated letter supersedes the last one — the old PDF is soft-deleted, never
-            # overwritten, so the audit trail keeps what was previously sent out (§6.6).
-            for old in Document.objects.filter(
-                process=job.process, document_type=ELIGIBILITY_DOC_TYPE
-            ):
-                old.is_deleted = True
-                old.deleted_at = timezone.now()
-                old.deleted_by = job.requested_by
-                old.version += 1
-                old.save(
-                    update_fields=["is_deleted", "deleted_at", "deleted_by", "version"]
-                )
-                record_activity(
-                    actor=job.requested_by,
-                    action=ActivityLog.Action.DELETE,
-                    entity_type="Document",
-                    entity_id=old.pk,
-                    before={"display_filename": old.display_filename, "superseded_by_job": job.id},
-                )
+            # A regenerated letter supersedes the last one — row soft-deleted, audited, and its
+            # PDF removed from disk (§6.6). One shared service, because the compiled export does
+            # exactly the same thing and the two copies had already drifted apart in their comments.
+            supersede_generated_documents(
+                process=job.process,
+                document_type=ELIGIBILITY_DOC_TYPE,
+                actor=job.requested_by,
+                job_id=job.id,
+            )
             document = create_document(
                 process=job.process,
                 step_number=1,

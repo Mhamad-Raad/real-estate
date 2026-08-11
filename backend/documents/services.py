@@ -146,6 +146,52 @@ def file_staged_document(
     return document
 
 
+def supersede_generated_documents(*, process, document_type: str, actor, job_id=None) -> int:
+    """Retire the previous copies of a **regenerated** document, file and all (§6.6, §10.3).
+
+    Regenerating the eligibility letter or recompiling the case replaces the previous output. The
+    old row is soft-deleted and audited as always — but its **PDF is also removed from disk**,
+    which is the difference from every other delete in this app.
+
+    Why that is safe here and nowhere else: a superseded generated file has no way back. The
+    restore desk (UC-063) can bring a *user-deleted* document row back to life, and its file must
+    therefore survive; a superseded one is never restored — pressing Generate again produces a
+    fresh row and a fresh file. Keeping the old PDF bought nothing and grew the store on every
+    press, which is what the office noticed.
+
+    **What is kept:** the `ActivityLog` row, so the trail still shows that a letter existed, who
+    generated it, when it was replaced and by which job. What is lost is the ability to reprint the
+    exact earlier PDF — the office's call (2026-08-11), taken to stop the store growing without
+    bound. Never call this for a document a person deleted.
+    """
+    from django.utils import timezone
+
+    root = Path(settings.DOCUMENTS_ROOT)
+    superseded = 0
+    for old in Document.objects.filter(process=process, document_type=document_type):
+        old.is_deleted = True
+        old.deleted_at = timezone.now()
+        old.deleted_by = actor
+        old.version += 1
+        old.save(update_fields=["is_deleted", "deleted_at", "deleted_by", "version"])
+        record_activity(
+            actor=actor,
+            action=ActivityLog.Action.DELETE,
+            entity_type="Document",
+            entity_id=old.pk,
+            before={
+                "display_filename": old.display_filename,
+                "superseded_by_job": job_id,
+                "file_removed": True,
+            },
+        )
+        # After the audit row, and tolerant of an already-missing file: the store is a bind mount
+        # the office can reach by hand (§2.5), so a file may legitimately be gone already.
+        (root / old.file_path).unlink(missing_ok=True)
+        superseded += 1
+    return superseded
+
+
 def create_document(
     *,
     process,

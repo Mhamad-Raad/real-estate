@@ -27,7 +27,7 @@ from processes.models import Process
 
 from .models import Document, DocumentTemplate, GenerationJob
 from .rendering import RenderError
-from .services import create_document
+from .services import create_document, supersede_generated_documents
 from .summary import case_summary_context
 
 # The compiled export is Step-5 output and carries its own controlled type (§6.7).
@@ -108,21 +108,15 @@ def run_compile_case_job(job_id: int) -> None:
             # same case at once would otherwise interleave and both leave a live export (§12
             # concurrent edits) — the second waits here and supersedes the first's output.
             Process.objects.select_for_update().get(pk=process.pk)
-            # A recompiled case supersedes the last one — soft-deleted and audited, never
-            # overwritten, so the trail keeps whatever was previously handed to leadership.
-            for old in Document.objects.filter(process=process, document_type=COMPILED_DOC_TYPE):
-                old.is_deleted = True
-                old.deleted_at = timezone.now()
-                old.deleted_by = job.requested_by
-                old.version += 1
-                old.save(update_fields=["is_deleted", "deleted_at", "deleted_by", "version"])
-                record_activity(
-                    actor=job.requested_by,
-                    action=ActivityLog.Action.DELETE,
-                    entity_type="Document",
-                    entity_id=old.pk,
-                    before={"display_filename": old.display_filename, "superseded_by_job": job.id},
-                )
+            # A recompiled case supersedes the last one — row soft-deleted, audited, and its PDF
+            # removed from disk. A compiled export is the largest file the app writes (every paper
+            # on the case, merged), so keeping superseded copies grew the store fastest of all.
+            supersede_generated_documents(
+                process=process,
+                document_type=COMPILED_DOC_TYPE,
+                actor=job.requested_by,
+                job_id=job.id,
+            )
             document = create_document(
                 process=process,
                 step_number=LAST_STEP,

@@ -162,9 +162,21 @@ class GenerationJobViewSet(ReadOnlyModelViewSet):
             raise Http404("This job has no downloadable file.")
         path = settings.DOCUMENTS_ROOT / job.output_path
         if not path.exists():
-            raise Http404("File is missing from the store.")
+            # Already collected. Said plainly, because "file is missing" reads like a fault when
+            # it is the normal end of a one-shot download; regenerating is one click.
+            raise Http404("This list has already been downloaded. Generate it again if needed.")
+
+        # **Read, then delete, then serve.** A list letter belongs to no case (§6.8) — it is a
+        # bulk export of many citizens' details that the office saves or prints on the spot, so
+        # keeping it grew the store for nothing and left personal data lying in `_generated`
+        # indefinitely (office decision, 2026-08-11). The bytes are loaded first because streaming
+        # from a handle whose file has been unlinked is not something to rely on, and these are
+        # small. `output_path` is deliberately KEPT: the job row still records what was produced,
+        # and the audit trail of who exported whose data is untouched (§11).
+        payload = path.read_bytes()
+        path.unlink(missing_ok=True)
         return FileResponse(
-            open(path, "rb"),
+            io.BytesIO(payload),
             as_attachment=True,
             filename=bulk_job_filename(job),
             content_type="application/pdf",
