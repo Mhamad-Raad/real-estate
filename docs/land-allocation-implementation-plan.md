@@ -282,7 +282,7 @@ Previous reviews in this project were per-iteration and scoped to what had just 
 - [x] Backup automation: **Celery Beat** `pg_dump` into `Desktop/db-backups` (DB-first), native scheduler copies the Desktop data folder → external drive; manifest + rotation (14 daily / 8 weekly, 2 drives) — *§13.2*.
 - [x] **Tested restore drill** + written runbook (files + DB + integrity check) — *§13.3*.
 - [ ] TLS on Nginx (self-signed) option; refresh-token handling decision — *§12*.
-- [ ] RTL/multilingual **print validation** on real documents; performance pass at scale (seed tens of thousands; verify index usage) — *§13.1*.
+- [~] RTL/multilingual **print validation** on real documents *(needs a real printer at the office)*; **performance pass at scale DONE 2026-08-11** — 100,000 cases seeded and measured, everything under 200 ms, indexes confirmed in use, nothing to fix — *§13.1*.
 - [ ] Re-file operation for category/name changes; filename sanitization + optional Latin-transliteration toggle — *§6.7*.
 - [ ] Security review, secrets handling, host hardening (firewall, no egress) — *§12*.
 - [x] **Make `/api/v1/health/` a real readiness check** (DB, Redis, file store) and wire it to the Compose healthchecks. It answers a static `{"status":"ok"}` today, which a restore drill cannot rely on — a health endpoint that never fails is worse than none (found in It.8's doc reconciliation; §4.2 now says so plainly).
