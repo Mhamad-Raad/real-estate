@@ -10,6 +10,9 @@ import { DocumentRow } from "@/features/documents/DocumentRow";
 import { DocumentUpload } from "@/features/documents/DocumentUpload";
 import type { Lawyer } from "@/features/users/lawyersApi";
 import { apiErrorMessage } from "@/lib/apiError";
+import { labeller } from "@/lib/fieldLabels";
+import { useFieldErrors } from "@/hooks/useFieldErrors";
+import { FieldError } from "@/components/ui/field-error";
 
 import { useDeleteEntryMutation, useUpdateEntryMutation } from "../processesApi";
 import type { ApprovalStatus, InstituteEntry, ProcessDetail } from "../types";
@@ -33,13 +36,18 @@ export function InstituteEntryCard({
   const { t } = useTranslation();
   const [update] = useUpdateEntryMutation();
   const [remove, { isLoading: removing }] = useDeleteEntryMutation();
+  const { errors, setFromError, clear, clearAll } = useFieldErrors();
   const docs = process.documents.filter((d) => d.institute_entry === entry.id);
 
   const patch = async (fields: Partial<InstituteEntry>) => {
     try {
       await update({ id: entry.id, process: process.id, version: entry.version, ...fields }).unwrap();
+      clearAll();
     } catch (err) {
-      toast.error(apiErrorMessage(err, t("common.saveError")));
+      // Each control here patches on its own, so the rejected one has to be identifiable —
+      // `custom_name` in particular carries a server rule of its own (§3.4).
+      setFromError(err);
+      toast.error(apiErrorMessage(err, t("common.saveError"), labeller(t), t));
     }
   };
 
@@ -55,13 +63,21 @@ export function InstituteEntryCard({
     <div className="space-y-3 rounded-lg border border-border p-3">
       <div className="flex items-center justify-between gap-2">
         {entry.is_custom ? (
-          <Input
-            defaultValue={entry.custom_name}
-            disabled={!canEdit}
-            placeholder={t("workflow.customName")}
-            className="h-8 max-w-xs"
-            onBlur={(e) => e.target.value !== entry.custom_name && patch({ custom_name: e.target.value })}
-          />
+          <div className="max-w-xs space-y-1">
+            <Input
+              defaultValue={entry.custom_name}
+              disabled={!canEdit}
+              placeholder={t("workflow.customName")}
+              className="h-8"
+              invalid={Boolean(errors.custom_name)}
+              onChange={() => clear("custom_name")}
+              onBlur={(e) =>
+                e.target.value !== entry.custom_name && patch({ custom_name: e.target.value })
+              }
+            />
+            {/* A red border with no reason says only "something is wrong here". */}
+            <FieldError message={errors.custom_name} />
+          </div>
         ) : (
           <span className="font-medium">{label}</span>
         )}
@@ -124,8 +140,13 @@ export function InstituteEntryCard({
               value={entry.approval_date ?? ""}
               disabled={!canEdit}
               className="h-9"
-              onChange={(e) => patch({ approval_date: e.target.value || null })}
+              invalid={Boolean(errors.approval_date)}
+              onChange={(e) => {
+                clear("approval_date");
+                patch({ approval_date: e.target.value || null });
+              }}
             />
+            <FieldError message={errors.approval_date} />
           </div>
         )}
       </div>

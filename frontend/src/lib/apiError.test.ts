@@ -123,3 +123,32 @@ describe("translateApiMessage", () => {
     expect(apiErrorMessage(err, "fallback", () => "تەلەفۆن", t)).toBe("تەلەفۆن: ژمارەی تەلەفۆن…");
   });
 });
+
+// Shapes that existed BEFORE the validation work. `apiErrorMessage` was rewritten to see
+// through DRF's nesting, and these pin that the rewrite changed nothing for the callers that
+// already depended on it — the delete-refusal counts above all, which must never mark a field.
+describe("pre-existing error shapes (regression)", () => {
+  it("in_use delete refusal still reads its counts and is not treated as a field", () => {
+    const err = { status: 400, data: { detail: "In use.", in_use: { processes: "9", clients: "7" } } };
+    expect(apiInUseTotal(err)).toBe(16);
+    expect(fieldErrors(err)).toEqual({});          // `in_use` must never mark an input
+    expect(apiErrorMessage(err, "fb")).toBe("In use.");
+  });
+
+  it("a 409 optimistic-lock conflict still yields its detail", () => {
+    expect(apiErrorMessage({ status: 409, data: { detail: "Stale version." } }, "fb")).toBe("Stale version.");
+  });
+
+  it("a bare-string body is still passed through", () => {
+    expect(apiErrorMessage({ status: 500, data: "Server exploded" }, "fb")).toBe("Server exploded");
+  });
+
+  it("a network error with no body still falls back", () => {
+    expect(apiErrorMessage({ status: "FETCH_ERROR" }, "fb")).toBe("fb");
+    expect(fieldErrors({ status: "FETCH_ERROR" })).toEqual({});
+  });
+
+  it("the old flat single-field shape still resolves the same message", () => {
+    expect(apiErrorMessage({ data: { file: ["Bad file."] } }, "fb")).toBe("Bad file.");
+  });
+});

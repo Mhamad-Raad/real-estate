@@ -30,6 +30,8 @@ const FIELD_LABEL_KEYS: Record<string, string> = {
   land_address: "workflow.landAddress",
   assigned_lawyer: "processes.assignedLawyer",
   notes: "workflow.lawyerNotes",
+  custom_name: "workflow.customName",
+  approval_date: "workflow.approvalDate",
   // Users / catalog
   username: "users.username",
   first_name: "users.firstName",
