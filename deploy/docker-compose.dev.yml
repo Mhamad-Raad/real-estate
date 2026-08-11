@@ -37,6 +37,11 @@ x-django: &django
     # Live Postgres stays a NAMED volume on purpose (see `db_data`): a database on a bind mount is
     # slow and unsafe on Windows. Documents are ordinary files and are safe here.
     - ${DATA_ROOT:-~/Desktop/LandAllocationData}/documents:/data/documents
+    # The nightly `pg_dump` lands here (§13.2). Mounted for the same reason as `documents/`: the
+    # office copies this folder to the external drive by hand, and a backup written only inside
+    # the container is destroyed by the next `up --force-recreate` — while still reporting
+    # success, which is the worst way for a backup to fail.
+    - ${DATA_ROOT:-~/Desktop/LandAllocationData}/db-backups:/data/db-backups
   depends_on:
     db:
       condition: service_healthy
@@ -82,6 +87,15 @@ services:
     <<: *django
     # Celery has no autoreload — restart this service after changing task code.
     command: celery -A config worker --loglevel=info --concurrency=2
+
+  # The clock. **A worker on its own runs nothing on a schedule** — without this service the
+  # nightly backup and both card-scan sweeps never fire, silently (§13.2, §6.3). That is exactly
+  # how `ocr/sweep.py` sat unused from It.5 until It.9.
+  #
+  # One replica only: two beats would double-fire every schedule, so this must not be scaled.
+  beat:
+    <<: *django
+    command: celery -A config beat --loglevel=info
 
 volumes:
   db_data:

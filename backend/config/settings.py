@@ -1,6 +1,8 @@
 """Django settings for the Land-Allocation System (dev + prod-parity base)."""
 
 from datetime import timedelta
+
+from celery.schedules import crontab
 from pathlib import Path
 
 from django.core.exceptions import ImproperlyConfigured
@@ -223,3 +225,27 @@ CELERY_TASK_SOFT_TIME_LIMIT = 270
 # Under `manage.py test` tasks run inline, so the suite never needs a broker running.
 CELERY_TASK_ALWAYS_EAGER = env_bool("CELERY_TASK_ALWAYS_EAGER", TESTING)
 CELERY_TASK_EAGER_PROPAGATES = True
+
+# Scheduled work (§13.2, §6.3). Nothing ran on a schedule before this: `ocr/sweep.py` was written
+# in It.5 and never wired to anything, so abandoned identity documents accumulated in `_staging`
+# indefinitely and a reading lost to a reboot span for ever on the review screen.
+#
+# Requires `celery -A config beat` alongside the worker — a worker on its own runs none of these.
+CELERY_BEAT_SCHEDULE = {
+    # Nightly, before the office arrives, so the dump is ready to carry to the drive in the
+    # morning and a long dump never overlaps the working day.
+    "nightly-database-backup": {
+        "task": "common.run_backup",
+        "schedule": crontab(hour=3, minute=0),
+    },
+    # Hourly: a reading lost to a reboot should come back within the hour, not the next day.
+    "requeue-stuck-scans": {
+        "task": "ocr.requeue_stuck_scans",
+        "schedule": crontab(minute=15),
+    },
+    # Daily is ample — the threshold it enforces is 14 days.
+    "discard-abandoned-scans": {
+        "task": "ocr.discard_abandoned_scans",
+        "schedule": crontab(hour=4, minute=0),
+    },
+}
