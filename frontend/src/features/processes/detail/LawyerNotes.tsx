@@ -7,6 +7,9 @@ import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/lib/toast";
 import { apiErrorMessage } from "@/lib/apiError";
+import { labeller } from "@/lib/fieldLabels";
+import { useFieldErrors } from "@/hooks/useFieldErrors";
+import { FieldError } from "@/components/ui/field-error";
 
 import { useUpdateProcessMutation } from "../processesApi";
 import type { ProcessDetail } from "../types";
@@ -15,6 +18,7 @@ import type { ProcessDetail } from "../types";
 export function LawyerNotes({ process, canEdit }: { process: ProcessDetail; canEdit: boolean }) {
   const { t } = useTranslation();
   const [notes, setNotes] = useState(process.lawyer_notes);
+  const { errors, setFromError, clear, clearAll } = useFieldErrors();
   const [update, { isLoading }] = useUpdateProcessMutation();
 
   useEffect(() => setNotes(process.lawyer_notes), [process.lawyer_notes, process.id]);
@@ -23,8 +27,10 @@ export function LawyerNotes({ process, canEdit }: { process: ProcessDetail; canE
     try {
       await update({ id: process.id, version: process.version, lawyer_notes: notes }).unwrap();
       toast.success(t("common.saved"));
+      clearAll();
     } catch (err) {
-      toast.error(apiErrorMessage(err, t("common.saveError")));
+      setFromError(err);
+      toast.error(apiErrorMessage(err, t("common.saveError"), labeller(t), t));
     }
   };
 
@@ -36,10 +42,15 @@ export function LawyerNotes({ process, canEdit }: { process: ProcessDetail; canE
       <CardContent className="space-y-3">
         <Textarea
           value={notes}
-          onChange={(e) => setNotes(e.target.value)}
+          onChange={(e) => {
+            clear("lawyer_notes");
+            setNotes(e.target.value);
+          }}
           disabled={!canEdit}
           placeholder={t("workflow.notesPlaceholder")}
+          invalid={Boolean(errors.lawyer_notes)}
         />
+        <FieldError message={errors.lawyer_notes} />
         {canEdit && (
           <Button size="sm" onClick={save} disabled={isLoading || notes === process.lawyer_notes}>
             {isLoading && <Spinner />}

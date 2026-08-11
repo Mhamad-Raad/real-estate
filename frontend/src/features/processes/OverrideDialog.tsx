@@ -9,6 +9,9 @@ import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/lib/toast";
 import { apiErrorMessage } from "@/lib/apiError";
+import { labeller } from "@/lib/fieldLabels";
+import { useFieldErrors } from "@/hooks/useFieldErrors";
+import { FieldError } from "@/components/ui/field-error";
 
 import { useOverrideDuplicateMutation } from "./processesApi";
 import type { MatchReason, ProcessListItem } from "./types";
@@ -27,13 +30,15 @@ export function OverrideDialog({
   const [override, { isLoading }] = useOverrideDuplicateMutation();
   const [matchReason, setMatchReason] = useState<MatchReason>("mother_name");
   const [reason, setReason] = useState("");
+  const { errors, setFromError, clear, clearAll } = useFieldErrors();
 
   useEffect(() => {
     if (process) {
       setMatchReason("mother_name");
       setReason("");
+      clearAll(); // reopening on another case must not inherit the last one's errors
     }
-  }, [process]);
+  }, [process, clearAll]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,9 +51,11 @@ export function OverrideDialog({
         version: process.version,
       }).unwrap();
       toast.success(t("processes.override.done"));
+      clearAll();
       onClose();
     } catch (err) {
-      toast.error(apiErrorMessage(err, t("common.saveError")));
+      setFromError(err);
+      toast.error(apiErrorMessage(err, t("common.saveError"), labeller(t), t));
     }
   };
 
@@ -79,10 +86,15 @@ export function OverrideDialog({
           <Textarea
             id="o-reason"
             value={reason}
-            onChange={(e) => setReason(e.target.value)}
+            onChange={(e) => {
+              clear("reason");
+              setReason(e.target.value);
+            }}
             placeholder={t("processes.override.reasonPlaceholder")}
             required
+            invalid={Boolean(errors.reason)}
           />
+          <FieldError message={errors.reason} />
         </div>
         <DialogFooter>
           <Button type="button" variant="outline" onClick={onClose} disabled={isLoading}>

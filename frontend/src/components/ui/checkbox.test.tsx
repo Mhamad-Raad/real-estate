@@ -24,3 +24,27 @@ describe("Checkbox", () => {
     expect(screen.getByLabelText("ack").className).toMatch(/checked:bg-primary/);
   });
 });
+
+// The three primitives that can hold a rejected field must mark it the same way, or a form author
+// has to remember which one supports what.
+describe("invalid state parity across the form primitives", () => {
+  it("Input, Select and Textarea all expose it", async () => {
+    const { Input } = await import("./input");
+    const { Select } = await import("./select");
+    const { Textarea } = await import("./textarea");
+
+    render(
+      <>
+        <Input invalid aria-label="i" />
+        <Select invalid aria-label="s" />
+        <Textarea invalid aria-label="t" />
+      </>,
+    );
+
+    for (const name of ["i", "s", "t"]) {
+      const el = screen.getByLabelText(name);
+      expect(el).toHaveAttribute("aria-invalid", "true");
+      expect(el.className).toMatch(/border-destructive/);
+    }
+  });
+});
