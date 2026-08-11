@@ -27,7 +27,16 @@ x-django: &django
     - /app/.venv
     # Read-only: a test asserts every `missing` code the API can emit has a translation.
     - ../frontend/src/i18n/locales:/frontend_locales:ro
-    - documents_data:/data/documents
+    # **Bind-mounted to the Desktop, not a named volume** (§2.5, D12). A named volume lives inside
+    # the Docker VM's disk, which meant three things: the office could not reach its own archive
+    # without the app — the whole point of the Sorani filenames (§6.7, UC-060) — the It.9 backup,
+    # which copies this Desktop folder to the external drive, would have copied nothing, and a
+    # `docker system prune --volumes` or a Docker Desktop factory reset would have destroyed every
+    # scanned document with no warning naming the data.
+    #
+    # Live Postgres stays a NAMED volume on purpose (see `db_data`): a database on a bind mount is
+    # slow and unsafe on Windows. Documents are ordinary files and are safe here.
+    - ${DATA_ROOT:-~/Desktop/LandAllocationData}/documents:/data/documents
   depends_on:
     db:
       condition: service_healthy
@@ -76,4 +85,3 @@ services:
 
 volumes:
   db_data:
-  documents_data:
