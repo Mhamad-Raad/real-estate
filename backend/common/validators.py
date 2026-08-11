@@ -44,8 +44,10 @@ VALIDATION_KEYS = (
     STEP_END_BEFORE_START,
 )
 
-# Digits, plus the separators people actually type on a form. Anything else — a letter above all —
-# is a typo or a note that does not belong in a dialable number.
+# Digits, plus the separators people actually type on a form. **The dash is not one of them**
+# (user decision, 2026-08-11). Anything else — a letter above all — is a typo or a note that does
+# not belong in a dialable number. Kept in step with `frontend/src/lib/phone.ts`, which refuses the
+# same characters at the keystroke; if the two drift, the box and the API disagree about one field.
 #
 # **Arabic-Indic digits count as digits.** This office's whole world is written in them — the
 # generated letters render every number through `to_arabic_indic`, the ID cards OCR reads carry
@@ -53,7 +55,7 @@ VALIDATION_KEYS = (
 # `٠٧٧٠١٢٣٤٥٦٧` that the field "may contain only digits", which is both wrong and baffling, since
 # digits are exactly what they typed. `\d` already matches them when counting; only the character
 # gate was ASCII. U+0660–0669 is Arabic-Indic, U+06F0–06F9 the Extended (Persian) form.
-_PHONE_ALLOWED = re.compile(r"^[0-9٠-٩۰-۹+\-\s()]+$")
+_PHONE_ALLOWED = re.compile(r"^[0-9٠-٩۰-۹+\s()]+$")
 _DIGITS = re.compile(r"\d")
 
 # The office's own numbers are 10 or 11 digits (measured across their live rows: `07XXXXXXXXX`,

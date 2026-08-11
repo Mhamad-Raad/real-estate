@@ -19,8 +19,12 @@ describe("sanitisePhoneInput", () => {
 
   it("keeps the separators the office types", () => {
     expect(sanitisePhoneInput("0770 123 4567")).toBe("0770 123 4567");
-    expect(sanitisePhoneInput("0770-123-4567")).toBe("0770-123-4567");
     expect(sanitisePhoneInput("(0770) 1234567")).toBe("(0770) 1234567");
+  });
+
+  it("refuses a dash (user decision, 2026-08-11)", () => {
+    expect(sanitisePhoneInput("0770-123-4567")).toBe("07701234567");
+    expect(sanitisePhoneInput("-")).toBe("");
   });
 
   it("keeps Arabic-Indic digits — the office writes numbers in them", () => {

@@ -15,9 +15,10 @@ export const PHONE_MAX_DIGITS = 11;
 export const PHONE_MAX_DIGITS_WITH_COUNTRY_CODE = PHONE_MAX_DIGITS + 3;
 
 const DIGIT = /[0-9٠-٩۰-۹]/;
-// The separators people actually type. Anything else — a letter above all — is not part of a
-// number and is dropped as it is typed.
-const SEPARATOR = /[-\s()]/;
+// The separators people actually type. **No dash** (user decision, 2026-08-11): the office writes
+// its numbers as digits, optionally spaced, and a `-` only ever arrived as a slip. Anything else —
+// a letter above all — is not part of a number and is dropped as it is typed.
+const SEPARATOR = /[\s()]/;
 
 /** The typed value, reduced to what a phone number may contain and capped at its longest form.
  *

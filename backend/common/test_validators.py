@@ -27,8 +27,15 @@ from common.validators import (
 
 class PhoneValidatorTests(TestCase):
     def test_accepts_the_shapes_the_office_actually_types(self):
-        for value in ("07701234567", "0770 123 4567", "+964 770 123 4567", "0770-123-4567"):
+        for value in ("07701234567", "0770 123 4567", "+964 770 123 4567", "(0770) 1234567"):
             self.assertEqual(validate_phone(value), value)
+
+    def test_rejects_a_dash(self):
+        """User decision 2026-08-11 — and the API must agree with the box, which refuses it as it
+        is typed; otherwise one field has two different rules."""
+        with self.assertRaises(serializers.ValidationError) as caught:
+            validate_phone("0770-123-4567")
+        self.assertEqual(str(caught.exception.detail[0]), PHONE_CHARS)
 
     def test_accepts_arabic_indic_digits(self):
         """The office writes numbers in these — the letters, the ID cards and the screens all do.
