@@ -10,6 +10,9 @@ import { toast } from "@/lib/toast";
 import { instituteLabel, useListInstitutesQuery } from "@/features/institutes/institutesApi";
 import { useListLawyersQuery } from "@/features/users/lawyersApi";
 import { apiErrorMessage } from "@/lib/apiError";
+import { labeller } from "@/lib/fieldLabels";
+import { useFieldErrors } from "@/hooks/useFieldErrors";
+import { FieldError } from "@/components/ui/field-error";
 
 import { useCreateEntryMutation, useSaveStepMutation } from "../processesApi";
 import type { ProcessDetail } from "../types";
@@ -34,6 +37,7 @@ export function InstituteStepPanel({
   const { data: lawyers, isLoading: loadingLawyers } = useListLawyersQuery();
   const [createEntry] = useCreateEntryMutation();
   const [saveStep] = useSaveStepMutation();
+  const { errors, setFromError, clear, clearAll } = useFieldErrors();
 
   const stepRow = process.steps.find((s) => s.step_number === step)!;
   const entries = process.institute_entries.filter((e) => e.step_number === step);
@@ -66,8 +70,12 @@ export function InstituteStepPanel({
   const saveStepField = async (fields: Record<string, unknown>) => {
     try {
       await saveStep({ process: process.id, step, version: stepRow.version, ...fields }).unwrap();
+      clearAll();
     } catch (err) {
-      toast.error(apiErrorMessage(err, t("common.saveError")));
+      // These two dates are the only inputs here with a rule of their own — an end before a start
+      // (§5.2) — and both print on the compiled cover sheet, so the rejected one must be visible.
+      setFromError(err);
+      toast.error(apiErrorMessage(err, t("common.saveError"), labeller(t), t));
     }
   };
 
@@ -85,8 +93,13 @@ export function InstituteStepPanel({
             value={stepRow.start_date ?? ""}
             disabled={!canEdit}
             className="h-9"
-            onChange={(e) => saveStepField({ start_date: e.target.value || null })}
+            invalid={Boolean(errors.start_date)}
+            onChange={(e) => {
+              clear("start_date");
+              saveStepField({ start_date: e.target.value || null });
+            }}
           />
+          <FieldError message={errors.start_date} />
         </div>
         <div className="space-y-1">
           <Label className="text-xs">{t("workflow.endDate")}</Label>
@@ -95,8 +108,13 @@ export function InstituteStepPanel({
             value={stepRow.end_date ?? ""}
             disabled={!canEdit}
             className="h-9"
-            onChange={(e) => saveStepField({ end_date: e.target.value || null })}
+            invalid={Boolean(errors.end_date)}
+            onChange={(e) => {
+              clear("end_date");
+              saveStepField({ end_date: e.target.value || null });
+            }}
           />
+          <FieldError message={errors.end_date} />
         </div>
       </div>
 
