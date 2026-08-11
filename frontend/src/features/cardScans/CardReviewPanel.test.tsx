@@ -168,3 +168,40 @@ describe("CardReviewPanel", () => {
     expect(screen.getByText(/reading was uncertain/)).toBeInTheDocument();
   });
 });
+
+describe("CardReviewPanel field errors", () => {
+  it("marks the card field the server rejected", async () => {
+    unwrap.mockRejectedValueOnce({
+      status: 400,
+      data: { date_of_birth: ["errors.birthDate.future"] },
+    });
+    renderPanel();
+
+    await userEvent.click(screen.getByRole("checkbox"));
+    await userEvent.click(screen.getByRole("button", { name: /confirm/i }));
+
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    expect(screen.getByLabelText(/Date of birth/)).toHaveAttribute("aria-invalid", "true");
+  });
+
+  it("passes the errors to `extra` — those inputs write on confirm too (phone, spouse)", async () => {
+    // The gap this closes: `extra` was a plain node, so phone/address/spouse were the only fields
+    // on this screen that could be rejected and never turn red.
+    unwrap.mockRejectedValueOnce({ status: 400, data: { phone: ["errors.phone.chars"] } });
+    render(
+      <CardReviewPanel
+        scan={scan()}
+        onConfirmed={vi.fn()}
+        buildPayload={() => ({ assigned_lawyer: 3 })}
+        extra={({ errors }) => <span data-testid="extra-phone">{errors.phone ?? "none"}</span>}
+      />,
+    );
+
+    expect(screen.getByTestId("extra-phone")).toHaveTextContent("none");
+
+    await userEvent.click(screen.getByRole("checkbox"));
+    await userEvent.click(screen.getByRole("button", { name: /confirm/i }));
+
+    expect(await screen.findByTestId("extra-phone")).not.toHaveTextContent("none");
+  });
+});

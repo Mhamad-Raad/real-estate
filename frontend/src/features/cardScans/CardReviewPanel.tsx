@@ -29,8 +29,17 @@ export function CardReviewPanel({
   buildPayload,
 }: {
   scan: CardScan;
-  /** Case-level inputs the card cannot supply (assigned lawyer, category). */
-  extra?: React.ReactNode;
+  /** Case-level inputs the card cannot supply (phone, address, the spouse block).
+   *
+   * A **render prop**, not a node: confirming writes those fields too, so the server can reject
+   * one — and the error state lives here, with the mutation that produced it. Passed a plain
+   * node, they were the only inputs on this screen that could not turn red, which is the exact
+   * gap this whole change exists to close.
+   */
+  extra?: (fieldState: {
+    errors: Record<string, string>;
+    clear: (field: string) => void;
+  }) => React.ReactNode;
   onConfirmed: (scan: CardScan) => void;
   /**
    * Everything beyond the card's own fields — which client, which lawyer, the version lock.
@@ -180,7 +189,7 @@ export function CardReviewPanel({
           />
         ))}
 
-        {extra}
+        {extra?.({ errors, clear })}
 
         {/* §6.4: the match warning must be acknowledged before anything is written. */}
         <label className="flex items-start gap-2 rounded-md border border-border bg-muted/40 p-3 text-sm">

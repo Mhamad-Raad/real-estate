@@ -14,11 +14,16 @@ export function SpouseSection({
   reading,
   values,
   onChange,
+  errors = {},
+  onFieldEdit,
 }: {
   scan: CardScan | null;
   reading: boolean;
   values: SpouseValues;
   onChange: (values: SpouseValues) => void;
+  /** Per-field server errors — `spouse_date_of_birth` is validated like the beneficiary's own. */
+  errors?: Record<string, string>;
+  onFieldEdit?: (field: string) => void;
 }) {
   const { t } = useTranslation();
   const fields = scan?.draft?.fields ?? {};
@@ -44,7 +49,11 @@ export function SpouseSection({
           type={name === "spouse_date_of_birth" ? "date" : "text"}
           // The letter prints the first three, so they are required; the dedup key is not.
           required={name !== "spouse_pid"}
-          onChange={(value) => onChange({ ...values, [name]: value })}
+          error={errors[name]}
+          onChange={(value) => {
+            onFieldEdit?.(name);
+            onChange({ ...values, [name]: value });
+          }}
         />
       ))}
       <p className="text-xs text-muted-foreground">{t("cardScan.spousePidHint")}</p>

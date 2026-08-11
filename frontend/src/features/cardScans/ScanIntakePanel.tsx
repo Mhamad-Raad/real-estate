@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { FieldError } from "@/components/ui/field-error";
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "@/lib/toast";
 import { apiErrorMessage } from "@/lib/apiError";
@@ -189,7 +190,7 @@ export function ScanIntakePanel({
                 : {}),
             };
           }}
-          extra={
+          extra={({ errors, clear }) => (
             <div className="space-y-4">
               <div className="grid gap-3 sm:grid-cols-2">
                 {(["place_of_birth", "address", "phone"] as const).map((name) => (
@@ -200,11 +201,16 @@ export function ScanIntakePanel({
                     <Input
                       id={`sc-${name}`}
                       className="mt-1.5 h-9"
+                      // A phone is dialled left-to-right whatever the page direction.
+                      {...(name === "phone" ? { type: "tel", inputMode: "tel" as const, dir: "ltr" } : {})}
                       value={details[name]}
-                      onChange={(e) =>
-                        setDetails((current) => ({ ...current, [name]: e.target.value }))
-                      }
+                      onChange={(e) => {
+                        clear(name);
+                        setDetails((current) => ({ ...current, [name]: e.target.value }));
+                      }}
+                      invalid={Boolean(errors[name])}
                     />
+                    <FieldError message={errors[name]} />
                   </div>
                 ))}
               </div>
@@ -214,10 +220,12 @@ export function ScanIntakePanel({
                   reading={readingSpouse}
                   values={spouse}
                   onChange={setSpouse}
+                  errors={errors}
+                  onFieldEdit={clear}
                 />
               ) : null}
             </div>
-          }
+          )}
         />
         <Button type="button" variant="ghost" size="sm" onClick={restart}>
           {t("cardScan.startOver")}
