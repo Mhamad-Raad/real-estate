@@ -272,4 +272,32 @@
   :lang(ar) {
     font-family: var(--font-arabic);
   }
+
+  /* A pointer on anything clickable.
+   *
+   * Tailwind v4's preflight sets `cursor: default` on buttons — a deliberate upstream change that
+   * matches the native platform, but it left this app with no hover affordance anywhere, on
+   * screens the office drives entirely by mouse. Restored **here, once**, rather than as a class
+   * on each primitive: half the clickable things in the app are plain `<button>`s inside feature
+   * components (accordion headers, the sidebar collapse, dialog close, table sort headers), and a
+   * per-primitive fix reaches none of those.
+   *
+   * `:not(:disabled)` matters — a disabled control keeps the `cursor-not-allowed` its primitive
+   * already sets, so "you cannot press this" still reads differently from "press me". */
+  button:not(:disabled),
+  summary,
+  [role="button"]:not([aria-disabled="true"]),
+  [role="tab"]:not([aria-disabled="true"]),
+  select:not(:disabled),
+  input[type="checkbox"]:not(:disabled),
+  input[type="radio"]:not(:disabled),
+  input[type="file"]:not(:disabled),
+  /* A label wrapping a tick-box is itself the click target — the office clicks the sentence, not
+     the 16px square. Descendant, not `>`: `Checkbox` wraps its input in a positioning span, so the
+     input is a grandchild. Deliberately NOT every `label[for]`: a label for a text field focuses
+     it rather than actuating it, and a pointer there would promise a button that is not one. */
+  label:has(input[type="checkbox"]:not(:disabled)),
+  label:has(input[type="radio"]:not(:disabled)) {
+    cursor: pointer;
+  }
 }
