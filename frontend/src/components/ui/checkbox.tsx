@@ -30,7 +30,11 @@ export const Checkbox = React.forwardRef<
   }, [indeterminate, checked]);
 
   return (
-    <span className="relative inline-flex size-4 shrink-0 align-middle">
+    // `className` lands **here**, not on the input. Callers pass layout intent — a label that wraps
+    // onto two lines nudges the box down with `mt-0.5` — and the glyph below is positioned against
+    // this wrapper. Put on the input, the margin moved the box while the tick stayed, so the check
+    // sat 2px high inside a 16px box: visibly off, and only on the checkboxes that pass a margin.
+    <span className={cn("relative inline-flex size-4 shrink-0 align-middle", className)}>
       <input
         ref={inner}
         type="checkbox"
@@ -42,7 +46,6 @@ export const Checkbox = React.forwardRef<
           "checked:border-primary checked:bg-primary indeterminate:border-primary indeterminate:bg-primary",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background",
           "disabled:cursor-not-allowed disabled:opacity-50",
-          className,
         )}
         {...props}
       />
