@@ -275,19 +275,19 @@ Previous reviews in this project were per-iteration and scoped to what had just 
 **Tasks**
 
 - [x] **Build identity — `VERSION` file, shown on 3 screens, on `/health/`, and stamped into every audit row** (done 2026-08-09, ahead of the rest of It.9 so the layout was settled before deployment work built on it) — *§2.6*.
-- [ ] **Bake `APP_VERSION`/`APP_BUILD` into the production images** as build args → env, and **record the build + applied migration head in the backup manifest**, so a restore can tell it is crossing a version boundary — *§2.6, §13.2*.
+- [~] **Bake `APP_VERSION`/`APP_BUILD` into the production images** *(half done 2026-08-11: the backup manifest records build + migration head; the image build args wait on the production images existing)* as build args → env, and **record the build + applied migration head in the backup manifest**, so a restore can tell it is crossing a version boundary — *§2.6, §13.2*.
 - [ ] Dockerize the full stack + **offline image save/load** (`docker save`/`load`); Nginx serving static build + reverse-proxy; one-command bring-up — *§2.3*.
-- [ ] Fixed-IP LAN + **two-computer validation**; Windows-production / macOS-development parity; Desktop data-root wiring — *§2, §2.5*.
+- [~] Fixed-IP LAN + **two-computer validation** *(Desktop data-root wiring DONE 2026-08-11, `c1283ad`; LAN and the two-computer run need the office)*; Windows-production / macOS-development parity; Desktop data-root wiring — *§2, §2.5*.
 - [ ] Full-disk encryption: **BitLocker** (Windows) / **FileVault** (macOS); encrypt the external drive — *§12, §2.5*.
-- [ ] Backup automation: **Celery Beat** `pg_dump` into `Desktop/db-backups` (DB-first), native scheduler copies the Desktop data folder → external drive; manifest + rotation (14 daily / 8 weekly, 2 drives) — *§13.2*.
-- [ ] **Tested restore drill** + written runbook (files + DB + integrity check) — *§13.3*.
+- [x] Backup automation: **Celery Beat** `pg_dump` into `Desktop/db-backups` (DB-first), native scheduler copies the Desktop data folder → external drive; manifest + rotation (14 daily / 8 weekly, 2 drives) — *§13.2*.
+- [x] **Tested restore drill** + written runbook (files + DB + integrity check) — *§13.3*.
 - [ ] TLS on Nginx (self-signed) option; refresh-token handling decision — *§12*.
 - [ ] RTL/multilingual **print validation** on real documents; performance pass at scale (seed tens of thousands; verify index usage) — *§13.1*.
 - [ ] Re-file operation for category/name changes; filename sanitization + optional Latin-transliteration toggle — *§6.7*.
 - [ ] Security review, secrets handling, host hardening (firewall, no egress) — *§12*.
-- [ ] **Make `/api/v1/health/` a real readiness check** (DB, Redis, file store) and wire it to the Compose healthchecks. It answers a static `{"status":"ok"}` today, which a restore drill cannot rely on — a health endpoint that never fails is worse than none (found in It.8's doc reconciliation; §4.2 now says so plainly).
-- [ ] **Decide the production account bootstrap.** `seed_dev` is the only documented way to create the first user and it ships `admin`/`admin12345` as a superuser — dev-only by its docstring, but nothing else fills the gap (It.8).
-- [ ] **Rate-limit the login endpoint.** No throttling is configured anywhere, so password guessing from the second office computer is unbounded (It.8). Cheap with DRF's `ScopedRateThrottle`; note that with several Gunicorn workers the default local-memory cache counts per worker.
+- [x] **Make `/api/v1/health/` a real readiness check** (DB, Redis, file store) and wire it to the Compose healthchecks. It answers a static `{"status":"ok"}` today, which a restore drill cannot rely on — a health endpoint that never fails is worse than none (found in It.8's doc reconciliation; §4.2 now says so plainly).
+- [x] **Decide the production account bootstrap.** `seed_dev` is the only documented way to create the first user and it ships `admin`/`admin12345` as a superuser — dev-only by its docstring, but nothing else fills the gap (It.8).
+- [x] **Rate-limit the login endpoint.** No throttling is configured anywhere, so password guessing from the second office computer is unbounded (It.8). Cheap with DRF's `ScopedRateThrottle`; note that with several Gunicorn workers the default local-memory cache counts per worker.
 - [ ] **Revisit httpOnly refresh cookies together with TLS** — §7.1 records why `sessionStorage` is the right answer until then, and the trap to avoid (a *persistent* cookie re-introduces the shared-machine exposure It.8 removed).
 
 **Deliverable / demo:** the full stack runs offline on the two computers over the LAN; a daily backup runs to the external drive and a restore is performed successfully.
