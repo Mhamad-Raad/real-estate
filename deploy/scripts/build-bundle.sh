@@ -49,7 +49,14 @@ done
 mkdir -p "$BUNDLE/installers"
 
 echo "  saving images (slow - they carry LibreOffice and Tesseract) ..."
+# `--platform` is REQUIRED, not tidiness. A pulled tag points at a multi-platform **index**, and a
+# plain `docker save` tries to package every child listed in it — including the arm64 one that
+# `pull --platform linux/amd64` never fetched. The result is not a wrong-architecture bundle but no
+# bundle at all: `unable to create manifests file: NotFound: content digest sha256:… not found`,
+# after the twenty minutes of building (hit on the 1.0.0 build, 2026-08-12). Restricting the save
+# also makes the cross-arch guarantee explicit rather than implied by what happens to be cached.
 docker save \
+    --platform "$ARCH" \
     landalloc-backend:latest \
     landalloc-frontend:latest \
     postgres:16 \
