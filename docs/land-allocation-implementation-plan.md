@@ -281,14 +281,14 @@ Previous reviews in this project were per-iteration and scoped to what had just 
 - [ ] Full-disk encryption: **BitLocker** (Windows) / **FileVault** (macOS); encrypt the external drive — *§12, §2.5*.
 - [x] Backup automation: **Celery Beat** `pg_dump` into `Desktop/db-backups` (DB-first), native scheduler copies the Desktop data folder → external drive; manifest + rotation (14 daily / 8 weekly, 2 drives) — *§13.2*.
 - [x] **Tested restore drill** + written runbook (files + DB + integrity check) — *§13.3*.
-- [ ] TLS on Nginx (self-signed) option; refresh-token handling decision — *§12*.
+- [x] TLS on Nginx (self-signed) option; refresh-token handling decision — *§12*. **Decided 2026-08-12: no TLS.** Go-live is a single computer, so nothing crosses a wire; revisit when the second computer joins (same job as the fixed IP — the cert must carry that IP). Refresh tokens stay in `sessionStorage`.
 - [~] RTL/multilingual **print validation** on real documents *(needs a real printer at the office)*; **performance pass at scale DONE 2026-08-11** — 100,000 cases seeded and measured, everything under 200 ms, indexes confirmed in use, nothing to fix — *§13.1*.
-- [ ] Re-file operation for category/name changes; filename sanitization + optional Latin-transliteration toggle — *§6.7*.
+- [x] Re-file operation for category/name changes; filename sanitization — shipped in It.5 (`documents/refile.py`). **The Latin-transliteration toggle is dropped (user, 2026-08-12):** the current names are what the office wants.
 - [ ] Security review, secrets handling, host hardening (firewall, no egress) — *§12*.
 - [x] **Make `/api/v1/health/` a real readiness check** (DB, Redis, file store) and wire it to the Compose healthchecks. It answers a static `{"status":"ok"}` today, which a restore drill cannot rely on — a health endpoint that never fails is worse than none (found in It.8's doc reconciliation; §4.2 now says so plainly).
 - [x] **Decide the production account bootstrap.** `seed_dev` is the only documented way to create the first user and it ships `admin`/`admin12345` as a superuser — dev-only by its docstring, but nothing else fills the gap (It.8).
 - [x] **Rate-limit the login endpoint.** No throttling is configured anywhere, so password guessing from the second office computer is unbounded (It.8). Cheap with DRF's `ScopedRateThrottle`; note that with several Gunicorn workers the default local-memory cache counts per worker.
-- [ ] **Revisit httpOnly refresh cookies together with TLS** — §7.1 records why `sessionStorage` is the right answer until then, and the trap to avoid (a *persistent* cookie re-introduces the shared-machine exposure It.8 removed).
+- [x] **Revisit httpOnly refresh cookies together with TLS** — closed 2026-08-12 with the TLS decision: no TLS, so no cookie. `sessionStorage` is the shipped answer (§7.1); both reopen together if a second computer joins.
 
 **Deliverable / demo:** the full stack runs offline on the two computers over the LAN; a daily backup runs to the external drive and a restore is performed successfully.
 
