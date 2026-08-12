@@ -7,10 +7,25 @@ a raw INSERT is the honest way, and INSERT is the one thing the trail allows.
 """
 
 import json
+from contextlib import contextmanager
+from unittest import mock
 
 from django.db import connection
 
 from .models import ActivityLog
+
+
+@contextmanager
+def broker_reachable():
+    """Make `/health/`'s Redis probe succeed without a running broker.
+
+    The two tests asserting a *healthy* 200 were the only ones in the suite that needed a real
+    service, so they failed permanently on any machine without Redis — and a suite with a standing
+    red baseline is one where a genuine new failure goes unnoticed. The failure-path tests already
+    mock their dependency; this is the same treatment for the success path.
+    """
+    with mock.patch("kombu.Connection.ensure_connection", return_value=None):
+        yield
 
 
 def insert_backdated_activity(

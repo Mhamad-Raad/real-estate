@@ -13,6 +13,7 @@ from django.test import TestCase
 from django.urls import reverse
 
 from common import version as version_module
+from common.testing import broker_reachable
 from common.models import ActivityLog
 from common.services import record_activity
 
@@ -105,7 +106,8 @@ class VersionResolutionTests(TestCase):
 
 class HealthEndpointTests(TestCase):
     def test_health_publishes_the_build_the_frontend_compares_against(self):
-        resp = self.client.get(reverse("health"))
+        with broker_reachable():
+            resp = self.client.get(reverse("health"))
         self.assertEqual(resp.status_code, 200)
         body = resp.json()
         self.assertEqual(body["status"], "ok")

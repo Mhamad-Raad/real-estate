@@ -11,6 +11,8 @@ from unittest import mock
 
 from django.test import Client, TestCase, override_settings
 
+from .testing import broker_reachable
+
 
 class HealthTests(TestCase):
     def _get(self):
@@ -23,7 +25,8 @@ class HealthTests(TestCase):
         self.assertEqual(set(body["checks"]), {"database", "redis", "documents"})
 
     def test_a_healthy_instance_is_200_and_ok(self):
-        response, body = self._get()
+        with broker_reachable():
+            response, body = self._get()
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(body["status"], "ok")
