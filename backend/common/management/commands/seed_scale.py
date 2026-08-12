@@ -26,6 +26,7 @@ from accounts.models import User
 from catalog.institutes import INSTITUTES
 from catalog.models import Category
 from clients.models import Client
+from common.management.scratch_db import add_scratch_argument, require_scratch_database
 from common.models import ActivityLog
 from documents.models import Document
 from processes.constants import STEP_NUMBERS
@@ -46,6 +47,7 @@ class Command(BaseCommand):
         parser.add_argument("--processes", type=int, default=100_000)
         parser.add_argument("--batch", type=int, default=2_000)
         parser.add_argument("--seed", type=int, default=1, help="Fixed, so runs are comparable.")
+        add_scratch_argument(parser)
 
     def handle(self, *args, **options):
         total, batch = options["processes"], options["batch"]
@@ -54,6 +56,7 @@ class Command(BaseCommand):
         from django.conf import settings
 
         db = settings.DATABASES["default"]["NAME"]
+        require_scratch_database(db, options["yes_not_production"])
         self.stdout.write(self.style.WARNING(f"Seeding {total:,} cases into '{db}'"))
 
         # Numbering continues from what is already there. Restarting at 0 on a second run collides
@@ -67,7 +70,8 @@ class Command(BaseCommand):
         lawyers = list(User.objects.filter(role=User.Role.LAWYER)[:8])
         if not lawyers:
             lawyers = [
-                User.objects.create_user(f"perf_lawyer_{i}", password="pw12345678") for i in range(8)
+                # Unpassworded on purpose: seeded accounts exist to own rows, never to sign in.
+                User.objects.create_user(f"perf_lawyer_{i}", password=None) for i in range(8)
             ]
         categories = list(Category.objects.all()) or [
             Category.objects.create(code=c, name=c) for c in ("A", "B", "C", "D")

@@ -11,6 +11,7 @@ from catalog.models import Category
 from clients.factories import make_client
 from common.models import ActivityLog
 from common.services import record_activity
+from common.testing import insert_backdated_activity
 from processes.models import Process, ProcessStep
 from processes.services import create_process
 
@@ -95,15 +96,14 @@ class DashboardTests(ReportsTestBase):
 
     def test_work_older_than_the_window_is_not_counted_as_handled(self):
         process = self._process("112")
-        record_activity(
+        # Written already old, because the audit trail cannot be back-dated (common/0003).
+        insert_backdated_activity(
+            window_start() - timedelta(days=1),
             actor=self.lawyer,
             action=ActivityLog.Action.UPDATE,
             entity_type="Process",
             entity_id=process.id,
             after={},
-        )
-        ActivityLog.objects.filter(actor=self.lawyer).update(
-            created_at=window_start() - timedelta(days=1)
         )
         rows = {row["username"]: row["count"] for row in dashboard_stats()["by_lawyer_handled"]}
         self.assertNotIn("lw", rows)

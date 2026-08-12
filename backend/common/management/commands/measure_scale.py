@@ -18,6 +18,7 @@ from django.test import Client as TestClient
 from django.test.utils import CaptureQueriesContext
 
 from accounts.models import User
+from common.management.scratch_db import add_scratch_argument, require_scratch_database
 
 # Anything the office waits on for longer than this reads as broken rather than slow.
 SLOW_MS = 1_000
@@ -30,10 +31,14 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument("--explain", action="store_true", help="Print plans for slow queries.")
+        add_scratch_argument(parser)
 
     def handle(self, *args, **options):
         from django.conf import settings
 
+        require_scratch_database(
+            settings.DATABASES["default"]["NAME"], options["yes_not_production"]
+        )
         if not settings.DEBUG:
             # `CaptureQueriesContext` needs query logging, which Django only keeps with DEBUG on.
             settings.DEBUG = True
@@ -43,8 +48,11 @@ class Command(BaseCommand):
         # command exists to avoid, so the status code is checked, not just the clock.
         settings.ALLOWED_HOSTS = ["testserver", *settings.ALLOWED_HOSTS]
 
+        # No password: the measurement authenticates with a token minted below, so the account
+        # never needs to be signable-in. A known password here would be a working Admin login
+        # left behind on whatever database this was pointed at.
         admin = User.objects.filter(role=User.Role.ADMIN).first() or User.objects.create_user(
-            "perf_admin", password="pw12345678", role=User.Role.ADMIN
+            "perf_admin", password=None, role=User.Role.ADMIN
         )
         # A real JWT, not `force_login`: the API authenticates by bearer token only (§7), so a
         # session cookie leaves every request 401 — which the first run duly reported as thirteen

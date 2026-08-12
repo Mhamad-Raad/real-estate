@@ -10,6 +10,7 @@ from accounts.models import User
 
 from .models import ActivityLog
 from .services import record_activity
+from .testing import insert_backdated_activity
 
 
 class ActivitiesTestBase(APITestCase):
@@ -88,11 +89,17 @@ class ActivitiesFilterTests(ActivitiesTestBase):
         self.assertEqual(self._ids(entity_type="Process", entity_id="7"), [self.created.id])
 
     def test_filters_by_date_range(self):
-        ActivityLog.objects.filter(pk=self.created.pk).update(
-            created_at=timezone.now() - timedelta(days=10)
+        # Inserted old rather than back-dated with `update()` — the table is append-only in the
+        # database now (common/0003), which the old form of this test tripped over.
+        old_id = insert_backdated_activity(
+            timezone.now() - timedelta(days=10),
+            action=ActivityLog.Action.LOGIN,
+            entity_type="User",
+            entity_id=1,
         )
         today = timezone.localtime().date().isoformat()
-        self.assertEqual(self._ids(created_after=today), [self.deleted.id])
+        self.assertIn(old_id, self._ids())
+        self.assertNotIn(old_id, self._ids(created_after=today))
 
     def test_malformed_filters_are_400_not_500(self):
         """Query strings are raw user input; reaching `filter()` unvalidated raises a 500."""

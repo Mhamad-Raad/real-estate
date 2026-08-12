@@ -62,6 +62,7 @@ cp -R "$ROOT/deploy/nginx"              "$BUNDLE/"
 cp    "$ROOT/deploy/.env.example"       "$BUNDLE/"
 cp    "$ROOT/VERSION"                   "$BUNDLE/"
 cp    "$ROOT/docs/runbooks/restore.md"  "$BUNDLE/"
+cp    "$ROOT/docs/runbooks/hardening.md" "$BUNDLE/"
 
 cat > "$BUNDLE/installers/PUT-INSTALLERS-HERE.txt" <<'TXT'
 Download these on ANY machine with internet and drop them in this folder before carrying the
@@ -117,6 +118,11 @@ DAY TO DAY
   Backups run nightly into Desktop/LandAllocationData/db-backups.
   Copy that folder AND Desktop/LandAllocationData/documents to the drive.
   restore.md explains how to put them back, and how to rehearse it safely.
+
+ONCE, AFTER INSTALLING
+----------------------
+  Work through hardening.md — firewall, accounts, Windows Update, disk encryption.
+  It is a twenty-minute checklist and it is the machine's side of the security.
 TXT
 
 echo
