@@ -110,6 +110,19 @@ docker compose -f deploy/docker-compose.dev.yml exec db \
 **Drill run 2026-08-11 — clean.** 29 processes, 29 clients, 178 documents, 4 users restored with
 **zero** `pg_restore` errors, and 112 of 117 live documents resolved to a real file.
 
+**Re-run 2026-08-12 on 1.0.0 — clean, and it proves the append-only trigger survives a restore.**
+`common/0003` made `activity_log` reject UPDATE/DELETE, which is exactly the kind of thing that can
+turn a restore into a half-loaded database, so the drill was repeated against it. Counts matched
+live (29 / 29 / 178, audit 896 vs 897 — the expected off-by-one below), **zero** `pg_restore`
+errors, and both triggers came back and still refused a `DELETE` and an `UPDATE` in the restored
+copy. Why it works: `pg_dump` puts triggers in the **post-data** section, so rows load by `COPY`
+before the triggers exist — and `COPY` was never blocked anyway.
+
+> **Rehearse into a scratch database, not over the live one.** This re-run used
+> `CREATE DATABASE restore_drill` + `pg_restore --dbname=restore_drill`, so `landalloc_dev` was
+> never dropped. Step 4's `DROP DATABASE` below is for a **real** recovery. For practice, use the
+> scratch form — the pilot records are not reproducible.
+
 - **The audit count is one lower in the restore.** Expected. The backup writes its own "a backup
   happened" audit row *after* the dump is taken, so that row cannot be inside it.
 - **A few documents may not resolve to a file.** The live database had exactly the same 5, from
