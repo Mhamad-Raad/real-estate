@@ -76,88 +76,317 @@ Download these on ANY machine with internet and drop them in this folder before 
 drive to the office. They cannot be bundled automatically — they are Microsoft's and Docker's,
 not ours, and both refuse to be redistributed by a script.
 
-  1. Docker Desktop for Windows      https://docs.docker.com/desktop/install/windows-install/
-  2. WSL2 kernel update package      https://aka.ms/wsl2kernel   (wsl_update_x64.msi)
+  1. Docker Desktop for Windows
+     https://desktop.docker.com/win/main/amd64/Docker%20Desktop%20Installer.exe
 
-The second is the one that catches people out: enabling WSL2 normally DOWNLOADS this from
-Microsoft, which an offline machine cannot do. With the .msi here, it installs from the drive.
+  2. WSL — the x64 .msi from Microsoft's releases page
+     https://github.com/microsoft/WSL/releases/latest
+     Take the file named  wsl.<version>.x64.msi   (~260 MB).
+     NOT the arm64 one, and NOT the .msixbundle.
+
+** The old `aka.ms/wsl2kernel` / `wsl_update_x64.msi` link is DEAD — that CDN was retired, and it
+is what every stale tutorial still points at (confirmed 2026-08-12). WSL now ships as a full
+installer from GitHub, which is why it is 260 MB rather than a few. **
+
+The WSL one is what catches people out: enabling WSL normally DOWNLOADS it from Microsoft, which
+an offline machine cannot do. With the .msi on the drive, it installs from the drive.
 TXT
 
 cat > "$BUNDLE/INSTALL.txt" <<TXT
-Land Allocation — ${APP_VERSION} (build ${APP_BUILD})
-Built for ${ARCH}
+========================================================================
+  LAND ALLOCATION SYSTEM — ${APP_VERSION} (build ${APP_BUILD})
+  How to install it on the office computer
+========================================================================
 
-Everything needed is in this folder. The office machine needs no internet.
+Read this from top to bottom and do each step in order.
+You do NOT need internet on the office computer. Everything is in this
+folder. If a step says to type something, type it exactly.
 
-FIRST INSTALL
--------------
-  1. Install WSL FIRST, from installers/:  wsl.2.7.11.0.x64.msi
-     Then Docker Desktop:                  Docker Desktop Installer.exe
-     Restart when Windows asks.
-     ** WSL first, on purpose. Docker Desktop needs it, and if it is missing Docker
-        tries to DOWNLOAD it — which this machine cannot do. Installing it first
-        turns that dead end into a step that is already done. **
-  2. Create the data folder before starting anything:
-       C:\Users\<user>\Desktop\LandAllocationData
-  3. Open a terminal (PowerShell) in this folder, then:
-       docker load -i images.tar.gz
-  4. copy .env.example .env
-     Open .env in Notepad and set:
-       DJANGO_SECRET_KEY   a long random string (30+ characters, any mix)
-       DB_PASSWORD         a random password
-       DATA_ROOT           C:/Users/<user>/Desktop/LandAllocationData
-                           ** forward slashes, even on Windows **
-       DJANGO_ALLOWED_HOSTS   localhost,127.0.0.1,<this machine's LAN IP>
-     Find the LAN IP with:  ipconfig      (the IPv4 Address, e.g. 192.168.1.10)
-     ** List BOTH office computers' addresses, or the second gets a bare 400. **
-  5. docker compose up -d
-     Wait about a minute the first time, then run the next three:
+There is a tick-list at the very bottom. Use it.
 
-     docker compose exec backend python manage.py migrate
-     docker compose exec backend python manage.py create_admin --username <name>
-        It ASKS for the password — type it, it will not be shown. Write it down.
-        It refuses weak or obvious ones; pick something long.
-     docker compose exec backend python manage.py install_templates
-     ** install_templates must come AFTER create_admin (it records who installed them).
-        Without it the database has no letter templates and every generated document
-        fails: the Step-1 eligibility letter, the beneficiary list, the code list,
-        the Step-5 compiled case and the blank Request form. **
-  6. Open http://localhost/ and check the footer reads ${APP_VERSION} (build ${APP_BUILD}).
-     Sign in with the username and password from step 5.
-     From the SECOND computer the address is  http://<the first machine's IP>/
-  7. Add the office's CATEGORIES (Categories screen, admin only).
-     A new database has none, and a case cannot be completed without one — the case
-     number is the category's letter plus a counter (A1, A102, G2005).
-  8. Work through hardening.md once — firewall, Windows accounts, update policy,
-     secrets, disk encryption. Twenty minutes, and it is the machine's side of the
-     security. The app's own side is already in place.
 
-IF SOMETHING GOES WRONG
------------------------
-  See what is running:      docker compose ps
-  Read the errors:          docker compose logs backend --tail 50
-  Is it healthy?            open http://localhost/api/v1/health/
-                            every check must say "ok"; it names the one that failed
-  Start over cleanly:       docker compose down    (this keeps the database)
+------------------------------------------------------------------------
+  BEFORE YOU START
+------------------------------------------------------------------------
 
-UPDATING LATER
---------------
-  1. BACK UP FIRST — it is the only way back:
-       docker compose exec backend python manage.py backup_db
+Copy this whole folder from the USB drive ONTO the computer first
+(for example to C:\LandAlloc). Do not run it from the USB stick.
+
+You will need:
+  - The Windows administrator password for this computer.
+  - About one hour, mostly waiting.
+  - A pen and paper. You will write down two passwords.
+
+
+------------------------------------------------------------------------
+  PART 1 — INSTALL THE TWO PROGRAMS      (about 20 minutes)
+------------------------------------------------------------------------
+
+The app runs inside a program called Docker. Docker needs another
+program called WSL. Both are in the "installers" folder.
+
+STEP 1.  Open the "installers" folder.
+
+STEP 2.  Double-click:   wsl.2.7.11.0.x64.msi
+         Click through it. Wait for it to finish.
+
+         ** DO THIS ONE FIRST. **
+         Docker needs WSL. If WSL is missing, Docker tries to download
+         it from the internet — and this computer has none. Installing
+         WSL first avoids that dead end completely.
+
+STEP 3.  Double-click:   Docker Desktop Installer.exe
+         Click through it. Accept the defaults.
+
+STEP 4.  Restart the computer when Windows asks.
+
+STEP 5.  After the restart, open Docker Desktop from the Start menu.
+         Wait until it says "Engine running" (bottom-left, green).
+         The first start can take a few minutes. Leave it open.
+
+
+------------------------------------------------------------------------
+  PART 2 — SET UP THE APP                (about 20 minutes)
+------------------------------------------------------------------------
+
+STEP 6.  Make the folder where the office's files will be kept.
+         On the Desktop, create a new folder named exactly:
+
+             LandAllocationData
+
+         Its full path will look like:
+             C:\Users\YOURNAME\Desktop\LandAllocationData
+
+         (Replace YOURNAME with the Windows user name. You can see it in
+          the address bar of any File Explorer window.)
+
+STEP 7.  Open PowerShell inside this install folder:
+         - Open the folder in File Explorer.
+         - Hold SHIFT and right-click on empty space inside it.
+         - Choose "Open PowerShell window here".
+
+         A black window opens. You will type the rest of the commands
+         there. Press ENTER after each one and wait for it to finish
+         before typing the next.
+
+STEP 8.  Load the app. Type:
+
+             docker load -i images.tar.gz
+
+         This takes several minutes and prints a lot of lines.
+         That is normal. Wait until you get your prompt back.
+
+STEP 9.  Make the settings file. Type:
+
+             copy .env.example .env
+
+STEP 10. Open the new ".env" file in Notepad:
+
+             notepad .env
+
+         Find these four lines and fill them in. Everything after the
+         "=" sign is what you change. Do not add spaces around the "=".
+
+         DJANGO_SECRET_KEY=
+             Type 30 or more random letters and numbers. Mash the
+             keyboard. Nobody needs to remember this one.
+
+         DB_PASSWORD=
+             Make up a password. WRITE IT DOWN on your paper.
+
+         DATA_ROOT=
+             The folder from STEP 6, but with FORWARD slashes:
+                 C:/Users/YOURNAME/Desktop/LandAllocationData
+             ** Forward slashes / — not backslashes \\ — even on Windows.
+                This is the one people get wrong. **
+
+         DJANGO_ALLOWED_HOSTS=
+             Put:  localhost,127.0.0.1,THIS-COMPUTERS-IP
+
+             To find the IP: in PowerShell type   ipconfig
+             Look for "IPv4 Address". It looks like 192.168.1.10
+             So the line becomes:
+                 DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1,192.168.1.10
+
+             ** When the second computer is added later, add its address
+                to this same line, separated by a comma. If you forget,
+                that computer gets a blank error page. **
+
+         Save the file (Ctrl+S) and close Notepad.
+
+STEP 11. Start the app. Type:
+
+             docker compose up -d
+
+         Then WAIT ABOUT ONE MINUTE. It is starting the database.
+
+STEP 12. Prepare the database. Type:
+
+             docker compose exec backend python manage.py migrate
+
+         Lots of "OK" lines will scroll past. Good.
+
+STEP 13. Create your admin login. Type this, but replace "raad" with
+         the username you want:
+
+             docker compose exec backend python manage.py create_admin --username raad
+
+         It will ask for a password.
+         ** As you type the password NOTHING APPEARS on screen. That is
+            normal, not a broken keyboard. Type it and press ENTER. **
+         It will ask you to type it a second time to confirm.
+         WRITE THIS PASSWORD DOWN. It refuses short or obvious ones.
+
+STEP 14. Install the office's letter templates. Type:
+
+             docker compose exec backend python manage.py install_templates
+
+         ** This must come AFTER step 13, not before. **
+         ** If you skip this step, nothing will print. No eligibility
+            letter, no beneficiary list, no code list, no final case
+            file, no request form. It will look like the app is broken. **
+
+
+------------------------------------------------------------------------
+  PART 3 — CHECK IT WORKS                (about 10 minutes)
+------------------------------------------------------------------------
+
+STEP 15. Open a web browser and go to:
+
+             http://localhost/
+
+         The login page should appear.
+         At the bottom it must say:  ${APP_VERSION} (build ${APP_BUILD})
+         If it says something else, tell the developer before continuing.
+
+STEP 16. Log in with the username and password from STEP 13.
+
+STEP 17. Add the office's categories.
+         Go to the Categories screen (in the menu, admin only) and add
+         each category the office uses.
+
+         ** Do this before anyone opens a real case. A brand-new system
+            has no categories, and a case cannot be finished without
+            one — the case number is built from the category letter,
+            like A1, A102, G2005. **
+
+STEP 18. Make one test case from start to finish. Print something from
+         it. Check the Kurdish and Arabic text reads correctly on paper.
+         Then delete nothing — just leave it; it is your proof it works.
+
+
+------------------------------------------------------------------------
+  PART 4 — MAKE IT SAFE                  (about 20 minutes)
+------------------------------------------------------------------------
+
+STEP 19. Open "hardening.md" (in this folder) and work through it once.
+         Firewall, Windows accounts, turning off automatic restarts.
+         It is a short list and it is the computer's side of the
+         security. The app's own side is already done.
+
+STEP 20. Encrypt the external backup drive (BitLocker To Go).
+         The steps are in hardening.md, section 5.
+         ** PRINT THE RECOVERY KEY AND LOCK IT AWAY. If it is lost,
+            nobody on earth can recover that drive. **
+
+STEP 21. Copy the ".env" file from this folder onto the external drive
+         and keep it there.
+         ** Without it a backup cannot be restored. It holds the
+            database password. Keep it off any shared folder. **
+
+
+------------------------------------------------------------------------
+  EVERY DAY / EVERY WEEK
+------------------------------------------------------------------------
+
+  The computer just needs to be ON. Docker Desktop starts by itself and
+  the app comes back with it. Nobody has to type anything.
+
+  A backup of the database is made automatically every night at 3am into:
+      Desktop\LandAllocationData\db-backups
+
+  ONCE A WEEK, plug in the external drive and copy BOTH of these onto it:
+      Desktop\LandAllocationData\db-backups
+      Desktop\LandAllocationData\documents
+
+  That is the whole backup routine. The nightly part is automatic; the
+  copy-to-the-drive part is not, and it is the part that survives the
+  computer being stolen, dropped or wiped.
+
+  "restore.md" explains how to put everything back if that ever happens,
+  and how to practise it safely without touching the live system.
+
+
+------------------------------------------------------------------------
+  IF SOMETHING GOES WRONG
+------------------------------------------------------------------------
+
+  First: is Docker Desktop running? Open it, look for the green
+  "Engine running". Most problems are just that it is not started.
+
+  In PowerShell, inside this folder:
+
+    Is everything up?
+        docker compose ps
+        Every line should say "running" or "healthy".
+
+    What went wrong?
+        docker compose logs backend --tail 50
+        Read the last few lines. They usually name the problem.
+
+    Is the app healthy?
+        Open  http://localhost/api/v1/health/
+        Every item must say "ok". If one says "error", that names the
+        broken part — the database, redis, or the documents folder.
+
+    Turn it off and on again (this does NOT delete anything):
+        docker compose down
+        docker compose up -d
+
+  A blank or "400" page from the second computer almost always means its
+  address is missing from DJANGO_ALLOWED_HOSTS in the .env file
+  (see STEP 10). Add it, then run:  docker compose up -d
+
+
+------------------------------------------------------------------------
+  WHEN A NEW VERSION IS GIVEN TO YOU LATER
+------------------------------------------------------------------------
+
+  1. BACK UP FIRST. It is the only way back:
+         docker compose exec backend python manage.py backup_db
   2. docker load -i images.tar.gz
   3. docker compose up -d
-     docker compose exec backend python manage.py migrate
-  Keep your existing .env. The database is NOT in these images: it survives the update.
+  4. docker compose exec backend python manage.py migrate
 
-WHAT MUST STAY ON THE DRIVE
----------------------------
-  .env  — a restored database cannot be opened without SECRET_KEY and DB_PASSWORD.
+  Keep your existing .env file — do not replace it. The database is not
+  inside these files; it survives the update.
 
-DAY TO DAY
-----------
-  Backups run nightly into Desktop/LandAllocationData/db-backups.
-  Copy that folder AND Desktop/LandAllocationData/documents to the drive.
-  restore.md explains how to put them back, and how to rehearse it safely.
+
+------------------------------------------------------------------------
+  TICK-LIST
+------------------------------------------------------------------------
+
+  [ ]  1. Folder copied from the USB onto the computer
+  [ ]  2. WSL installed          (installers folder — FIRST)
+  [ ]  3. Docker Desktop installed
+  [ ]  4. Computer restarted
+  [ ]  5. Docker Desktop open, says "Engine running"
+  [ ]  6. LandAllocationData folder created on the Desktop
+  [ ]  7. PowerShell open in this folder
+  [ ]  8. docker load -i images.tar.gz
+  [ ]  9. copy .env.example .env
+  [ ] 10. .env filled in (4 lines) — DB password written down
+  [ ] 11. docker compose up -d
+  [ ] 12. migrate
+  [ ] 13. create_admin — admin password written down
+  [ ] 14. install_templates
+  [ ] 15. http://localhost/ opens, footer reads ${APP_VERSION} (build ${APP_BUILD})
+  [ ] 16. Logged in
+  [ ] 17. Categories added
+  [ ] 18. Test case created and printed, Kurdish/Arabic reads correctly
+  [ ] 19. hardening.md done
+  [ ] 20. Backup drive encrypted, recovery key printed and locked away
+  [ ] 21. .env copied onto the backup drive
 TXT
 
 echo
