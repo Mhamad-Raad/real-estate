@@ -98,7 +98,18 @@ FIRST INSTALL
   4. docker compose up -d
      docker compose exec backend python manage.py migrate
      docker compose exec backend python manage.py create_admin --username <name>
+     docker compose exec backend python manage.py install_templates
+     ** install_templates must come AFTER create_admin (it records who installed them).
+        Without it the database has no letter templates and every generated document
+        fails: the Step-1 eligibility letter, the beneficiary list, the code list,
+        the Step-5 compiled case and the blank Request form. **
   5. Open http://localhost/ and check the footer reads ${APP_VERSION} (build ${APP_BUILD}).
+  6. Sign in as the admin and add the office's CATEGORIES (Categories screen).
+     A new database has none, and a case cannot be completed without one — the case
+     number is the category's letter plus a counter (A1, A102, G2005).
+  7. Work through hardening.md once — firewall, Windows accounts, update policy,
+     secrets, disk encryption. Twenty minutes, and it is the machine's side of the
+     security. The app's own side is already in place.
 
 UPDATING LATER
 --------------
@@ -118,11 +129,6 @@ DAY TO DAY
   Backups run nightly into Desktop/LandAllocationData/db-backups.
   Copy that folder AND Desktop/LandAllocationData/documents to the drive.
   restore.md explains how to put them back, and how to rehearse it safely.
-
-ONCE, AFTER INSTALLING
-----------------------
-  Work through hardening.md — firewall, accounts, Windows Update, disk encryption.
-  It is a twenty-minute checklist and it is the machine's side of the security.
 TXT
 
 echo

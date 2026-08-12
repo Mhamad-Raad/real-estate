@@ -47,7 +47,11 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         actor = User.objects.filter(role=User.Role.ADMIN).order_by("id").first()
         if actor is None:
-            raise CommandError("No admin user exists to attribute the install to; run seed_dev.")
+            raise CommandError(
+                "No admin user exists to attribute the install to. "
+                "Run `manage.py create_admin --username <name>` first (production), "
+                "or `seed_dev` in development."
+            )
 
         wanted = [options["type"]] if options["type"] else list(FILENAMES)
         installed = 0
