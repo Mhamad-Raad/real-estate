@@ -91,32 +91,54 @@ Everything needed is in this folder. The office machine needs no internet.
 
 FIRST INSTALL
 -------------
-  1. Install Docker Desktop from installers/ (and the WSL2 kernel .msi if Windows asks).
-     Restart when it tells you to.
-  2. Open a terminal in this folder, then:
+  1. Install WSL FIRST, from installers/:  wsl.2.7.11.0.x64.msi
+     Then Docker Desktop:                  Docker Desktop Installer.exe
+     Restart when Windows asks.
+     ** WSL first, on purpose. Docker Desktop needs it, and if it is missing Docker
+        tries to DOWNLOAD it — which this machine cannot do. Installing it first
+        turns that dead end into a step that is already done. **
+  2. Create the data folder before starting anything:
+       C:\Users\<user>\Desktop\LandAllocationData
+  3. Open a terminal (PowerShell) in this folder, then:
        docker load -i images.tar.gz
-  3. copy .env.example .env
-     Open .env and set:
-       DJANGO_SECRET_KEY   a long random string
+  4. copy .env.example .env
+     Open .env in Notepad and set:
+       DJANGO_SECRET_KEY   a long random string (30+ characters, any mix)
        DB_PASSWORD         a random password
        DATA_ROOT           C:/Users/<user>/Desktop/LandAllocationData
+                           ** forward slashes, even on Windows **
        DJANGO_ALLOWED_HOSTS   localhost,127.0.0.1,<this machine's LAN IP>
+     Find the LAN IP with:  ipconfig      (the IPv4 Address, e.g. 192.168.1.10)
      ** List BOTH office computers' addresses, or the second gets a bare 400. **
-  4. docker compose up -d
+  5. docker compose up -d
+     Wait about a minute the first time, then run the next three:
+
      docker compose exec backend python manage.py migrate
      docker compose exec backend python manage.py create_admin --username <name>
+        It ASKS for the password — type it, it will not be shown. Write it down.
+        It refuses weak or obvious ones; pick something long.
      docker compose exec backend python manage.py install_templates
      ** install_templates must come AFTER create_admin (it records who installed them).
         Without it the database has no letter templates and every generated document
         fails: the Step-1 eligibility letter, the beneficiary list, the code list,
         the Step-5 compiled case and the blank Request form. **
-  5. Open http://localhost/ and check the footer reads ${APP_VERSION} (build ${APP_BUILD}).
-  6. Sign in as the admin and add the office's CATEGORIES (Categories screen).
+  6. Open http://localhost/ and check the footer reads ${APP_VERSION} (build ${APP_BUILD}).
+     Sign in with the username and password from step 5.
+     From the SECOND computer the address is  http://<the first machine's IP>/
+  7. Add the office's CATEGORIES (Categories screen, admin only).
      A new database has none, and a case cannot be completed without one — the case
      number is the category's letter plus a counter (A1, A102, G2005).
-  7. Work through hardening.md once — firewall, Windows accounts, update policy,
+  8. Work through hardening.md once — firewall, Windows accounts, update policy,
      secrets, disk encryption. Twenty minutes, and it is the machine's side of the
      security. The app's own side is already in place.
+
+IF SOMETHING GOES WRONG
+-----------------------
+  See what is running:      docker compose ps
+  Read the errors:          docker compose logs backend --tail 50
+  Is it healthy?            open http://localhost/api/v1/health/
+                            every check must say "ok"; it names the one that failed
+  Start over cleanly:       docker compose down    (this keeps the database)
 
 UPDATING LATER
 --------------
