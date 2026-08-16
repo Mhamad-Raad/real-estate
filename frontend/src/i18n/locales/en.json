@@ -29,7 +29,8 @@
     "signIn": "Sign in",
     "signingIn": "Signing in…",
     "invalid": "Incorrect username or password",
-    "genericError": "Could not sign in. Please try again."
+    "genericError": "Could not sign in. Please try again.",
+    "holdToShow": "Hold to show the password"
   },
   "header": {
     "account": "Account",
@@ -116,6 +117,9 @@
     "password": "Password",
     "newPassword": "New password",
     "passwordKeep": "Leave blank to keep current",
+    "confirmPassword": "Confirm password",
+    "passwordMismatch": "The two passwords do not match.",
+    "passwordSectionHint": "Leave both blank to keep the current password.",
     "empty": "No users yet.",
     "deleteTitle": "Delete user",
     "deleteConfirm": "Delete user “{{name}}”? They will no longer be able to sign in."
@@ -266,6 +270,7 @@
     "downloadError": "Could not download the file.",
     "noFile": "No file yet",
     "filesExpected": "{{have}} of {{want}} files",
+    "sidesExpected": "{{have}} of {{want}} sides",
     "assignedLawyer": "Assigned lawyer",
     "approval": "Approval",
     "approvalDate": "Approval date",
@@ -282,9 +287,10 @@
     "outOfCity": "Out-of-city submissions",
     "startDate": "Start date",
     "endDate": "End date",
+    "endDateOnDone": "Set automatically when the case is marked complete.",
     "markComplete": "Mark complete",
     "forceComplete": "Force complete (admin)",
-    "completeHint": "Completing requires all prior steps to have their files. An admin can force completion.",
+    "completeHint": "Completing requires steps 1–3 to have their files. Step 4 may be left unfinished — the case can be completed over it. An admin can force completion.",
     "completed": "Case marked complete",
     "missingFiles": "Some steps still have missing files.",
     "caseComplete": "This case is complete.",
@@ -311,6 +317,7 @@
     "generateFailed": "Generation failed",
     "generateStarted": "Preparing the document…",
     "noLetterYet": "No letter has been generated yet.",
+    "letterNotFiled": "Produced for printing — it is not filed on the case and is not included in the compiled file.",
     "preview": "Preview",
     "print": "Print",
     "previewError": "Could not load the preview.",
@@ -461,9 +468,6 @@
     "startOver": "Start over with a new card",
     "spouseFront": "Front of the spouse's card",
     "spouseBack": "Back of the spouse's card",
-    "confirmSpouse": "Save the spouse's details",
-    "spouseFiled": "The spouse's card was filed.",
-    "spouseAfterHint": "Photograph or import the spouse's card and the system will read it — the details are yours to check before saving.",
     "married": "This beneficiary is married",
     "marriedHint": "The eligibility letter prints a spouse row, so the spouse's card and details are needed.",
     "spouseSection": "The spouse's card",
@@ -574,6 +578,21 @@
       "reemkufi": "Decorative kufi.",
       "lateef": "Light traditional, compact."
     },
+    "textSize": "Text size",
+    "textSizeHint": "Scales the whole app — text, fields and buttons together.",
+    "textSizes": {
+      "small": "Small",
+      "default": "Default",
+      "large": "Large",
+      "xlarge": "Extra large"
+    },
+    "textSizeDesc": {
+      "small": "Fits more on the screen at once.",
+      "default": "The size the app was designed at.",
+      "large": "Easier to read on a big monitor.",
+      "xlarge": "The largest — readable from further away."
+    },
+    "textSizeSample": "Sample text",
     "about": "About",
     "aboutHint": "Which version of the app this computer is running. Read this out when reporting a problem."
   },
