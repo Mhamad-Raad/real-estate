@@ -17,3 +17,12 @@ LAST_STEP = 5
 STEP_NUMBERS = range(FIRST_STEP, LAST_STEP + 1)
 # Every step before the roll-up — the ones that carry institutes, fields and papers.
 WORKING_STEPS = range(FIRST_STEP, LAST_STEP)
+
+# Steps a case may finish without (UC-079, the office's decision on 2026-08-16). Not every
+# allocation reaches the registration institutes, so step 4 must not hold a finished case open.
+#
+# **Deliberately does not change the step's own status**: a skipped step stays `in_progress`,
+# because it genuinely is unfinished and calling it complete would put work on a signed export
+# that nobody did. It is the *case* that may close over it — the compiled report reads the two
+# together and prints "skipped" (§10.3).
+SKIPPABLE_STEPS = frozenset({4})

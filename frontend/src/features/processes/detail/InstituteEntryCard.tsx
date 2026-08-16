@@ -11,6 +11,7 @@ import { DocumentUpload } from "@/features/documents/DocumentUpload";
 import type { Lawyer } from "@/features/users/lawyersApi";
 import { apiErrorMessage } from "@/lib/apiError";
 import { labeller } from "@/lib/fieldLabels";
+import { useAutosave, isSettledDate } from "@/hooks/useAutosave";
 import { useFieldErrors } from "@/hooks/useFieldErrors";
 import { FieldError } from "@/components/ui/field-error";
 
@@ -51,6 +52,23 @@ export function InstituteEntryCard({
     }
   };
 
+  // Every editable field on the card shares one queue: the typed ones debounce, the dropdowns save
+  // at once, and a dropdown change carries any edit still settling out with it in the same patch —
+  // so picking a lawyer mid-way through typing a date cannot 409 against it.
+  //
+  // ⚠️ It does **not** serialise two immediate saves: change both dropdowns inside one round trip
+  // and the second still PATCHes the `version` the first has not yet bumped. Pre-existing, and the
+  // real fix is a fresh version rather than a longer queue — so the claim stops here.
+  const field = useAutosave({
+    saved: {
+      custom_name: entry.custom_name,
+      assigned_lawyer: entry.assigned_lawyer,
+      approval_status: entry.approval_status,
+      approval_date: entry.approval_date,
+    },
+    onSave: patch,
+  });
+
   const del = async () => {
     try {
       await remove({ id: entry.id, process: process.id }).unwrap();
@@ -65,15 +83,16 @@ export function InstituteEntryCard({
         {entry.is_custom ? (
           <div className="max-w-xs space-y-1">
             <Input
-              defaultValue={entry.custom_name}
+              value={field.value("custom_name")}
               disabled={!canEdit}
               placeholder={t("workflow.customName")}
               className="h-8"
               invalid={Boolean(errors.custom_name)}
-              onChange={() => clear("custom_name")}
-              onBlur={(e) =>
-                e.target.value !== entry.custom_name && patch({ custom_name: e.target.value })
-              }
+              onChange={(e) => {
+                clear("custom_name");
+                field.set("custom_name", e.target.value);
+              }}
+              onBlur={field.flush}
             />
             {/* A red border with no reason says only "something is wrong here". */}
             <FieldError message={errors.custom_name} />
@@ -100,9 +119,11 @@ export function InstituteEntryCard({
         <div className="space-y-1">
           <Label className="text-xs">{t("workflow.assignedLawyer")}</Label>
           <Select
-            value={entry.assigned_lawyer ?? ""}
+            value={field.value("assigned_lawyer") ?? ""}
             disabled={!canEdit}
-            onChange={(e) => patch({ assigned_lawyer: e.target.value ? Number(e.target.value) : null })}
+            onChange={(e) =>
+              field.commit("assigned_lawyer", e.target.value ? Number(e.target.value) : null)
+            }
             className="h-9"
           >
             <option value="">{t("common.none")}</option>
@@ -114,41 +135,47 @@ export function InstituteEntryCard({
           </Select>
         </div>
 
-        {entry.step_number !== 4 && (
-          <div className="space-y-1">
-            <Label className="text-xs">{t("workflow.approval")}</Label>
-            <Select
-              value={entry.approval_status}
-              disabled={!canEdit}
-              onChange={(e) => patch({ approval_status: e.target.value as ApprovalStatus })}
-              className="h-9"
-            >
-              {APPROVALS.map((a) => (
-                <option key={a} value={a}>
-                  {t(`workflow.approvalStatus.${a}`)}
-                </option>
-              ))}
-            </Select>
-          </div>
-        )}
+        {/* Offered on every institute step (UC-078). The completion rules still differ — step 2
+            needs a decision, step 3 a decision and a date, step 4 neither — but the compiled
+            report prints both columns for every row, so a step-4 institute that was finished
+            still read "pending" and steps 2 and 4 could never be dated at all. */}
+        <div className="space-y-1">
+          <Label className="text-xs">{t("workflow.approval")}</Label>
+          <Select
+            value={field.value("approval_status")}
+            disabled={!canEdit}
+            onChange={(e) => field.commit("approval_status", e.target.value as ApprovalStatus)}
+            className="h-9"
+          >
+            {APPROVALS.map((a) => (
+              <option key={a} value={a}>
+                {t(`workflow.approvalStatus.${a}`)}
+              </option>
+            ))}
+          </Select>
+        </div>
 
-        {entry.step_number === 3 && (
-          <div className="space-y-1">
-            <Label className="text-xs">{t("workflow.approvalDate")}</Label>
-            <Input
-              type="date"
-              value={entry.approval_date ?? ""}
-              disabled={!canEdit}
-              className="h-9"
-              invalid={Boolean(errors.approval_date)}
-              onChange={(e) => {
-                clear("approval_date");
-                patch({ approval_date: e.target.value || null });
-              }}
-            />
-            <FieldError message={errors.approval_date} />
-          </div>
-        )}
+        <div className="space-y-1">
+          <Label className="text-xs">{t("workflow.approvalDate")}</Label>
+          <Input
+            type="date"
+            value={field.value("approval_date") ?? ""}
+            disabled={!canEdit}
+            className="h-9"
+            invalid={Boolean(errors.approval_date)}
+            onChange={(e) => {
+              clear("approval_date");
+              // Held on screen until the year is plausible — see `isSettledDate`.
+              field.set("approval_date", e.target.value || null, isSettledDate(e.target.value));
+            }}
+            onBlur={() => {
+              if (!isSettledDate(field.value("approval_date") ?? ""))
+                field.set("approval_date", entry.approval_date, false);
+              field.flush();
+            }}
+          />
+          <FieldError message={errors.approval_date} />
+        </div>
       </div>
 
       <div className="space-y-2">

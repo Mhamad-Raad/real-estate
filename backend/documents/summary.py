@@ -6,7 +6,8 @@ code change.
 """
 
 from catalog.institutes import INSTITUTES, name_ckb
-from processes.constants import STEP_NUMBERS
+from processes.constants import SKIPPABLE_STEPS, STEP_NUMBERS
+from processes.models import Process, ProcessStep
 
 from .letters import to_arabic_indic
 
@@ -24,6 +25,8 @@ LABELS = {
     "rejected": "ڕەتکراوە",
     "pending": "چاوەڕوانی",
     "approved": "پەسەندکراو",
+    # Not a stored status — printed for a step the finished case was closed over (UC-079).
+    "skipped": "تێپەڕێنرا",
     "single": "سەڵت",
     "married": "خێزاندار",
     "divorced": "جیابووەوە",
@@ -68,12 +71,29 @@ def _institute_rows(process) -> list[dict]:
     return rows
 
 
+def _step_status(process, step) -> str:
+    """What a step reads as on the cover sheet.
+
+    A case may be closed over a skippable step (UC-079), which leaves that step genuinely
+    unfinished. Printing "لە پرۆسەدایە" on a *finished* allocation reads as work still outstanding,
+    and printing "تەواو" would claim work nobody did — so a step the case closed over is named for
+    what actually happened: it was skipped.
+    """
+    if (
+        step.step_number in SKIPPABLE_STEPS
+        and process.overall_status == Process.OverallStatus.COMPLETE
+        and step.status != ProcessStep.Status.COMPLETE
+    ):
+        return LABELS["skipped"]
+    return _label(step.status)
+
+
 def _step_rows(process) -> list[dict]:
     by_number = {step.step_number: step for step in process.steps.all()}
     return [
         {
             "n": to_arabic_indic(number),
-            "status": _label(by_number[number].status) if number in by_number else "",
+            "status": _step_status(process, by_number[number]) if number in by_number else "",
             "start_date": _date(by_number[number].start_date) if number in by_number else "",
             "end_date": _date(by_number[number].end_date) if number in by_number else "",
         }

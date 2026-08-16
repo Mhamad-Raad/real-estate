@@ -17,7 +17,7 @@ from common.models import ActivityLog
 from common.services import record_activity
 
 from . import status as step_status
-from .constants import LAST_STEP, STEP_NUMBERS, WORKING_STEPS
+from .constants import LAST_STEP, SKIPPABLE_STEPS, STEP_NUMBERS, WORKING_STEPS
 from .models import DuplicateOverride, Process, ProcessInstituteEntry, ProcessStep
 
 
@@ -370,6 +370,18 @@ def save_step(*, process, step_number, data, actor, expected_version=None, reque
     return step
 
 
+def _opening_date(process, *, previous_step: int):
+    """The date a newly opened step starts on (UC-073).
+
+    A case moves from one institute to the next, so the step being opened begins where the one
+    before it finished — the office was re-typing that date on every step. Today is the fallback:
+    the previous end date is often filled in later, and a step left without a start date reads as
+    never started (§3.6) and shows as incomplete.
+    """
+    previous = process.steps.filter(step_number=previous_step).first()
+    return (previous.end_date if previous else None) or timezone.now().date()
+
+
 @transaction.atomic
 def advance_step(*, process, actor, expected_version=None, request=None) -> Process:
     """Unlock the next step (§5.2). `current_step` is the highest step the lawyer may open, so
@@ -390,7 +402,7 @@ def advance_step(*, process, actor, expected_version=None, request=None) -> Proc
     # out last Tuesday), and overwriting it silently would discard that.
     opened = process.steps.filter(step_number=process.current_step).first()
     if opened is not None and opened.start_date is None:
-        opened.start_date = timezone.now().date()
+        opened.start_date = _opening_date(process, previous_step=before)
         opened.save(update_fields=["start_date", "updated_at"])
         # A start date is step data, so the step is no longer `not_started` — re-derive it, or the
         # badge contradicts the step's own contents (§3.6: status is re-derived wherever its
@@ -403,7 +415,13 @@ def advance_step(*, process, actor, expected_version=None, request=None) -> Proc
         entity_type="Process",
         entity_id=process.id,
         before={"current_step": before},
-        after={"current_step": process.current_step},
+        # The opened step's start date is stamped by this call (UC-073) — recorded for the same
+        # reason as the closing date in `complete_process`: a write nobody can trace is a write
+        # outside the audit trail (§11).
+        after={
+            "current_step": process.current_step,
+            "start_date": str(opened.start_date) if opened else None,
+        },
         request=request,
     )
     return process
@@ -415,16 +433,25 @@ def complete_process(*, process, actor, force=False, expected_version=None, requ
     check_version(process, expected_version, required=True)
     for n in WORKING_STEPS:
         recompute_step(process, n)
+    # A skippable step never holds the case open (UC-079) — the office finishes allocations that
+    # never reach the registration institutes. Its own status is left alone, so the case closes
+    # *over* an unfinished step rather than pretending the step was done.
     prior_complete = all(
         s.status == ProcessStep.Status.COMPLETE
         for s in process.steps.filter(step_number__lt=LAST_STEP)
+        if s.step_number not in SKIPPABLE_STEPS
     )
     if not prior_complete and not force:
         raise MissingFiles()
     step5 = process.steps.get(step_number=LAST_STEP)
     step5.status = ProcessStep.Status.COMPLETE
+    # Closing the case is what ends the final step (UC-078) — there is no step after it to
+    # proceed into, so nothing else ever would. **Only when blank**, like every other stamped
+    # date: a date typed by hand is a correction and must survive.
+    if step5.end_date is None:
+        step5.end_date = timezone.now().date()
     step5.version += 1
-    step5.save(update_fields=["status", "version", "updated_at"])
+    step5.save(update_fields=["status", "end_date", "version", "updated_at"])
     process.overall_status = Process.OverallStatus.COMPLETE
     process.current_step = 5
     # Recorded once, by the person who actually finished it — the compiled export prints this
@@ -441,7 +468,14 @@ def complete_process(*, process, actor, force=False, expected_version=None, requ
         action=ActivityLog.Action.UPDATE,
         entity_type="Process",
         entity_id=process.id,
-        after={"overall_status": process.overall_status, "forced": force},
+        # The closing date is written by this call and by nothing else (UC-078), so if it is not
+        # recorded here the audit trail cannot say who dated the case or when — which is the whole
+        # point of an append-only log (§11).
+        after={
+            "overall_status": process.overall_status,
+            "forced": force,
+            "step5_end_date": str(step5.end_date),
+        },
         request=request,
     )
     return process

@@ -21,7 +21,7 @@ from catalog.models import Category
 from clients.models import Client
 
 from .models import ProcessInstituteEntry, ProcessStep
-from .services import create_process
+from .services import create_process, recompute_step
 from catalog.institutes import codes_for_step
 
 from .status import missing_requirements
@@ -317,6 +317,107 @@ class WorkflowApiTests(APITestCase):
         self.assertEqual(forced.status_code, status.HTTP_200_OK)
         self.assertEqual(forced.data["overall_status"], "complete")
 
+    def _finish_step_1(self):
+        for doc_type in ("ClientID", "SignedAgreement"):
+            self._upload(1, doc_type)
+
+    def _finish_institute_step(self, step, codes, *, dated):
+        """Take an institute step to complete the way the office does — through the API.
+
+        Statuses cannot be forced with `update()` here: `complete_process` re-derives every step
+        before it checks them, so a faked status is gone by the time it is read.
+        """
+        for code in codes:
+            entry = self.client.post(
+                reverse("institute-entry-list"),
+                {"process": self.process.id, "step_number": step, "institute_code": code,
+                 "assigned_lawyer": self.lawyer.id, "approval_status": "approved",
+                 **({"approval_date": "2026-07-02"} if dated else {})},
+                format="json",
+            )
+            self.assertEqual(entry.status_code, status.HTTP_201_CREATED, entry.data)
+            self._upload(step, "InstituteDoc", entry=entry.data["id"])
+        row = ProcessStep.objects.get(process=self.process, step_number=step)
+        self.client.patch(
+            reverse("process-steps", args=[self.process.id, step]),
+            {"start_date": "2026-07-01", "version": row.version}, format="json",
+        )
+
+    def _ready_except_step_4(self):
+        self._finish_step_1()
+        self._finish_institute_step(2, codes_for_step(2), dated=False)
+        self._finish_institute_step(3, codes_for_step(3), dated=True)
+        self.process.refresh_from_db()
+        for n in (1, 2, 3):
+            self.assertEqual(
+                ProcessStep.objects.get(process=self.process, step_number=n).status,
+                ProcessStep.Status.COMPLETE,
+                f"step {n} was not actually completed by the setup",
+            )
+
+    def test_step_4_does_not_hold_a_finished_case_open(self):
+        """UC-079: not every allocation reaches the registration institutes, so an unfinished
+        step 4 must not block the lawyer — and must not be quietly relabelled complete either."""
+        self._ready_except_step_4()
+        step4 = ProcessStep.objects.get(process=self.process, step_number=4)
+        self.assertNotEqual(step4.status, ProcessStep.Status.COMPLETE)
+
+        resp = self.client.post(
+            reverse("process-complete", args=[self.process.id]),
+            {"version": self.process.version}, format="json",
+        )
+
+        self.assertEqual(resp.status_code, status.HTTP_200_OK, resp.data)
+        self.assertEqual(resp.data["overall_status"], "complete")
+        # The step itself is left alone: it genuinely was not finished.
+        step4.refresh_from_db()
+        self.assertNotEqual(step4.status, ProcessStep.Status.COMPLETE)
+
+    def test_an_unfinished_step_that_is_not_skippable_still_blocks(self):
+        """Only step 4 is skippable — the guarantee would be worthless if it leaked to the rest."""
+        self._ready_except_step_4()
+        # Reopen step 3 by withdrawing its approvals — nothing here is ever hard-deleted (§11),
+        # and an undecided institute is exactly what leaves the step outstanding.
+        ProcessInstituteEntry.objects.filter(process=self.process, step_number=3).update(
+            approval_status=ProcessInstituteEntry.ApprovalStatus.PENDING
+        )
+        recompute_step(self.process, 3)
+        self.process.refresh_from_db()
+
+        resp = self.client.post(
+            reverse("process-complete", args=[self.process.id]),
+            {"version": self.process.version}, format="json",
+        )
+
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_closing_the_case_ends_the_final_step(self):
+        """Nothing proceeds past step 5, so marking the case complete is what dates it (UC-078)."""
+        self.client.force_authenticate(self.admin)
+        step5 = ProcessStep.objects.get(process=self.process, step_number=5)
+        self.assertIsNone(step5.end_date)
+
+        url = reverse("process-complete", args=[self.process.id])
+        resp = self.client.post(url, {"force": True, "version": self.process.version}, format="json")
+
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        step5.refresh_from_db()
+        self.assertEqual(step5.end_date, timezone.now().date())
+
+    def test_a_closing_date_entered_by_hand_survives_completion(self):
+        """Same rule as every stamped date: a typed one is a correction, never overwritten."""
+        self.client.force_authenticate(self.admin)
+        entered = date(2026, 2, 17)
+        ProcessStep.objects.filter(process=self.process, step_number=5).update(end_date=entered)
+
+        url = reverse("process-complete", args=[self.process.id])
+        resp = self.client.post(url, {"force": True, "version": self.process.version}, format="json")
+
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            ProcessStep.objects.get(process=self.process, step_number=5).end_date, entered
+        )
+
 
 @override_settings(DOCUMENTS_ROOT=Path(tempfile.mkdtemp()))
 class AdvanceStepTests(APITestCase):
@@ -498,9 +599,30 @@ class StepStartDateTests(APITestCase):
         self.assertIsNotNone(self._step(1).start_date)
 
     def test_proceeding_stamps_the_step_it_opens(self):
+        """With no end date on the step being left, today is the fallback (UC-073)."""
         self.assertIsNone(self._step(2).start_date)
         self.assertEqual(self._proceed().status_code, status.HTTP_200_OK)
         self.assertEqual(self._step(2).start_date, timezone.now().date())
+
+    def test_a_step_starts_where_the_previous_one_ended(self):
+        """The case moves on from the institute that just finished, not from today (UC-073)."""
+        finished = date(2026, 3, 9)
+        step1 = self._step(1)
+        step1.end_date = finished
+        step1.save(update_fields=["end_date"])
+
+        self.assertEqual(self._proceed().status_code, status.HTTP_200_OK)
+        self.assertEqual(self._step(2).start_date, finished)
+
+    def test_each_step_inherits_the_end_date_of_the_one_before_it(self):
+        """Walking the whole case: every step picks up its own predecessor, not step 1's."""
+        ends = {1: date(2026, 3, 9), 2: date(2026, 4, 2), 3: date(2026, 5, 20), 4: date(2026, 6, 1)}
+        for n in (1, 2, 3, 4):
+            step = self._step(n)
+            step.end_date = ends[n]
+            step.save(update_fields=["end_date"])
+            self.assertEqual(self._proceed().status_code, status.HTTP_200_OK)
+            self.assertEqual(self._step(n + 1).start_date, ends[n])
 
     def test_proceeding_does_not_overwrite_a_date_entered_by_hand(self):
         """A typed date is usually a correction — the papers went out earlier than today."""

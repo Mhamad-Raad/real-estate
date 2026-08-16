@@ -4,21 +4,18 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { toast } from "@/lib/toast";
 import { instituteLabel, useListInstitutesQuery } from "@/features/institutes/institutesApi";
 import { useListLawyersQuery } from "@/features/users/lawyersApi";
 import { apiErrorMessage } from "@/lib/apiError";
-import { labeller } from "@/lib/fieldLabels";
-import { useFieldErrors } from "@/hooks/useFieldErrors";
-import { FieldError } from "@/components/ui/field-error";
 
-import { useCreateEntryMutation, useSaveStepMutation } from "../processesApi";
+import { useCreateEntryMutation } from "../processesApi";
 import type { ProcessDetail } from "../types";
 import { InstituteEntryCard } from "./InstituteEntryCard";
 import { LandDetailsForm } from "./LandDetailsForm";
+import { StepDates } from "./StepDates";
 import { StepDocumentSlots } from "./StepDocumentSlots";
+import { useStepFields } from "./useStepFields";
 
 // Steps 2–4: fixed institutes from the shared enum, plus Step-3 out-of-city custom rows (§5.1, §5.6).
 export function InstituteStepPanel({
@@ -36,10 +33,9 @@ export function InstituteStepPanel({
   const { data: institutes, isLoading: loadingInstitutes } = useListInstitutesQuery();
   const { data: lawyers, isLoading: loadingLawyers } = useListLawyersQuery();
   const [createEntry] = useCreateEntryMutation();
-  const [saveStep] = useSaveStepMutation();
-  const { errors, setFromError, clear, clearAll } = useFieldErrors();
+  const stepFields = useStepFields(process, step);
+  const { field } = stepFields;
 
-  const stepRow = process.steps.find((s) => s.step_number === step)!;
   const entries = process.institute_entries.filter((e) => e.step_number === step);
   const loadingVocabulary = loadingInstitutes || loadingLawyers;
   const fixed = (institutes ?? []).filter((i) => i.step === step);
@@ -67,56 +63,13 @@ export function InstituteStepPanel({
     }
   };
 
-  const saveStepField = async (fields: Record<string, unknown>) => {
-    try {
-      await saveStep({ process: process.id, step, version: stepRow.version, ...fields }).unwrap();
-      clearAll();
-    } catch (err) {
-      // These two dates are the only inputs here with a rule of their own — an end before a start
-      // (§5.2) — and both print on the compiled cover sheet, so the rejected one must be visible.
-      setFromError(err);
-      toast.error(apiErrorMessage(err, t("common.saveError"), labeller(t), t));
-    }
-  };
-
   return (
     <div className="space-y-4">
       {/* Every institute step carries dates, not just step 2 (UC-050). The start is stamped when
           the lawyer proceeds into the step and stays editable, since a date typed by hand is
           usually a correction. Without these the compiled cover sheet had nothing to print for
           steps 3 and 4 (UC-058a). */}
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div className="space-y-1">
-          <Label className="text-xs">{t("workflow.startDate")}</Label>
-          <Input
-            type="date"
-            value={stepRow.start_date ?? ""}
-            disabled={!canEdit}
-            className="h-9"
-            invalid={Boolean(errors.start_date)}
-            onChange={(e) => {
-              clear("start_date");
-              saveStepField({ start_date: e.target.value || null });
-            }}
-          />
-          <FieldError message={errors.start_date} />
-        </div>
-        <div className="space-y-1">
-          <Label className="text-xs">{t("workflow.endDate")}</Label>
-          <Input
-            type="date"
-            value={stepRow.end_date ?? ""}
-            disabled={!canEdit}
-            className="h-9"
-            invalid={Boolean(errors.end_date)}
-            onChange={(e) => {
-              clear("end_date");
-              saveStepField({ end_date: e.target.value || null });
-            }}
-          />
-          <FieldError message={errors.end_date} />
-        </div>
-      </div>
+      <StepDates fields={stepFields} canEdit={canEdit} />
 
       {loadingVocabulary && (
         <div className="space-y-2">
@@ -176,13 +129,13 @@ export function InstituteStepPanel({
         <div className="space-y-3 rounded-lg bg-muted/40 p-3">
           <label className="flex items-center gap-2 text-sm font-medium">
             <Checkbox
-              checked={stepRow.out_of_city_flag}
+              checked={field.value("out_of_city_flag")}
               disabled={!canEdit}
-              onChange={(e) => saveStepField({ out_of_city_flag: e.target.checked })}
+              onChange={(e) => field.commit("out_of_city_flag", e.target.checked)}
             />
             {t("workflow.outOfCity")}
           </label>
-          {stepRow.out_of_city_flag && (
+          {field.value("out_of_city_flag") && (
             <div className="space-y-3">
               {customs.map((entry) => (
                 <InstituteEntryCard
