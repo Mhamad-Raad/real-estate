@@ -75,7 +75,10 @@ samples/
 
 # Acceptance-testing findings (It.7) — local working notes, not repo content.
 # May quote real pilot records, so it deliberately stays out of git.
-/FINDINGS.md
+# Unanchored on purpose: a stray copy is one mistyped working directory away — `cat >> FINDINGS.md`
+# run from `frontend/` created `frontend/FINDINGS.md`, which the anchored pattern did not cover and
+# which holds notes quoting real pilot records. Ignore the name wherever it lands.
+FINDINGS.md
 
 # Word lock files (created whenever a template is open in Word)
 ~$*
