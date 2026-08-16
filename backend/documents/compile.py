@@ -25,37 +25,46 @@ from common.services import record_activity
 
 from processes.models import Process
 
+from catalog.document_types import COMPILED_CASE, ELIGIBILITY_LETTER, IDENTITY_TYPE_CODES
+
+from .idsheet import sheets_as_pdf
 from .models import Document, DocumentTemplate, GenerationJob
 from .rendering import RenderError
 from .services import create_document, supersede_generated_documents
 from .summary import case_summary_context
 
-# The compiled export is Step-5 output and carries its own controlled type (§6.7).
-COMPILED_DOC_TYPE = "CompiledCase"
+# The compiled export is Step-5 output and carries its own controlled type (§6.7), declared with
+# the rest of the vocabulary in `catalog.document_types`. Re-exported under the name this module
+# and its callers already use.
+COMPILED_DOC_TYPE = COMPILED_CASE
+
+
+# Never merged into the compiled export. The previous compilation, or each run would nest the
+# last one inside the next and the file would grow without bound — and the Step-1 letter, which
+# the office does not want in the compilation at all (UC-075). Nothing files a letter any more,
+# but cases created before that change still carry one, and they must compile the same way.
+EXCLUDED_FROM_COMPILATION = frozenset({COMPILED_CASE, ELIGIBILITY_LETTER})
 
 
 def documents_in_step_order(process) -> list[Document]:
-    """Every live document on the case, ordered as the paper file is: step 1 → 5.
-
-    The compiled export must exclude the previous compilation, or each run would nest the last
-    one inside the next and the file would grow without bound.
-    """
+    """Every live document on the case that belongs in the compilation, in paper order: step 1 → 5."""
     return sorted(
         (
             document
             for document in process.documents.all()
-            if document.document_type != COMPILED_DOC_TYPE
+            if document.document_type not in EXCLUDED_FROM_COMPILATION
         ),
         key=lambda d: (d.step_number, d.id),
     )
 
 
-def merge_pdfs(summary: bytes, documents: list[Document]) -> bytes:
-    """Cover sheet first, then each attachment. Raises if any attachment cannot be read."""
-    writer = PdfWriter()
-    for page in PdfReader(BytesIO(summary)).pages:
-        writer.add_page(page)
+def _assert_readable(documents: list[Document]) -> None:
+    """Every attachment must be present and parseable before any of it is merged.
 
+    Checked up front rather than as each is added: a partial compilation must never look like a
+    success (§10.3), and the identity cards are now composed before the rest of the file is
+    walked, so a fault in a later document would otherwise surface halfway through.
+    """
     root = Path(settings.DOCUMENTS_ROOT)
     for document in documents:
         path = root / document.file_path
@@ -65,13 +74,43 @@ def merge_pdfs(summary: bytes, documents: list[Document]) -> bytes:
                 f"document store, so the compiled case would be incomplete."
             )
         try:
-            for page in PdfReader(str(path)).pages:
-                writer.add_page(page)
+            PdfReader(str(path)).pages[0]
         except Exception as exc:
             raise RenderError(
                 f"Document #{document.id} ({document.display_filename}) could not be read as a "
                 f"PDF: {exc}"
             ) from exc
+
+
+def merge_pdfs(summary: bytes, documents: list[Document]) -> bytes:
+    """Cover sheet, then the identity cards four to a page, then every other attachment.
+
+    The cards are pulled out of the page flow and composed onto shared sheets (UC-081): each is
+    scanned onto a full page, so four of them cost four near-empty pages in a file the office
+    already found too long. They stay first, where the paper file keeps them.
+    """
+    writer = PdfWriter()
+    for page in PdfReader(BytesIO(summary)).pages:
+        writer.add_page(page)
+
+    # Client card first, then the spouse's — the office reads the sheet as a row each, and filing
+    # the spouse's scan before the beneficiary's would otherwise put it on the top row.
+    cards = sorted(
+        (d for d in documents if d.document_type in IDENTITY_TYPE_CODES),
+        key=lambda d: (IDENTITY_TYPE_CODES.index(d.document_type), d.id),
+    )
+    # Read every attachment first — a card that cannot be read must fail the export just as loudly
+    # as any other paper, and composing the sheet would otherwise quietly skip it.
+    _assert_readable(documents)
+    for page in PdfReader(BytesIO(sheets_as_pdf(cards))).pages if cards else []:
+        writer.add_page(page)
+
+    root = Path(settings.DOCUMENTS_ROOT)
+    for document in documents:
+        if document.document_type in IDENTITY_TYPE_CODES:
+            continue  # already on the card sheets above
+        for page in PdfReader(str(root / document.file_path)).pages:
+            writer.add_page(page)
 
     buffer = BytesIO()
     writer.write(buffer)

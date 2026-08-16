@@ -13,6 +13,7 @@ from rest_framework.test import APITestCase
 from accounts.models import User
 from clients.factories import make_client
 from common.models import ActivityLog
+from processes.models import Process, ProcessStep
 from processes.services import create_process
 
 from .compile import COMPILED_DOC_TYPE, documents_in_step_order, merge_pdfs, run_compile_case_job
@@ -21,7 +22,7 @@ from .rendering import RenderError
 from .factories import HAS_LIBREOFFICE, NO_LIBREOFFICE_REASON, make_pdf
 from .letters import to_arabic_indic
 from .services import PayloadTooLarge, create_document
-from .summary import case_summary_context
+from .summary import LABELS, case_summary_context
 
 
 class CompileTestBase(TestCase):
@@ -67,6 +68,23 @@ class OrderingTests(CompileTestBase):
         )
         types = [d.document_type for d in documents_in_step_order(self.process)]
         self.assertNotIn(COMPILED_DOC_TYPE, types)
+
+    def test_a_letter_filed_before_the_change_is_still_left_out(self):
+        """UC-075: nothing files an EligibilityLetter any more, but every case created before
+        that carries one — and the office wants it out of the compilation on those too."""
+        kept = self._document(1, "ClientID")
+        create_document(
+            process=self.process,
+            step_number=1,
+            document_type="EligibilityLetter",
+            input_source=Document.InputSource.SYSTEM_GENERATED,
+            content=make_pdf(),
+            actor=self.admin,
+        )
+
+        ordered = documents_in_step_order(self.process)
+
+        self.assertEqual([d.id for d in ordered], [kept.id])
 
 
 class MergeTests(CompileTestBase):
@@ -161,6 +179,29 @@ class SummaryContextTests(CompileTestBase):
 
         self.assertEqual(len(attachments), 2)
         self.assertEqual(context["document_count"], to_arabic_indic(2))
+
+    def test_a_step_the_finished_case_was_closed_over_prints_as_skipped(self):
+        """UC-079: a case may complete over step 4. On a signed export "in progress" would read as
+        work still outstanding, and "complete" would claim work nobody did."""
+        self.process.overall_status = Process.OverallStatus.COMPLETE
+        self.process.save(update_fields=["overall_status"])
+        ProcessStep.objects.filter(process=self.process, step_number=4).update(
+            status=ProcessStep.Status.IN_PROGRESS
+        )
+
+        rows = {row["n"]: row["status"] for row in case_summary_context(self.process, [])["steps"]}
+
+        self.assertEqual(rows[to_arabic_indic(4)], LABELS["skipped"])
+
+    def test_an_unfinished_step_on_an_OPEN_case_still_reads_in_progress(self):
+        """The relabelling is about a *closed* case — an open one is genuinely still in progress."""
+        ProcessStep.objects.filter(process=self.process, step_number=4).update(
+            status=ProcessStep.Status.IN_PROGRESS
+        )
+
+        rows = {row["n"]: row["status"] for row in case_summary_context(self.process, [])["steps"]}
+
+        self.assertEqual(rows[to_arabic_indic(4)], LABELS["in_progress"])
 
 
 class GeneratedSizeTests(CompileTestBase):
