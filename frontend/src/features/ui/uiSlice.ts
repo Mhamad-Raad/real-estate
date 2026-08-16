@@ -56,6 +56,14 @@ export const FONTS = [
 ] as const;
 export type FontChoice = (typeof FONTS)[number];
 
+/**
+ * Screen text size (UC-076). The office's larger monitors made the default read small, so this
+ * scales the **root** font size rather than the type alone — every Tailwind size here is in `rem`,
+ * so inputs, buttons, icons and spacing grow with the text instead of the rows going cramped.
+ */
+export const TEXT_SIZES = ["small", "default", "large", "xlarge"] as const;
+export type TextSize = (typeof TEXT_SIZES)[number];
+
 // Applied as data attributes on <html>; the presets in index.css key off them.
 export function applyAccent(accent: Accent) {
   document.documentElement.dataset.accent = accent;
@@ -63,6 +71,10 @@ export function applyAccent(accent: Accent) {
 
 export function applyFont(font: FontChoice) {
   document.documentElement.dataset.font = font;
+}
+
+export function applyTextSize(size: TextSize) {
+  document.documentElement.dataset.text = size;
 }
 
 function stored<T extends string>(key: string, allowed: readonly T[], fallback: T): T {
@@ -84,6 +96,7 @@ interface UiState {
   sidebarCollapsed: boolean;
   accent: Accent;
   font: FontChoice;
+  textSize: TextSize;
 }
 
 // The key predates `system` and held "light"/"dark"; both are still valid modes, so old machines
@@ -98,6 +111,7 @@ const uiSlice = createSlice({
     sidebarCollapsed: initialSidebarCollapsed(),
     accent: stored("accent", ACCENTS, "teal"),
     font: stored("font", FONTS, "vazirmatn"),
+    textSize: stored("text_size", TEXT_SIZES, "default"),
   } as UiState,
   reducers: {
     setThemeMode(state, action: PayloadAction<ThemeMode>) {
@@ -134,11 +148,23 @@ const uiSlice = createSlice({
       localStorage.setItem("font", action.payload);
       applyFont(action.payload);
     },
+    setTextSize(state, action: PayloadAction<TextSize>) {
+      state.textSize = action.payload;
+      localStorage.setItem("text_size", action.payload);
+      applyTextSize(action.payload);
+    },
   },
 });
 
-export const { setThemeMode, toggleTheme, syncSystemTheme, toggleSidebar, setAccent, setFont } =
-  uiSlice.actions;
+export const {
+  setThemeMode,
+  toggleTheme,
+  syncSystemTheme,
+  toggleSidebar,
+  setAccent,
+  setFont,
+  setTextSize,
+} = uiSlice.actions;
 export default uiSlice.reducer;
 
 /** Keep `system` honest while the app is open — the OS can flip at sunset. */

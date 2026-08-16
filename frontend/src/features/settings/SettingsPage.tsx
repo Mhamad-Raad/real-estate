@@ -1,4 +1,4 @@
-import { Monitor, Moon, Palette, Sun, Type } from "lucide-react";
+import { ALargeSmall, Monitor, Moon, Palette, Sun, Type } from "lucide-react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -8,13 +8,16 @@ import { FormSection } from "@/components/ui/separator";
 import { PageHeader } from "@/features/common/PageHeader";
 import { FontSpecimen } from "@/features/settings/FontSpecimen";
 import { OptionCard } from "@/features/settings/OptionCard";
+import { TextSizeSpecimen } from "@/features/settings/TextSizeSpecimen";
 import { ThemePreview } from "@/features/settings/ThemePreview";
 import {
   ACCENTS,
   FONTS,
+  TEXT_SIZES,
   THEME_MODES,
   setAccent,
   setFont,
+  setTextSize,
   setThemeMode,
   type ThemeMode,
 } from "@/features/ui/uiSlice";
@@ -40,7 +43,7 @@ function OptionGroup({ label, children }: { label: string; children: ReactNode }
 export function SettingsPage() {
   const { t } = useTranslation();
   const dispatch = useAppDispatch();
-  const { mode, theme, accent, font } = useAppSelector((s) => s.ui);
+  const { mode, theme, accent, font, textSize } = useAppSelector((s) => s.ui);
 
   return (
     <div className="mx-auto max-w-5xl space-y-8">
@@ -101,6 +104,31 @@ export function SettingsPage() {
               icon={<Type className="size-4" />}
             >
               <FontSpecimen font={option} />
+            </OptionCard>
+          ))}
+        </OptionGroup>
+      </FormSection>
+
+      {/* Sits after the typeface because it modifies it: the office asked for this once the app was
+          on their larger screens, where the default read small (UC-076). */}
+      <FormSection title={t("settings.textSize")} description={t("settings.textSizeHint")}>
+        <OptionGroup label={t("settings.textSize")}>
+          {TEXT_SIZES.map((option) => (
+            <OptionCard
+              key={option}
+              name="text-size"
+              value={option}
+              selected={textSize === option}
+              onSelect={() => dispatch(setTextSize(option))}
+              title={t(`settings.textSizes.${option}`)}
+              description={t(`settings.textSizeDesc.${option}`)}
+              icon={<ALargeSmall className="size-4" />}
+            >
+              <TextSizeSpecimen
+                size={option}
+                label={t("clients.fullName")}
+                value={t("settings.textSizeSample")}
+              />
             </OptionCard>
           ))}
         </OptionGroup>

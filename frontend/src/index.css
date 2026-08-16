@@ -257,6 +257,54 @@
   --font-arabic: "Lateef", "Inter Variable", system-ui, serif;
 }
 
+/* ---- Text size (UC-076) --------------------------------------------------------------------
+   The office's larger monitors made the default read small. Every size in this app is expressed in
+   `rem`, so moving the **root** font size scales the whole interface — text, inputs, buttons, icons
+   and the spacing between them — instead of enlarging type inside rows that stay the same height.
+   16px is the browser default and therefore what every existing screen was designed against.
+
+   Each level publishes its size as a variable as well as applying it, so the settings preview can
+   read the real number instead of keeping a second copy of this scale in TypeScript — a preview
+   drawn from a duplicated table stops telling the truth the moment one of them is edited. */
+[data-text="small"] {
+  --text-scale: 14px;
+  font-size: var(--text-scale);
+}
+[data-text="default"] {
+  --text-scale: 16px;
+  font-size: var(--text-scale);
+}
+[data-text="large"] {
+  --text-scale: 18px;
+  font-size: var(--text-scale);
+}
+[data-text="xlarge"] {
+  --text-scale: 20px;
+  font-size: var(--text-scale);
+}
+
+/* ---- Date fields (UC-082) -------------------------------------------------------------------
+   Chrome lays a date input out as [ value ][ calendar icon ] and lets neither part grow, so on a
+   full-width field the icon ends up glued to the date with the rest of the box empty. Letting the
+   value region take the free space pushes the icon out to the edge, where a picker belongs and
+   where it is a target in its own right rather than something to hit beside the text.
+
+   Chrome renders date controls `direction: ltr` whatever the page does, so "the edge" is the right
+   one in Sorani and Arabic too — the same place the office already reaches for.
+
+   Positioned, not pushed: Chrome ignores `flex`, `margin` and `width` on these pseudo-elements —
+   all three were tried and left the icon exactly where it was — so pinning it is the only thing
+   that moves it. `0.75rem` is the input's own `px-3`, so the icon lines up with the padding
+   everything else in the field respects. */
+input[type="date"] {
+  position: relative;
+}
+input[type="date"]::-webkit-calendar-picker-indicator {
+  position: absolute;
+  inset-inline-end: 0.75rem;
+  cursor: pointer;
+}
+
 @layer base {
   * {
     border-color: var(--color-border);

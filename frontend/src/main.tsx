@@ -31,6 +31,7 @@ import { store } from "@/app/store";
 import {
   applyAccent,
   applyFont,
+  applyTextSize,
   applyThemeClass,
   syncSystemTheme,
   watchSystemTheme,
@@ -40,6 +41,7 @@ import {
 applyThemeClass(store.getState().ui.theme);
 applyAccent(store.getState().ui.accent);
 applyFont(store.getState().ui.font);
+applyTextSize(store.getState().ui.textSize);
 watchSystemTheme(() => store.dispatch(syncSystemTheme()));
 
 createRoot(document.getElementById("root")!).render(
