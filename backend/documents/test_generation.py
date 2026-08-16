@@ -2,24 +2,25 @@
 
 import tempfile
 import unittest
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 from django.conf import settings
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 from django.urls import reverse
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
 
 from accounts.models import User
 from catalog.models import Category
+from catalog.document_types import ELIGIBILITY_LETTER
 from clients.factories import make_client
 from common.models import ActivityLog
 from processes.services import create_process
 
 from .generation import (
-    ELIGIBILITY_DOC_TYPE,
     run_eligibility_job,
     run_process_list_job,
     start_eligibility_job,
@@ -124,58 +125,109 @@ class GenerationJobTests(APITestCase):
             category=self.category,
         )
 
-    def test_eligibility_job_attaches_a_generated_document_and_audits_it(self):
-        template = make_template(
-            DocumentTemplate.TemplateType.ELIGIBILITY_SINGLE, build_eligibility_single
-        )
+    def _run_eligibility(self, template):
         job = GenerationJob.objects.create(
             kind=GenerationJob.Kind.ELIGIBILITY, template=template,
             process=self.process, requested_by=self.lawyer,
         )
-
         run_eligibility_job(job.id)
-
         job.refresh_from_db()
-        self.assertEqual(job.status, GenerationJob.Status.DONE)
-        document = job.document
-        self.assertEqual(document.document_type, ELIGIBILITY_DOC_TYPE)
-        self.assertEqual(document.input_source, Document.InputSource.SYSTEM_GENERATED)
-        self.assertTrue((settings.DOCUMENTS_ROOT / document.file_path).is_file())
-        # The job itself is audited when it is REQUESTED (see GenerationAuditTests); here the
-        # artefact is what matters — the stored document carries its own create row.
-        self.assertTrue(
-            ActivityLog.objects.filter(
-                entity_type="Document",
-                entity_id=str(document.id),
-                action=ActivityLog.Action.CREATE,
-            ).exists()
-        )
+        return job
 
-    def test_regenerating_supersedes_the_previous_letter_instead_of_overwriting_it(self):
-        """The earlier PDF stays on disk, soft-deleted — the audit trail keeps what was sent."""
+    def test_eligibility_job_produces_a_downloadable_file_and_files_nothing_on_the_case(self):
+        """UC-075: the office prints this letter; it is not archived on the allocation.
+
+        Filing it also put it in the Step-5 compilation, which is where they noticed it.
+        """
         template = make_template(
             DocumentTemplate.TemplateType.ELIGIBILITY_SINGLE, build_eligibility_single
         )
 
-        def generate():
-            job = GenerationJob.objects.create(
-                kind=GenerationJob.Kind.ELIGIBILITY, template=template,
-                process=self.process, requested_by=self.lawyer,
-            )
-            run_eligibility_job(job.id)
-            job.refresh_from_db()
-            return job.document
+        job = self._run_eligibility(template)
 
-        first = generate()
-        second = generate()
+        self.assertEqual(job.status, GenerationJob.Status.DONE)
+        self.assertTrue((settings.DOCUMENTS_ROOT / job.output_path).is_file())
+        # Nothing on the case, so nothing for the compiled export to pick up either.
+        self.assertIsNone(job.document)
+        self.assertFalse(
+            Document.all_objects.filter(
+                process=self.process, document_type=ELIGIBILITY_LETTER
+            ).exists()
+        )
+        # It lives outside the beneficiary's folder, like the other unfiled outputs (§6.8).
+        self.assertTrue(job.output_path.startswith("_generated/"))
 
-        self.assertNotEqual(first.id, second.id)
-        first.refresh_from_db()
-        self.assertTrue(first.is_deleted)
-        self.assertFalse(second.is_deleted)
-        # Exactly one live letter, so Step 1 never shows two.
-        live = Document.objects.filter(process=self.process, document_type=ELIGIBILITY_DOC_TYPE)
-        self.assertEqual(live.count(), 1)
+    def test_letters_from_other_cases_are_swept_once_they_expire(self):
+        """UC-075: nothing on a case points at a letter file, so without this the store would grow
+        by one permanent PDF per case ever generated — the very thing unfiling it was meant to
+        avoid. Swept on generation rather than on a schedule: the office computers are off when
+        beat fires, so a nightly sweep would never run once."""
+        template = make_template(
+            DocumentTemplate.TemplateType.ELIGIBILITY_SINGLE, build_eligibility_single
+        )
+        other = create_process(
+            client=make_client(pid="GEN-OLD", category=self.category),
+            assigned_lawyer=self.lawyer, actor=self.lawyer, category=self.category,
+        )
+        stale_job = GenerationJob.objects.create(
+            kind=GenerationJob.Kind.ELIGIBILITY, template=template,
+            process=other, requested_by=self.lawyer,
+        )
+        run_eligibility_job(stale_job.id)
+        stale_job.refresh_from_db()
+        stale_path = settings.DOCUMENTS_ROOT / stale_job.output_path
+        self.assertTrue(stale_path.is_file())
+        # Age it past the window. `created_at` is auto_now_add, so the ORM cannot set it directly.
+        GenerationJob.objects.filter(pk=stale_job.pk).update(
+            created_at=timezone.now()
+            - timedelta(days=settings.GENERATED_LETTER_RETENTION_DAYS + 1)
+        )
+
+        fresh = self._run_eligibility(template)
+
+        self.assertFalse(stale_path.exists(), "an expired letter from another case was kept")
+        self.assertTrue((settings.DOCUMENTS_ROOT / fresh.output_path).is_file())
+
+    def test_a_recent_letter_on_another_case_is_left_alone(self):
+        """The sweep must not delete a letter a colleague is printing at the next desk."""
+        template = make_template(
+            DocumentTemplate.TemplateType.ELIGIBILITY_SINGLE, build_eligibility_single
+        )
+        other = create_process(
+            client=make_client(pid="GEN-NEW", category=self.category),
+            assigned_lawyer=self.lawyer, actor=self.lawyer, category=self.category,
+        )
+        theirs = GenerationJob.objects.create(
+            kind=GenerationJob.Kind.ELIGIBILITY, template=template,
+            process=other, requested_by=self.lawyer,
+        )
+        run_eligibility_job(theirs.id)
+        theirs.refresh_from_db()
+
+        self._run_eligibility(template)
+
+        self.assertTrue((settings.DOCUMENTS_ROOT / theirs.output_path).is_file())
+
+    def test_regenerating_replaces_the_previous_letter_file(self):
+        """Nothing on the case points at these, so each run must clear the last one's file."""
+        template = make_template(
+            DocumentTemplate.TemplateType.ELIGIBILITY_SINGLE, build_eligibility_single
+        )
+
+        first = self._run_eligibility(template)
+        first_path = settings.DOCUMENTS_ROOT / first.output_path
+        second = self._run_eligibility(template)
+
+        self.assertNotEqual(first.output_path, second.output_path)
+        self.assertFalse(first_path.exists(), "the superseded letter was left on disk")
+        self.assertTrue((settings.DOCUMENTS_ROOT / second.output_path).is_file())
+        # The job rows both survive — they are the record of who generated what (§11).
+        self.assertEqual(
+            GenerationJob.objects.filter(
+                kind=GenerationJob.Kind.ELIGIBILITY, process=self.process
+            ).count(),
+            2,
+        )
 
     def test_list_job_writes_a_standalone_file_outside_any_person_folder(self):
         template = make_template(DocumentTemplate.TemplateType.PROCESS_LIST, build_process_list)
@@ -419,31 +471,25 @@ class GenerationAuditTests(APITestCase):
             assigned_lawyer=self.lawyer, actor=self.lawyer, category=self.category,
         )
 
-    def test_superseding_a_letter_audits_the_deletion_of_the_old_one(self):
-        """A bulk UPDATE would soft-delete the old PDF leaving no trace of who or when."""
-        template = make_template(
-            DocumentTemplate.TemplateType.ELIGIBILITY_SINGLE, build_eligibility_single
-        )
+    def test_every_letter_run_is_traceable_even_though_nothing_is_filed(self):
+        """The letter no longer becomes a Document (UC-075), which removed the create/delete rows
+        that used to record it. The request row is therefore the *only* trace left of who produced
+        a beneficiary's letter and when — so each run must have one."""
+        make_template(DocumentTemplate.TemplateType.ELIGIBILITY_SINGLE, build_eligibility_single)
 
-        def generate():
-            job = GenerationJob.objects.create(
-                kind=GenerationJob.Kind.ELIGIBILITY, template=template,
-                process=self.process, requested_by=self.lawyer,
+        first = start_eligibility_job(process=self.process, actor=self.lawyer)
+        second = start_eligibility_job(process=self.process, actor=self.lawyer)
+
+        for job in (first, second):
+            self.assertTrue(
+                ActivityLog.objects.filter(
+                    entity_type="GenerationJob",
+                    entity_id=str(job.id),
+                    action=ActivityLog.Action.GENERATE,
+                    actor=self.lawyer,
+                ).exists(),
+                f"job {job.id} left no audit row",
             )
-            run_eligibility_job(job.id)
-            job.refresh_from_db()
-            return job
-
-        first = generate()
-        generate()
-
-        self.assertTrue(
-            ActivityLog.objects.filter(
-                entity_type="Document",
-                entity_id=str(first.document_id),
-                action=ActivityLog.Action.DELETE,
-            ).exists()
-        )
 
     def test_a_failed_bulk_export_is_still_traceable(self):
         """The request is what must be recorded — a render can fail long after the click."""

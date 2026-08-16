@@ -97,7 +97,7 @@ export function DocumentRow({
       </div>
       {previewable && open && (
         <div className="border-t border-border px-3 py-3">
-          <DocumentPreview documentId={doc.id} title={doc.display_filename} />
+          <DocumentPreview source={{ kind: "document", id: doc.id }} title={doc.display_filename} />
         </div>
       )}
     </div>

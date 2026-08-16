@@ -91,6 +91,12 @@ MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_BYTES", str(25 * 1024 * 1024)))
 # of a large case; this is a runaway-merge backstop, not an input restriction.
 MAX_GENERATED_BYTES = int(os.getenv("MAX_GENERATED_BYTES", str(200 * 1024 * 1024)))
 
+# How long a Step-1 letter's PDF is kept before the next generation sweeps it (§6.6, UC-075).
+# The letter is deliberately not filed on the case, so once the lawyer leaves Step 1 nothing can
+# reach the file again — a day is generous for "generated it, printing it now", and keeps the
+# office's document store from growing by one permanent PDF per case.
+GENERATED_LETTER_RETENTION_DAYS = int(os.getenv("GENERATED_LETTER_RETENTION_DAYS", "1"))
+
 # Admin-uploaded .docx letter templates (§3.5, §6.6) — kept beside the documents they generate.
 # Named to stay clearly distinct from Django's own TEMPLATES setting below.
 #

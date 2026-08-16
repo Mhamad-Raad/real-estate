@@ -39,6 +39,18 @@ export async function downloadFile(url: string, filename: string, token: string 
   URL.revokeObjectURL(objectUrl);
 }
 
+/**
+ * Where a PDF the app can show comes from. Two shapes, because not everything the office reads is
+ * filed on a case: the Step-1 letter is a job output (UC-075), yet it is previewed, printed and
+ * downloaded through exactly the same controls as a filed document.
+ */
+export type FileSource = { kind: "document"; id: number } | { kind: "job"; id: number };
+
+export const fileUrlFor = (source: FileSource) =>
+  source.kind === "document"
+    ? `/api/v1/documents/${source.id}/file/`
+    : `/api/v1/generation-jobs/${source.id}/file/`;
+
 /** Uses the friendly filename the server composed for the document. */
 export async function downloadDocument(id: number, filename: string, token: string | null) {
   return downloadFile(`/api/v1/documents/${id}/file/`, filename, token);

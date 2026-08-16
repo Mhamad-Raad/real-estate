@@ -7,27 +7,32 @@ import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "@/lib/toast";
 
-import { downloadDocument, fetchDocumentBlobUrl } from "./download";
+import { downloadFile, fetchBlobUrl, fileUrlFor, type FileSource } from "./download";
 
 // Inline PDF preview + print. The bytes need an auth header, so they are fetched as a blob and
 // handed to the iframe as an object URL — a plain <iframe src> would come back 401.
+//
+// Takes a `source` rather than a document id: the Step-1 letter is no longer a Document (UC-075)
+// but is still previewed and printed from the case, and duplicating this component for the sake
+// of one differing URL is how two previews drift apart.
 export function DocumentPreview({
-  documentId,
+  source,
   title,
 }: {
-  documentId: number;
+  source: FileSource;
   title: string;
 }) {
   const { t } = useTranslation();
   const token = useAppSelector((s) => s.auth.access);
   const [url, setUrl] = useState<string | null>(null);
   const frame = useRef<HTMLIFrameElement>(null);
+  const href = fileUrlFor(source);
 
   useEffect(() => {
     let objectUrl: string | null = null;
     let cancelled = false;
 
-    fetchDocumentBlobUrl(documentId, token)
+    fetchBlobUrl(href, token)
       .then((created) => {
         // The document may have changed (regenerated) while this was in flight.
         if (cancelled) {
@@ -43,7 +48,7 @@ export function DocumentPreview({
       cancelled = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl); // never leak the blob
     };
-  }, [documentId, token, t]);
+  }, [href, token, t]);
 
   return (
     <div className="space-y-2">
@@ -59,7 +64,7 @@ export function DocumentPreview({
             size="sm"
             disabled={!url}
             onClick={() =>
-              downloadDocument(documentId, title, token).catch(() =>
+              downloadFile(href, title, token).catch(() =>
                 toast.error(t("workflow.downloadError")),
               )
             }

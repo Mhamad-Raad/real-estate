@@ -1,18 +1,20 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
-
-import type { DocumentType } from "@/features/documents/documentTypesApi";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { GeneratedLetterPanel } from "./GeneratedLetterPanel";
 
-const unwrap = vi.fn().mockResolvedValue({ id: 1 });
-const generate = vi.fn(() => ({ unwrap }));
+const unwrap = vi.fn().mockResolvedValue({ id: 7 });
+const generate = vi.fn((_args: { process: number }) => ({ unwrap }));
+// Set per test: what polling the started job reports back.
+let job: { id: number; status: string; error: string } | undefined;
 
 vi.mock("@/app/hooks", () => ({ useAppDispatch: () => vi.fn(), useAppSelector: () => "token" }));
 vi.mock("@/lib/toast", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
-vi.mock("@/features/documents/DocumentPreview", () => ({ DocumentPreview: () => null }));
-vi.mock("@/features/documents/DocumentRow", () => ({
-  DocumentRow: ({ doc }: { doc: { display_filename: string } }) => <div>{doc.display_filename}</div>,
+vi.mock("@/features/documents/DocumentPreview", () => ({
+  DocumentPreview: ({ source }: { source: { kind: string; id: number } }) => (
+    <div data-testid="preview">{`${source.kind}:${source.id}`}</div>
+  ),
 }));
 vi.mock("@/features/documents/generationApi", async () => {
   const actual = await vi.importActual<typeof import("@/features/documents/generationApi")>(
@@ -21,43 +23,23 @@ vi.mock("@/features/documents/generationApi", async () => {
   return {
     ...actual,
     useGenerateEligibilityMutation: () => [generate, { isLoading: false }],
-    useGetGenerationJobQuery: () => ({ data: undefined }),
+    // `skip` must be honoured, or the panel reports a finished job before anything was started.
+    useGetGenerationJobQuery: (_id: number, opts?: { skip?: boolean }) => ({
+      data: opts?.skip ? undefined : job,
+    }),
   };
 });
 
-const LETTER_TYPE: DocumentType = {
-  code: "EligibilityLetter",
-  display_key: "workflow.docType.EligibilityLetter",
-  step: 1,
-  required: false,
-  only_when_married: false,
-  generated: true,
-  expected_files: 1,
-};
-
-const doc = (over = {}) => ({
-  id: 11,
-  process: 1,
-  step_number: 1,
-  document_type: "EligibilityLetter",
-  display_filename: "letter.pdf",
-  ...over,
-});
-
 function renderPanel(props: Partial<Parameters<typeof GeneratedLetterPanel>[0]> = {}) {
-  return render(
-    <GeneratedLetterPanel
-      processId={1}
-      documents={[]}
-      generatedTypes={[LETTER_TYPE]}
-      canGenerate
-      hasNames
-      {...props}
-    />,
-  );
+  return render(<GeneratedLetterPanel processId={1} canGenerate hasNames {...props} />);
 }
 
 describe("GeneratedLetterPanel", () => {
+  beforeEach(() => {
+    job = undefined;
+    generate.mockClear();
+  });
+
   it("will not generate before the beneficiary has a name", () => {
     // The letter renders names; without them it would print an empty form (UC-038).
     renderPanel({ hasNames: false });
@@ -73,10 +55,21 @@ describe("GeneratedLetterPanel", () => {
     expect(screen.getByRole("button", { name: /generate document/i })).toBeEnabled();
   });
 
-  it("offers a regenerate once a letter exists, and lists it", () => {
-    renderPanel({ documents: [doc()] as never });
+  it("shows nothing to preview until a letter has been generated", () => {
+    // The letter is no longer filed on the case (UC-075), so an untouched case has no output at
+    // all — not an old document waiting to be found.
+    renderPanel();
 
-    expect(screen.getByText("letter.pdf")).toBeInTheDocument();
+    expect(screen.queryByTestId("preview")).not.toBeInTheDocument();
+  });
+
+  it("previews the finished job's own file, not a document on the case", async () => {
+    job = { id: 7, status: "done", error: "" };
+    renderPanel();
+
+    await userEvent.click(screen.getByRole("button", { name: /generate document/i }));
+
+    await waitFor(() => expect(screen.getByTestId("preview")).toHaveTextContent("job:7"));
     expect(screen.getByRole("button", { name: /regenerate/i })).toBeInTheDocument();
   });
 

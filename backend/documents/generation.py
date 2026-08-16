@@ -1,15 +1,18 @@
 """Template → PDF generation services (§6.6, §6.8) — the sole place that writes generation audit.
 
 Runs inside the Celery worker: `docxtpl` fills the stored `.docx`, headless LibreOffice renders
-it, and the result becomes either a `Document` on the process (single letter) or a standalone
-file the requester downloads (list letter, which spans several people and so belongs to none).
+it, and the result becomes a standalone file the requester downloads. Nothing generated here is
+filed on a case — the list letters span several people and so belong to none, and the Step-1
+letter is produced to be read and printed rather than archived (UC-075).
 """
 
 import tempfile
+from datetime import timedelta
 from pathlib import Path
 
 from django.conf import settings
 from django.db import transaction
+from django.db.models import Q
 from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 from docxtpl import DocxTemplate
@@ -19,14 +22,14 @@ from common.services import record_activity
 from processes.models import Process
 
 from .letters import eligibility_context, process_codes_context, process_list_context
-from .models import Document, DocumentTemplate, GenerationJob
+from .models import DocumentTemplate, GenerationJob
 from .rendering import RenderError, docx_to_pdf
-from .services import create_document, supersede_generated_documents
 
-# Generated letters are Step-1 output and carry this controlled type (§6.7).
-ELIGIBILITY_DOC_TYPE = "EligibilityLetter"
 # List letters span people, so they live outside the per-person tree (§6.8).
 GENERATED_LISTS_DIR = "_generated/lists"
+# The Step-1 letter is produced to be read and printed, not archived (UC-075) — so it lands here
+# rather than in the beneficiary's folder, and never becomes a Document on the case.
+GENERATED_LETTERS_DIR = "_generated/letters"
 
 
 def render_to_pdf(template: DocumentTemplate, context: dict, out_dir: Path) -> bytes:
@@ -53,8 +56,44 @@ def _fail(job: GenerationJob, message: str) -> None:
     job.save(update_fields=["status", "error", "updated_at"])
 
 
+def _discard_stale_letters(job: GenerationJob) -> None:
+    """Clear out letter files nobody can still be reading (UC-075).
+
+    The Step-1 letter is deliberately not archived, so nothing on a case ever points at one of
+    these files: the screen forgets the job as soon as the lawyer leaves Step 1, and after that
+    the PDF is unreachable. Two things go, both file-only — **the job rows always stay**, because
+    they are the record of who generated whose letter (§11):
+
+    1. this case's previous letter, superseded by the one just rendered;
+    2. **any** letter older than the retention window, which is what stops the directory growing
+       by one permanent file per case ever generated — the office's whole reason for taking the
+       letter off the case in the first place.
+
+    Swept here rather than from `CELERY_BEAT_SCHEDULE` on purpose: the office computers are on
+    09:00–14:00 and beat does not replay a schedule it slept through, so a nightly sweep would
+    never once run. Generating a letter is exactly when this directory grows, so cleaning up at
+    that moment keeps it bounded without depending on the scheduler at all.
+    """
+    root = Path(settings.DOCUMENTS_ROOT)
+    cutoff = timezone.now() - timedelta(days=settings.GENERATED_LETTER_RETENTION_DAYS)
+    stale = (
+        GenerationJob.objects.filter(kind=GenerationJob.Kind.ELIGIBILITY)
+        .exclude(pk=job.pk)
+        .exclude(output_path="")
+        .filter(Q(process_id=job.process_id) | Q(created_at__lt=cutoff))
+    )
+    for old in stale:
+        (root / old.output_path).unlink(missing_ok=True)
+
+
 def run_eligibility_job(job_id: int) -> None:
-    """Generate the single-beneficiary letter and attach it to the process."""
+    """Render the single-beneficiary letter to a downloadable file (§6.6, UC-075).
+
+    **Not filed on the case.** The office produces this letter to read and print; keeping a copy
+    on every allocation meant it was also merged into the Step-5 compiled export, where they do
+    not want it. So it is written like the bulk letters — a standalone job output — and the case
+    itself carries no `EligibilityLetter` document.
+    """
     job = GenerationJob.objects.select_related("process__client", "template").get(pk=job_id)
     job.status = GenerationJob.Status.RUNNING
     job.save(update_fields=["status", "updated_at"])
@@ -63,30 +102,15 @@ def run_eligibility_job(job_id: int) -> None:
         with tempfile.TemporaryDirectory(prefix="gen-") as work:
             pdf = render_to_pdf(job.template, eligibility_context(job.process), Path(work))
 
-        with transaction.atomic():
-            # Same lock as the compiled export: two concurrent regenerations would otherwise
-            # both leave a live letter on the case.
-            Process.objects.select_for_update().get(pk=job.process_id)
-            # A regenerated letter supersedes the last one — row soft-deleted, audited, and its
-            # PDF removed from disk (§6.6). One shared service, because the compiled export does
-            # exactly the same thing and the two copies had already drifted apart in their comments.
-            supersede_generated_documents(
-                process=job.process,
-                document_type=ELIGIBILITY_DOC_TYPE,
-                actor=job.requested_by,
-                job_id=job.id,
-            )
-            document = create_document(
-                process=job.process,
-                step_number=1,
-                document_type=ELIGIBILITY_DOC_TYPE,
-                input_source=Document.InputSource.SYSTEM_GENERATED,
-                content=pdf,
-                actor=job.requested_by,
-            )
-            job.document = document
-            job.status = GenerationJob.Status.DONE
-            job.save(update_fields=["document", "status", "updated_at"])
+        destination = Path(settings.DOCUMENTS_ROOT) / GENERATED_LETTERS_DIR
+        destination.mkdir(parents=True, exist_ok=True)
+        out_file = destination / f"letter_{job.id}.pdf"
+        out_file.write_bytes(pdf)
+        _discard_stale_letters(job)
+
+        job.output_path = f"{GENERATED_LETTERS_DIR}/{out_file.name}"
+        job.status = GenerationJob.Status.DONE
+        job.save(update_fields=["output_path", "status", "updated_at"])
     except Exception as exc:  # a failed render must never look like a success
         _fail(job, str(exc))
         raise

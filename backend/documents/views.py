@@ -162,19 +162,31 @@ class GenerationJobViewSet(ReadOnlyModelViewSet):
             raise Http404("This job has no downloadable file.")
         path = settings.DOCUMENTS_ROOT / job.output_path
         if not path.exists():
-            # Already collected. Said plainly, because "file is missing" reads like a fault when
-            # it is the normal end of a one-shot download; regenerating is one click.
-            raise Http404("This list has already been downloaded. Generate it again if needed.")
+            # Gone for one of two ordinary reasons, and the message has to say which — "file is
+            # missing" reads like a fault when nothing went wrong, and regenerating is one click.
+            # A list is collected on its first download; a letter is swept once superseded or
+            # past its retention window (UC-075), never downloaded away.
+            raise Http404(
+                "This letter is no longer available. Generate it again if needed."
+                if job.kind == GenerationJob.Kind.ELIGIBILITY
+                else "This list has already been downloaded. Generate it again if needed."
+            )
 
-        # **Read, then delete, then serve.** A list letter belongs to no case (§6.8) — it is a
-        # bulk export of many citizens' details that the office saves or prints on the spot, so
-        # keeping it grew the store for nothing and left personal data lying in `_generated`
-        # indefinitely (office decision, 2026-08-11). The bytes are loaded first because streaming
-        # from a handle whose file has been unlinked is not something to rely on, and these are
-        # small. `output_path` is deliberately KEPT: the job row still records what was produced,
-        # and the audit trail of who exported whose data is untouched (§11).
+        # **Read, then delete, then serve** — for a *bulk* export. A list letter belongs to no case
+        # (§6.8): it is a bulk export of many citizens' details that the office saves or prints on
+        # the spot, so keeping it grew the store for nothing and left personal data lying in
+        # `_generated` indefinitely (office decision, 2026-08-11). The bytes are loaded first
+        # because streaming from a handle whose file has been unlinked is not something to rely
+        # on, and these are small. `output_path` is deliberately KEPT: the job row still records
+        # what was produced, and the audit trail of who exported whose data is untouched (§11).
+        #
+        # The Step-1 letter is the exception (UC-075). It is one beneficiary's own letter, shown
+        # inline on the case so it can be checked before printing — and a preview is a read of
+        # this same endpoint, so collecting it on first read would delete the file out from under
+        # the download button beside it. Each regeneration removes the previous one instead.
         payload = path.read_bytes()
-        path.unlink(missing_ok=True)
+        if job.kind != GenerationJob.Kind.ELIGIBILITY:
+            path.unlink(missing_ok=True)
         return FileResponse(
             io.BytesIO(payload),
             as_attachment=True,

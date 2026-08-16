@@ -1,8 +1,13 @@
 import { FileStack } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
+import { useAppDispatch } from "@/app/hooks";
+import { toast } from "@/lib/toast";
+import { DocumentPreview } from "@/features/documents/DocumentPreview";
+import { DocumentRow } from "@/features/documents/DocumentRow";
 import { useCompileCaseMutation } from "@/features/documents/generationApi";
 import type { DocumentMeta } from "@/features/documents/types";
+import { baseApi } from "@/services/baseApi";
 
 import { newestFirst } from "@/features/documents/documentOrder";
 
@@ -23,6 +28,7 @@ export function CompiledCasePanel({
   canGenerate: boolean;
 }) {
   const { t } = useTranslation();
+  const dispatch = useAppDispatch();
   const [compile, { isLoading }] = useCompileCaseMutation();
 
   const compiled = newestFirst(documents, (doc) => doc.document_type === COMPILED_TYPE);
@@ -31,25 +37,45 @@ export function CompiledCasePanel({
 
   return (
     <GeneratedDocumentPanel
-      processId={processId}
-      documents={compiled}
       icon={FileStack}
       title={t("workflow.compiledSection")}
       hint={t("workflow.compiledHint")}
       canGenerate={canGenerate}
       unlocked={hasAttachments}
+      hasResult={compiled.length > 0}
       starting={isLoading}
       onStart={() => compile({ process: processId }).unwrap()}
+      // The output is a new Document on the process — refetch the case so it appears.
+      onFinished={() => {
+        dispatch(baseApi.util.invalidateTags([{ type: "Process", id: processId }]));
+        toast.success(t("common.saved"));
+      }}
       labels={{
         generate: t("workflow.compile"),
         regenerate: t("workflow.recompile"),
         busy: t("workflow.compiling"),
         started: t("workflow.compileStarted"),
-        done: t("common.saved"),
         failed: t("workflow.compileFailed"),
         empty: t("workflow.noCompiledYet"),
         locked: t("workflow.compileLocked"),
       }}
-    />
+    >
+      <div className="space-y-3">
+        <div className="space-y-1">
+          {compiled.map((doc, i) => (
+            // The newest is already previewed below, so it must not offer its own toggle —
+            // that opened a second copy of the same PDF under the first (UC-069).
+            <DocumentRow key={doc.id} doc={doc} previewable={i !== 0} />
+          ))}
+        </div>
+        {/* Newest shown inline so it can be checked and printed without leaving the case. */}
+        {compiled.length > 0 && (
+          <DocumentPreview
+            source={{ kind: "document", id: compiled[0].id }}
+            title={compiled[0].display_filename}
+          />
+        )}
+      </div>
+    </GeneratedDocumentPanel>
   );
 }

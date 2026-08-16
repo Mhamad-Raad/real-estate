@@ -15,8 +15,9 @@ import { useNum } from "@/hooks/useNum";
 import { apiErrorMessage } from "@/lib/apiError";
 
 // The letter for the rows ticked on the Processes page (§6.8, UC-016). **One** row produces that
-// person's own eligibility letter, filed on their case; **two or more** produce the list letter,
-// which spans several people and so is filed under none of them and downloads straight to print.
+// person's own eligibility letter; **two or more** produce the list letter, which spans several
+// people. Neither is filed on a case — the list belongs to no single one, and the single letter
+// is produced to be printed rather than archived (UC-075) — so both download straight to print.
 export function SelectionToolbar({
   selected,
   onClear,
@@ -33,14 +34,13 @@ export function SelectionToolbar({
   const [generate, { isLoading: starting }] = useGenerateProcessListMutation();
   const [generateCodes, { isLoading: startingCodes }] = useGenerateProcessCodesMutation();
   const { start, busy: running } = useGenerationRun((job) => {
-    // The two kinds land in different places: a list letter is a job output with its own
-    // endpoint, a single letter is a Document on the case. Asking the job endpoint for the
-    // latter 404s, because an eligibility job carries no `output_path`.
+    // Every kind is a job output now, so the job endpoint serves them all (UC-075). The
+    // `job.document` branch is kept for **cases generated before that change**, whose letter was
+    // filed as a Document and whose job rows still point at it; new jobs never set it.
     // Both names come from the server (UC-066); these fallbacks only apply if it sends none.
-    const download =
-      job.kind === "eligibility" && job.document
-        ? downloadDocument(job.document, `letter_${job.document}.pdf`, token)
-        : downloadGenerationJob(job.id, token);
+    const download = job.document
+      ? downloadDocument(job.document, `letter_${job.document}.pdf`, token)
+      : downloadGenerationJob(job.id, token);
     download.then(onClear).catch(() => toast.error(t("workflow.downloadError")));
   });
 
