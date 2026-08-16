@@ -23,9 +23,14 @@ class DocumentType(NamedTuple):
     only_when_married: bool = False
     # Produced by the system (§6.6) — shown as output, never offered as an upload slot.
     generated: bool = False
-    # How many files the office expects in this slot. Drives the UI hint only — completion still
-    # asks whether the type is present at all, so a slot short of its second file is not blocked.
-    expected_files: int = 1
+    # How many parts the office files here. Drives the UI hint only — completion still asks
+    # whether the type is present at all, so a slot short of its second part is not blocked.
+    expected_parts: int = 1
+    # **What a "part" is.** For most papers it is a file, one row each. An identity card is not:
+    # both sides are deliberately stored as ONE document with two pages
+    # (`ocr.services.stage_scan`), so counting rows told the office that a complete card was
+    # "1 of 2 files" (UC-083). Those slots count pages instead, and say "sides".
+    counts_pages: bool = False
 
 
 # The two identity papers. Named because OCR reads these into client fields and files the rest
@@ -38,25 +43,45 @@ IDENTITY_TYPE_CODES = (CLIENT_ID, SPOUSE_ID)
 # *this* paper, and it takes its download name from here rather than inventing a second one (§6.6).
 REQUEST = "Request"
 
+# The two system outputs. Named here with the rest of the vocabulary because both are *excluded*
+# from the compiled export and the exclusion has to name them: the previous compilation, or each
+# run would nest the last inside the next, and the eligibility letter, which the office does not
+# want in the compilation (UC-075). Nothing files a letter any more — cases opened before that
+# change still carry one, which is exactly why the code must stay declared.
+ELIGIBILITY_LETTER = "EligibilityLetter"
+COMPILED_CASE = "CompiledCase"
+
+# An identity card has two sides, and a case typed in by hand arrives with them as two separate
+# scans (UC-080). The scan-capture path merges the pair into one PDF, so plenty of existing cases
+# hold a single file here — the count is a hint and never blocks a step (UC-055), so both shapes
+# are fine. Declared once because both cards are filed the same way.
+ID_CARD_SIDES = 2
+
 DOCUMENT_TYPES: list[DocumentType] = [
-    DocumentType(CLIENT_ID, "workflow.docType.ClientID", 1, True),
-    DocumentType(SPOUSE_ID, "workflow.docType.SpouseID", 1, True, only_when_married=True),
+    DocumentType(
+        CLIENT_ID, "workflow.docType.ClientID", 1, True,
+        expected_parts=ID_CARD_SIDES, counts_pages=True,
+    ),
+    DocumentType(
+        SPOUSE_ID, "workflow.docType.SpouseID", 1, True,
+        only_when_married=True, expected_parts=ID_CARD_SIDES, counts_pages=True,
+    ),
     # Produced by the Step-4 registration institutes, so it cannot be demanded when a case opens
     # (UC-037). Step 4 is the first institute step that also carries a named-document requirement.
     # The office files it as two papers (UC-055).
-    DocumentType("RealEstate", "workflow.docType.RealEstate", 4, True, expected_files=2),
+    DocumentType("RealEstate", "workflow.docType.RealEstate", 4, True, expected_parts=2),
     DocumentType("SignedAgreement", "workflow.docType.SignedAgreement", 1, True),
     # The citizen's own request. Optional on purpose — not every case arrives with one, so it must
     # never hold Step 1 back. The office prints the blank form, has it signed, and scans it back,
     # which is why it is an upload slot and not a `generated` output like the letter below.
     DocumentType(REQUEST, "workflow.docType.Request", 1, False),
     DocumentType(
-        "EligibilityLetter", "workflow.docType.EligibilityLetter", 1, False, generated=True
+        ELIGIBILITY_LETTER, "workflow.docType.EligibilityLetter", 1, False, generated=True
     ),
     # Steps 2–4 attach one generic document per institute entry, not a fixed named set.
     DocumentType("InstituteDoc", "workflow.docType.InstituteDoc", None, False),
     # The Step-5 compiled export: system output, never an upload slot (§10.3).
-    DocumentType("CompiledCase", "workflow.docType.CompiledCase", 5, False, generated=True),
+    DocumentType(COMPILED_CASE, "workflow.docType.CompiledCase", 5, False, generated=True),
 ]
 
 DOCUMENT_TYPE_CODES = frozenset(dt.code for dt in DOCUMENT_TYPES)
