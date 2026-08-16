@@ -5,7 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Select } from "@/components/ui/select";
+import { FormSection } from "@/components/ui/separator";
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "@/lib/toast";
 import { apiErrorMessage } from "@/lib/apiError";
@@ -33,6 +35,8 @@ export function UserFormDialog({
   const [update, { isLoading: updating }] = useUpdateUserMutation();
   const [form, setForm] = useState(EMPTY);
   const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [mismatch, setMismatch] = useState(false);
   const { errors, setFromError, clear, clearAll } = useFieldErrors();
 
   useEffect(() => {
@@ -49,6 +53,8 @@ export function UserFormDialog({
           : EMPTY,
       );
       setPassword("");
+      setConfirm("");
+      setMismatch(false);
       clearAll(); // reopening on a different user must not inherit the last one's errors
     }
   }, [open, user, clearAll]);
@@ -60,6 +66,13 @@ export function UserFormDialog({
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    // Checked here rather than server-side: the server only ever receives one password, so a typo
+    // would create an account nobody can sign into — and there is no reset on an offline machine.
+    if (password !== confirm) {
+      setMismatch(true);
+      toast.error(t("users.passwordMismatch"));
+      return;
+    }
     try {
       if (user) {
         await update({
@@ -124,35 +137,60 @@ export function UserFormDialog({
           <Input id="u-email" type="email" value={form.email} onChange={set("email")} invalid={Boolean(errors.email)} />
           <FieldError message={errors.email} />
         </div>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2">
-            <Label htmlFor="u-role">{t("users.role")}</Label>
-            <Select id="u-role" value={form.role} onChange={set("role")}>
-              <option value="lawyer">{t("role.lawyer")}</option>
-              <option value="admin">{t("role.admin")}</option>
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="u-password">
-              {user ? t("users.newPassword") : t("users.password")}
-            </Label>
-            <Input
-              id="u-password"
-              type="password"
-              value={password}
-              onChange={(e) => {
-                clear("password");
-                setPassword(e.target.value);
-              }}
-              autoComplete="new-password"
-              placeholder={user ? t("users.passwordKeep") : undefined}
-              required={!user}
-              invalid={Boolean(errors.password)}
-              aria-describedby={errors.password ? "u-password-error" : undefined}
-            />
-            <FieldError id="u-password-error" message={errors.password} />
-          </div>
+        <div className="space-y-2">
+          <Label htmlFor="u-role">{t("users.role")}</Label>
+          <Select id="u-role" value={form.role} onChange={set("role")}>
+            <option value="lawyer">{t("role.lawyer")}</option>
+            <option value="admin">{t("role.admin")}</option>
+          </Select>
         </div>
+
+        {/* Its own section rather than a box beside the role (UC-077): setting a password is a
+            different act from correcting a name, and it is the one field here that cannot be
+            undone by looking at it — these machines have no internet and no password reset. */}
+        <FormSection
+          title={user ? t("users.newPassword") : t("users.password")}
+          description={user ? t("users.passwordSectionHint") : undefined}
+        >
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="u-password">
+                {user ? t("users.newPassword") : t("users.password")}
+              </Label>
+              <PasswordInput
+                id="u-password"
+                value={password}
+                onChange={(e) => {
+                  clear("password");
+                  setMismatch(false);
+                  setPassword(e.target.value);
+                }}
+                autoComplete="new-password"
+                placeholder={user ? t("users.passwordKeep") : undefined}
+                required={!user}
+                invalid={Boolean(errors.password)}
+                aria-describedby={errors.password ? "u-password-error" : undefined}
+              />
+              <FieldError id="u-password-error" message={errors.password} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="u-confirm">{t("users.confirmPassword")}</Label>
+              <PasswordInput
+                id="u-confirm"
+                value={confirm}
+                onChange={(e) => {
+                  setMismatch(false);
+                  setConfirm(e.target.value);
+                }}
+                autoComplete="new-password"
+                required={!user}
+                invalid={mismatch}
+                aria-describedby={mismatch ? "u-confirm-error" : undefined}
+              />
+              <FieldError id="u-confirm-error" message={mismatch ? t("users.passwordMismatch") : undefined} />
+            </div>
+          </div>
+        </FormSection>
         <DialogFooter>
           <Button type="button" variant="outline" onClick={onClose} disabled={busy}>
             {t("common.cancel")}
