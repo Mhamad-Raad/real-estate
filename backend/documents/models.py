@@ -47,6 +47,12 @@ class Document(SoftDeleteModel):
     sha256 = models.CharField(max_length=64)
     original_filename = models.CharField(max_length=255, blank=True)
     size_bytes = models.PositiveIntegerField(default=0)
+    # Pages in the stored PDF, recorded at upload (UC-083). An ID card is deliberately ONE
+    # document holding both sides (`ocr.services.stage_scan`), so "how many sides are on file"
+    # cannot be answered by counting rows — and counting them made a complete card report
+    # "1 of 2 files". Stored rather than derived: the slot renders on every case load, and
+    # opening each PDF to count its pages would be a file read per document per request.
+    page_count = models.PositiveSmallIntegerField(default=0)
     uploaded_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="+"
     )

@@ -115,6 +115,10 @@ def file_staged_document(
     "nothing happened" instead of "the scan is gone".
     """
     display, rel = compose_location(process=process, document_type=document_type)
+    # Counted from the staged file, while it is still where it was written — the move below only
+    # happens on commit. This is the path that produces a two-page card from two scans (UC-083).
+    staged = Path(settings.DOCUMENTS_ROOT) / staged_path
+    pages = filestore.count_pages(staged.read_bytes()) if staged.is_file() else 0
     with transaction.atomic():
         document = Document.objects.create(
             process=process,
@@ -126,6 +130,7 @@ def file_staged_document(
             sha256=sha256,
             original_filename=original_filename[:255],
             size_bytes=size_bytes,
+            page_count=pages,
             uploaded_by=actor,
             ocr_status=Document.OcrStatus.DONE,
             # Filed only because a human confirmed the reading — that is what this row is.
@@ -234,6 +239,7 @@ def create_document(
                 sha256=filestore.sha256_hex(content),
                 original_filename=original_filename[:255],
                 size_bytes=len(content),
+                page_count=filestore.count_pages(content),
                 uploaded_by=actor,
             )
             record_activity(

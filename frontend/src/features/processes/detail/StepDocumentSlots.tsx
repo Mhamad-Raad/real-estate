@@ -42,19 +42,28 @@ export function StepDocumentSlots({
               process.client_detail.is_married ||
               docs.some((d) => d.document_type === dt.code)),
         )
-        .map(({ code: type, display_key, expected_files: expected }) => {
+        .map(({ code: type, display_key, expected_parts: expected, counts_pages: byPage }) => {
           const forType = docs.filter((d) => d.document_type === type);
+          // An identity card is ONE document holding both sides, so its slot counts pages —
+          // counting rows reported a scanned card, front and back, as "1 of 2 files" (UC-083).
+          const filed = byPage
+            ? forType.reduce((total, d) => total + d.page_count, 0)
+            : forType.length;
+          // Capped at what the slot asks for: this hint answers "is it complete?", and a card
+          // scanned as a three-page PDF read "3 of 2 sides", which looks like a fault rather than
+          // an answer (UC-084). Nothing is hidden — every file is still listed underneath.
+          const have = Math.min(filed, expected);
           return (
             <div key={type} className="space-y-2">
               <div className="flex items-center justify-between gap-2">
                 <Label>
                   {t(display_key)}
-                  {/* Only where the office files more than one paper — it says how many are
+                  {/* Only where the office files more than one part — it says how many are
                       wanted and how many are in, without blocking the step (UC-055). */}
                   {expected > 1 && (
                     <span className="ms-2 text-xs font-normal text-muted-foreground">
-                      {t("workflow.filesExpected", {
-                        have: num(forType.length),
+                      {t(byPage ? "workflow.sidesExpected" : "workflow.filesExpected", {
+                        have: num(have),
                         want: num(expected),
                       })}
                     </span>

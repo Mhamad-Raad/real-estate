@@ -22,6 +22,8 @@ class DocumentSerializer(serializers.ModelSerializer):
             "verification_status",
             "display_filename",
             "size_bytes",
+            # How many sides of a card are on file: both are stored as one document (UC-083).
+            "page_count",
             "uploaded_by",
             "created_at",
             "version",

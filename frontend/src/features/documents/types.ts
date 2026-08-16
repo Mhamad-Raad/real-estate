@@ -9,6 +9,8 @@ export interface DocumentMeta {
   verification_status: string;
   display_filename: string;
   size_bytes: number;
+  /** Pages in the stored PDF — both sides of a card live in one document (UC-083). */
+  page_count: number;
   uploaded_by: number;
   created_at: string;
   version: number;

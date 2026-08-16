@@ -104,6 +104,19 @@ def is_readable_pdf(content: bytes) -> bool:
         return False
 
 
+def count_pages(content: bytes) -> int:
+    """Pages in a PDF, or 0 if it cannot be read (UC-083).
+
+    Never raises: this feeds a count on a screen, and a file that will not parse has already been
+    refused by `is_readable_pdf` on every path that stores one — so a failure here means a file
+    that pre-dates that check, which must not take a case page down with it.
+    """
+    try:
+        return len(PdfReader(BytesIO(content)).pages)
+    except Exception:
+        return 0
+
+
 def sha256_hex(content: bytes) -> str:
     return hashlib.sha256(content).hexdigest()
 
@@ -207,6 +220,9 @@ def write_pdf(rel_path: Path, content: bytes) -> Path:
 BULK_JOB_NAMES = {
     "process_list": "لیستی کەیسەکان",
     "process_codes": "لیستی کۆدەکان",
+    # No longer filed on the case (UC-075), so this endpoint names it too — otherwise the office's
+    # own letter would arrive as the generic fallback while the two list letters kept their names.
+    "eligibility": "نامەی سۆراغکردنی سوودمەندی",
 }
 
 

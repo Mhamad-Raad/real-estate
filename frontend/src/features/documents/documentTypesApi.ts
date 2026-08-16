@@ -9,7 +9,10 @@ export interface DocumentType {
   required: boolean;
   only_when_married: boolean; // e.g. the spouse ID — no spouse, no slot
   generated: boolean; // produced by the system — shown as output, never an upload slot
-  expected_files: number; // how many the office files here; a hint only, never a completion rule
+  expected_parts: number; // how many parts the office files here; a hint, never a completion rule
+  // What a "part" is. An identity card stores BOTH sides as one document, so its slot counts
+  // pages and says "sides" — counting rows reported a complete card as "1 of 2 files" (UC-083).
+  counts_pages: boolean;
 }
 
 export const documentTypesApi = baseApi.injectEndpoints({
