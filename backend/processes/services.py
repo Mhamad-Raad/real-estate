@@ -413,11 +413,16 @@ def settle_entry(entry) -> None:
         if entry.approval_status != entry.ApprovalStatus.PENDING and entry.approval_date:
             _close_step_on(entry.process, step, entry.approval_date, only_when_blank=True)
     elif step == 3:
+        # **Decided institutes only**, exactly as step 2 above. The date box is editable while the
+        # status is still `pending`, so a lawyer noting down when they expect an answer would
+        # otherwise close the step on a body that has not answered — found in review, 2026-08-17.
         latest = max(
             (
                 e.approval_date
                 for e in entry.process.institute_entries.all()
-                if e.step_number == 3 and e.approval_date
+                if e.step_number == 3
+                and e.approval_date
+                and e.approval_status != e.ApprovalStatus.PENDING
             ),
             default=None,
         )
@@ -458,11 +463,13 @@ def advance_step(*, process, actor, expected_version=None, request=None) -> Proc
     #
     # Written before the start date below, so `_opening_date` reads a real value rather than
     # falling back to today — the two are the same date here, and saying so is the point.
+    closed_on = None
     if before == FIRST_STEP:
         closing = process.steps.filter(step_number=before).first()
         if closing is not None and closing.end_date is None:
             closing.end_date = timezone.now().date()
             closing.save(update_fields=["end_date", "updated_at"])
+            closed_on = closing.end_date
             # No `recompute_step`, unlike the start date below: step 1's status reads its category,
             # duplicate flag and papers (§3.6) and never its dates, so there is nothing to re-derive.
 
@@ -493,9 +500,10 @@ def advance_step(*, process, actor, expected_version=None, request=None) -> Proc
             "current_step": process.current_step,
             "start_date": str(opened.start_date) if opened else None,
             # Same reason: a date this call wrote and nobody can trace is a write outside the
-            # trail. `None` for every transition but the first, which is the only one that ends
-            # the step it is leaving (UC-090).
-            "end_date_closed": str(closing.end_date) if before == FIRST_STEP and closing else None,
+            # trail. `None` unless this call actually stamped one — it read back the *existing*
+            # date when the office had already typed one, so the trail claimed a write that never
+            # happened (found in review, 2026-08-17).
+            "end_date_closed": str(closed_on) if closed_on else None,
         },
         request=request,
     )

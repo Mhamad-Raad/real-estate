@@ -136,6 +136,20 @@ class WorkflowApiTests(APITestCase):
         self._approve(3, codes[2], date="2026-07-04")
         self.assertEqual(str(self._end_date(3)), "2026-07-09")
 
+    def test_a_pending_institute_carrying_a_date_does_not_close_step_3(self):
+        """Found in review, 2026-08-17. The date box is editable while the status is still
+        pending, so a lawyer noting when they expect an answer would otherwise close the step on
+        a body that has not answered. Step 2 checked this from the start; step 3 did not."""
+        self.client.post(
+            reverse("institute-entry-list"),
+            {"process": self.process.id, "step_number": 3, "institute_code": codes_for_step(3)[0],
+             "assigned_lawyer": self.lawyer.id, "approval_status": "pending",
+             "approval_date": "2026-07-15"},
+            format="json",
+        )
+
+        self.assertIsNone(self._end_date(3))
+
     def test_a_hand_typed_step_3_end_later_than_every_approval_survives(self):
         """The office saying something this rule cannot see — the date only moves forward."""
         codes = codes_for_step(3)
