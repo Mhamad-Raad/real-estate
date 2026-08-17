@@ -17,7 +17,7 @@ from common.models import ActivityLog
 from common.services import record_activity
 
 from . import status as step_status
-from .constants import LAST_STEP, SKIPPABLE_STEPS, STEP_NUMBERS, WORKING_STEPS
+from .constants import LAST_STEP, STEP_NUMBERS, WORKING_STEPS
 from .models import DuplicateOverride, Process, ProcessInstituteEntry, ProcessStep
 
 
@@ -433,13 +433,13 @@ def complete_process(*, process, actor, force=False, expected_version=None, requ
     check_version(process, expected_version, required=True)
     for n in WORKING_STEPS:
         recompute_step(process, n)
-    # A skippable step never holds the case open (UC-079) — the office finishes allocations that
-    # never reach the registration institutes. Its own status is left alone, so the case closes
-    # *over* an unfinished step rather than pretending the step was done.
-    prior_complete = all(
-        s.status == ProcessStep.Status.COMPLETE
+    # Asks each step what still *blocks*, not whether it is complete (UC-079, narrowed by UC-088):
+    # the Step-4 institutes never hold a case open, but that step's municipality form and land
+    # number do. A step's own status is left alone either way, so the case closes *over* an
+    # unfinished step rather than pretending the step was done.
+    prior_complete = not any(
+        step_status.step_blocks_completion(process, s)
         for s in process.steps.filter(step_number__lt=LAST_STEP)
-        if s.step_number not in SKIPPABLE_STEPS
     )
     if not prior_complete and not force:
         raise MissingFiles()

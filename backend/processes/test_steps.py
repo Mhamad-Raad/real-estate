@@ -343,6 +343,14 @@ class WorkflowApiTests(APITestCase):
             {"start_date": "2026-07-01", "version": row.version}, format="json",
         )
 
+    def _finish_step_4_paperwork(self):
+        """Step 4's **own** requirements — the municipality form and the land number. Only the two
+        institutes on that step are optional (UC-088), so these have to be there for a case to be
+        closed over the rest of it."""
+        self._upload(4, "RealEstate")
+        self.process.land_id = "L-4471"
+        self.process.save(update_fields=["land_id"])
+
     def _ready_except_step_4(self):
         self._finish_step_1()
         self._finish_institute_step(2, codes_for_step(2), dated=False)
@@ -355,10 +363,11 @@ class WorkflowApiTests(APITestCase):
                 f"step {n} was not actually completed by the setup",
             )
 
-    def test_step_4_does_not_hold_a_finished_case_open(self):
-        """UC-079: not every allocation reaches the registration institutes, so an unfinished
-        step 4 must not block the lawyer — and must not be quietly relabelled complete either."""
+    def test_the_step_4_institutes_do_not_hold_a_finished_case_open(self):
+        """UC-079: not every allocation reaches the registration institutes, so those must not
+        block the lawyer — and must not be quietly relabelled complete either."""
         self._ready_except_step_4()
+        self._finish_step_4_paperwork()
         step4 = ProcessStep.objects.get(process=self.process, step_number=4)
         self.assertNotEqual(step4.status, ProcessStep.Status.COMPLETE)
 
@@ -373,9 +382,40 @@ class WorkflowApiTests(APITestCase):
         step4.refresh_from_db()
         self.assertNotEqual(step4.status, ProcessStep.Status.COMPLETE)
 
-    def test_an_unfinished_step_that_is_not_skippable_still_blocks(self):
-        """Only step 4 is skippable — the guarantee would be worthless if it leaked to the rest."""
+    def test_step_4_without_its_municipality_form_still_blocks(self):
+        """UC-088, the office's correction: only the two Step-4 *institutes* are optional. The
+        form and the land number are the case's own paperwork, and an allocation that closed
+        without them went out incomplete."""
         self._ready_except_step_4()
+
+        no_paperwork = self.client.post(
+            reverse("process-complete", args=[self.process.id]),
+            {"version": self.process.version}, format="json",
+        )
+        self.assertEqual(no_paperwork.status_code, status.HTTP_400_BAD_REQUEST)
+
+        # The form alone is not enough either — the land number is the other half.
+        self._upload(4, "RealEstate")
+        self.process.refresh_from_db()
+        no_land_id = self.client.post(
+            reverse("process-complete", args=[self.process.id]),
+            {"version": self.process.version}, format="json",
+        )
+        self.assertEqual(no_land_id.status_code, status.HTTP_400_BAD_REQUEST)
+
+        self.process.land_id = "L-4471"
+        self.process.save(update_fields=["land_id"])
+        self.process.refresh_from_db()
+        resp = self.client.post(
+            reverse("process-complete", args=[self.process.id]),
+            {"version": self.process.version}, format="json",
+        )
+        self.assertEqual(resp.status_code, status.HTTP_200_OK, resp.data)
+
+    def test_an_unfinished_step_that_is_not_skippable_still_blocks(self):
+        """Only step 4's institutes are optional — the guarantee would be worthless if it leaked."""
+        self._ready_except_step_4()
+        self._finish_step_4_paperwork()
         # Reopen step 3 by withdrawing its approvals — nothing here is ever hard-deleted (§11),
         # and an undecided institute is exactly what leaves the step outstanding.
         ProcessInstituteEntry.objects.filter(process=self.process, step_number=3).update(

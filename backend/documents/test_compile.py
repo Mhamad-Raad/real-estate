@@ -161,6 +161,17 @@ class CompileJobTests(CompileTestBase):
 
 
 class SummaryContextTests(CompileTestBase):
+    def _skippable_step_4(self):
+        """A closed case whose step 4 is short of nothing but its two optional institutes —
+        the only shape the cover sheet is allowed to call "skipped" (UC-088)."""
+        self.process.overall_status = Process.OverallStatus.COMPLETE
+        self.process.land_id = "L-1"
+        self.process.save(update_fields=["overall_status", "land_id"])
+        self._document(4, "RealEstate")
+        ProcessStep.objects.filter(process=self.process, step_number=4).update(
+            status=ProcessStep.Status.IN_PROGRESS
+        )
+
     def test_document_count_matches_what_is_merged(self):
         """The previous compilation is still live while the summary renders — counting it would
         print a total one higher than the file actually contains."""
@@ -181,17 +192,23 @@ class SummaryContextTests(CompileTestBase):
         self.assertEqual(context["document_count"], to_arabic_indic(2))
 
     def test_a_step_the_finished_case_was_closed_over_prints_as_skipped(self):
-        """UC-079: a case may complete over step 4. On a signed export "in progress" would read as
-        work still outstanding, and "complete" would claim work nobody did."""
-        self.process.overall_status = Process.OverallStatus.COMPLETE
-        self.process.save(update_fields=["overall_status"])
-        ProcessStep.objects.filter(process=self.process, step_number=4).update(
-            status=ProcessStep.Status.IN_PROGRESS
-        )
+        """UC-079: a case may complete over step 4's institutes. On a signed export "in progress"
+        would read as work still outstanding, and "complete" would claim work nobody did."""
+        self._skippable_step_4()
 
         rows = {row["n"]: row["status"] for row in case_summary_context(self.process, [])["steps"]}
 
         self.assertEqual(rows[to_arabic_indic(4)], LABELS["skipped"])
+
+    def test_a_step_left_short_of_its_own_paperwork_is_not_called_skipped(self):
+        """UC-088: only the Step-4 institutes may be skipped. A step still missing the
+        municipality form was never closed over — saying "skipped" would excuse a real gap."""
+        self._skippable_step_4()
+        Document.objects.filter(process=self.process, step_number=4).delete()
+
+        rows = {row["n"]: row["status"] for row in case_summary_context(self.process, [])["steps"]}
+
+        self.assertEqual(rows[to_arabic_indic(4)], LABELS["in_progress"])
 
     def test_an_unfinished_step_on_an_OPEN_case_still_reads_in_progress(self):
         """The relabelling is about a *closed* case — an open one is genuinely still in progress."""

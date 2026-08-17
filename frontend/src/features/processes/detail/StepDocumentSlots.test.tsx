@@ -16,8 +16,17 @@ const CARD: DocumentType = {
   generated: false,
   expected_parts: 2,
   counts_pages: true,
+  name_ckb: "ناسنامەی کڕیار",
+  name_en: "", // one label is enough for a card
 };
-const PAPERS: DocumentType = { ...CARD, code: "RealEstate", counts_pages: false };
+// The one paper the office knows by both names, so its slot prints the pair (UC-088).
+const PAPERS: DocumentType = {
+  ...CARD,
+  code: "RealEstate",
+  counts_pages: false,
+  name_ckb: "فۆرم و نووسراوی شارەوانی",
+  name_en: "Municipality form and letter",
+};
 
 vi.mock("@/features/documents/DocumentRow", () => ({ DocumentRow: () => null }));
 // Rendered as a marker rather than dropped, so a test can ask whether the slot still takes a file.
@@ -26,7 +35,10 @@ vi.mock("@/features/documents/DocumentUpload", () => ({
     <span data-testid={`upload-${documentType}`} data-disabled={String(Boolean(disabled))} />
   ),
 }));
-vi.mock("@/features/documents/documentTypesApi", () => ({
+// Only the query is faked — `documentTypeLabel` is the real one, so what the slot prints is
+// tested rather than restated.
+vi.mock("@/features/documents/documentTypesApi", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/features/documents/documentTypesApi")>()),
   useListDocumentTypesQuery: () => ({ data: [CARD, PAPERS] }),
 }));
 // The real hook renders Arabic-Indic digits wrapped in bidi isolates, which would make every
@@ -70,6 +82,24 @@ describe("StepDocumentSlots count", () => {
     render(<StepDocumentSlots process={process(papers)} step={1} canEdit />);
 
     expect(screen.getByText("2 of 2 files")).toBeInTheDocument();
+  });
+});
+
+// The office knows the Step-4 paper by a name the English label does not carry (UC-088).
+describe("StepDocumentSlots label", () => {
+  it("prints both names for a paper that has an English one of its own", () => {
+    render(<StepDocumentSlots process={process([])} step={1} canEdit />);
+
+    expect(
+      screen.getByText(/Municipality form and letter — فۆرم و نووسراوی شارەوانی/),
+    ).toBeInTheDocument();
+  });
+
+  it("leaves a slot with one name alone", () => {
+    render(<StepDocumentSlots process={process([])} step={1} canEdit />);
+
+    // The card's translated label stands on its own — pairing every slot would be noise.
+    expect(screen.queryByText(/ناسنامەی کڕیار/)).not.toBeInTheDocument();
   });
 });
 

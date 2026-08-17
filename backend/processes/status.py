@@ -11,8 +11,12 @@ missing, so the badge and the "proceed anyway?" warning can never drift apart.
 from catalog.document_types import required_codes_for_step
 from catalog.institutes import codes_for_step
 
-from .constants import LAST_STEP
+from .constants import LAST_STEP, OPTIONAL_INSTITUTE_STEPS
 from .models import ProcessStep
+
+# What `missing_requirements` calls an outstanding institute. Named because `blocking_requirements`
+# has to recognise one, and matching a bare string in two places is how the two drift apart.
+INSTITUTE_PREFIX = "institute:"
 
 
 # These helpers walk `.all()` and filter in Python on purpose: the detail endpoint prefetches
@@ -46,7 +50,7 @@ def _missing_fixed_institutes(process, step_number) -> list[str]:
         if e.step_number == step_number and not e.is_custom
     }
     return [
-        f"institute:{code}"
+        f"{INSTITUTE_PREFIX}{code}"
         for code in codes_for_step(step_number)
         if code not in entries or not _entry_complete(entries[code], step_number)
     ]
@@ -96,10 +100,42 @@ def missing_requirements(process, step_number, step_row) -> list[str]:
             (s for s in process.steps.all() if s.step_number < LAST_STEP),
             key=lambda s: s.step_number,
         )
-        return [
-            f"step:{s.step_number}" for s in prior if s.status != ProcessStep.Status.COMPLETE
-        ]
+        # Asks what actually holds the case open, not whether the step is complete: a step 4 whose
+        # only gap is its optional institutes is finished as far as closing goes (UC-088), and if
+        # the roll-up disagreed with `complete_process` the badge would contradict the button.
+        return [f"step:{s.step_number}" for s in prior if step_blocks_completion(process, s)]
     return []
+
+
+def blocking_requirements(process, step_number, step_row) -> list[str]:
+    """What still stands between this step and a closed case — the subset of
+    `missing_requirements` a case may **not** finish over (UC-088).
+
+    Only the institutes of an optional step drop out. Its documents and fields do not: the office
+    corrected an earlier rule that made the whole of step 4 skippable, which let a case close with
+    no municipality form and no land number on it.
+    """
+    if step_number not in OPTIONAL_INSTITUTE_STEPS:
+        return missing_requirements(process, step_number, step_row)
+    return [
+        code
+        for code in missing_requirements(process, step_number, step_row)
+        if not code.startswith(INSTITUTE_PREFIX)
+    ]
+
+
+def step_blocks_completion(process, step_row) -> bool:
+    """Whether this step stands between the case and being closed — the one predicate that
+    `complete_process`, the step-5 roll-up and the compiled report all ask (UC-088).
+
+    The stored status leads: it is kept fresh by `recompute_step`, it is what every badge already
+    shows, and a complete step has nothing outstanding by definition. The requirement walk runs
+    only for a step that is *not* complete, which is the only case where "unfinished, but only in
+    ways the case may close over" can arise.
+    """
+    return step_row.status != ProcessStep.Status.COMPLETE and bool(
+        blocking_requirements(process, step_row.step_number, step_row)
+    )
 
 
 def _step_has_data(process, step_number, step_row) -> bool:

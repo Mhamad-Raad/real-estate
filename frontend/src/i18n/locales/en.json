@@ -255,7 +255,7 @@
     "docType": {
       "ClientID": "Client ID",
       "SpouseID": "Spouse ID",
-      "RealEstate": "Real-estate papers",
+      "RealEstate": "Municipality form and letter",
       "SignedAgreement": "Signed agreement",
       "Request": "Request",
       "InstituteDoc": "Institute document",
@@ -290,7 +290,7 @@
     "endDateOnDone": "Set automatically when the case is marked complete.",
     "markComplete": "Mark complete",
     "forceComplete": "Force complete (admin)",
-    "completeHint": "Completing requires steps 1–3 to have their files. Step 4 may be left unfinished — the case can be completed over it. An admin can force completion.",
+    "completeHint": "Completing requires steps 1–4 to have their files, including the Step-4 municipality form and land number. Only the Step-4 institutes may be left unfinished. An admin can force completion.",
     "completed": "Case marked complete",
     "missingFiles": "Some steps still have missing files.",
     "caseComplete": "This case is complete.",

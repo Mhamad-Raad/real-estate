@@ -1,3 +1,4 @@
+import { bilingualLabel } from "@/lib/bilingual";
 import { baseApi } from "@/services/baseApi";
 
 // The shared Step 2–4 institute enum (§3.4) — read-only, never hard-coded on the client.
@@ -10,16 +11,12 @@ export interface Institute {
 }
 
 /**
- * A case screen names an institute in **both** languages at once (UC-054), because the office
- * deals with bodies that are known by their Kurdish name on paper and their English one in the
- * ministry's own correspondence. Deliberately not localised: the pair is the same in every
- * interface language, which is why it is served with the institute rather than translated.
- * The compiled cover sheet keeps the Kurdish name alone — its table has no room for both.
+ * A case screen names an institute in **both** languages at once (UC-054) — Kurdish first, which
+ * is the name on the paper. The compiled cover sheet keeps the Kurdish name alone; its table has
+ * no room for both. See `bilingualLabel` for why the pair is not translated.
  */
 export function instituteLabel(institute: Pick<Institute, "name_ckb" | "name_en">): string {
-  const { name_ckb: ckb, name_en: en } = institute;
-  if (!ckb || !en || ckb === en) return ckb || en;
-  return `${ckb} — ${en}`;
+  return bilingualLabel(institute.name_ckb, institute.name_en);
 }
 
 export const institutesApi = baseApi.injectEndpoints({

@@ -6,7 +6,8 @@ code change.
 """
 
 from catalog.institutes import INSTITUTES, name_ckb
-from processes.constants import SKIPPABLE_STEPS, STEP_NUMBERS
+from processes.constants import STEP_NUMBERS
+from processes.status import step_blocks_completion
 from processes.models import Process, ProcessStep
 
 from .letters import to_arabic_indic
@@ -74,15 +75,19 @@ def _institute_rows(process) -> list[dict]:
 def _step_status(process, step) -> str:
     """What a step reads as on the cover sheet.
 
-    A case may be closed over a skippable step (UC-079), which leaves that step genuinely
+    A case may be closed over an optional requirement (UC-079), which leaves that step genuinely
     unfinished. Printing "لە پرۆسەدایە" on a *finished* allocation reads as work still outstanding,
     and printing "تەواو" would claim work nobody did — so a step the case closed over is named for
     what actually happened: it was skipped.
+
+    "Skipped" is earned, not assumed by step number (UC-088): it is what a step reads when nothing
+    **blocking** is outstanding — only its optional institutes. A step 4 still missing its
+    municipality form cannot be closed over at all, so it never reaches this branch.
     """
     if (
-        step.step_number in SKIPPABLE_STEPS
-        and process.overall_status == Process.OverallStatus.COMPLETE
+        process.overall_status == Process.OverallStatus.COMPLETE
         and step.status != ProcessStep.Status.COMPLETE
+        and not step_blocks_completion(process, step)
     ):
         return LABELS["skipped"]
     return _label(step.status)

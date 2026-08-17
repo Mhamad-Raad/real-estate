@@ -3,7 +3,10 @@ import { useTranslation } from "react-i18next";
 import { Label } from "@/components/ui/label";
 import { DocumentRow } from "@/features/documents/DocumentRow";
 import { DocumentUpload } from "@/features/documents/DocumentUpload";
-import { useListDocumentTypesQuery } from "@/features/documents/documentTypesApi";
+import {
+  documentTypeLabel,
+  useListDocumentTypesQuery,
+} from "@/features/documents/documentTypesApi";
 import { useNum } from "@/hooks/useNum";
 
 import type { ProcessDetail } from "../types";
@@ -42,7 +45,9 @@ export function StepDocumentSlots({
               process.client_detail.is_married ||
               docs.some((d) => d.document_type === dt.code)),
         )
-        .map(({ code: type, display_key, expected_parts: expected, counts_pages: byPage }) => {
+        .map((documentType) => {
+          const { code: type, display_key, expected_parts: expected, counts_pages: byPage } =
+            documentType;
           const forType = docs.filter((d) => d.document_type === type);
           // An identity card is ONE document holding both sides, so its slot counts pages —
           // counting rows reported a scanned card, front and back, as "1 of 2 files" (UC-083).
@@ -60,7 +65,7 @@ export function StepDocumentSlots({
             <div key={type} className="space-y-2">
               <div className="flex items-center justify-between gap-2">
                 <Label>
-                  {t(display_key)}
+                  {documentTypeLabel(documentType, t(display_key))}
                   {/* Only where the office files more than one part — it says how many are
                       wanted and how many are in, without blocking the step (UC-055). */}
                   {expected > 1 && (

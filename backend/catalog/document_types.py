@@ -67,9 +67,9 @@ DOCUMENT_TYPES: list[DocumentType] = [
         SPOUSE_ID, "workflow.docType.SpouseID", 1, True,
         only_when_married=True, expected_parts=ID_CARD_SIDES, counts_pages=True,
     ),
-    # Produced by the Step-4 registration institutes, so it cannot be demanded when a case opens
-    # (UC-037). Step 4 is the first institute step that also carries a named-document requirement.
-    # The office files it as two papers (UC-055).
+    # The municipality form and its covering letter — the case's own Step-4 paperwork, filed as
+    # two papers (UC-055). It cannot be demanded when a case opens (UC-037), and unlike the two
+    # Step-4 institutes it is **not** optional: a case may not close without it (UC-088).
     DocumentType("RealEstate", "workflow.docType.RealEstate", 4, True, expected_parts=2),
     DocumentType("SignedAgreement", "workflow.docType.SignedAgreement", 1, True),
     # The citizen's own request. Optional on purpose — not every case arrives with one, so it must
@@ -106,7 +106,11 @@ def slot_capacity(code: str) -> tuple[int, bool]:
 DOCUMENT_TYPE_NAMES_CKB: dict[str, str] = {
     CLIENT_ID: "ناسنامەی کڕیار",
     SPOUSE_ID: "ناسنامەی هاوسەر",
-    "RealEstate": "بەڵگەنامەی خانووبەرە",
+    # The office's own name for this paper (UC-088) — the generic "خانووبەرە" it carried before
+    # named the *institutes* that issue it rather than the form the lawyer is holding. Renaming
+    # affects **new** files only: a stored name is written once, and the ones already on disk keep
+    # theirs, which is correct — the file the office filed last week is still called what it is.
+    "RealEstate": "فۆرم و نووسراوی شارەوانی",
     "SignedAgreement": "ڕێککەوتنی واژۆکراو",
     REQUEST: "داواکاری",
     "EligibilityLetter": "نامەی سۆراغکردنی سوودمەندی",
@@ -115,9 +119,26 @@ DOCUMENT_TYPE_NAMES_CKB: dict[str, str] = {
 }
 
 
+# The office's English name, for the papers it knows by **both** — the same need the institutes
+# already carry (UC-054): a name on the form in one language and in the ministry's correspondence
+# in the other, so the screen prints the pair rather than picking a side.
+#
+# Deliberately sparse. A type in here is a type whose slot shows both names; everything else keeps
+# its single translated label, because "Client ID" and "ناسنامەی کڕیار" say the same thing and
+# printing both would be noise (UC-088).
+DOCUMENT_TYPE_NAMES_EN: dict[str, str] = {
+    "RealEstate": "Municipality form and letter",
+}
+
+
 def name_ckb(code: str) -> str:
     """The Sorani name for a type, falling back to the code so a file is never named blank."""
     return DOCUMENT_TYPE_NAMES_CKB.get(code, code or "")
+
+
+def name_en(code: str) -> str:
+    """The office's English name, or blank — blank means "this slot shows one label"."""
+    return DOCUMENT_TYPE_NAMES_EN.get(code, "")
 
 
 def required_codes_for_step(step: int, *, married: bool = False) -> tuple[str, ...]:
@@ -130,4 +151,13 @@ def required_codes_for_step(step: int, *, married: bool = False) -> tuple[str, .
 
 
 def document_types_as_dicts() -> list[dict]:
-    return [dt._asdict() for dt in DOCUMENT_TYPES]
+    """The vocabulary as the frontend reads it, with the office's own names alongside.
+
+    The names ride here rather than in the translation files for the reason `institutes_as_dicts`
+    gives: a bilingual pair is the same in every interface language, so translating it would mean
+    the identical string three times.
+    """
+    return [
+        {**dt._asdict(), "name_ckb": name_ckb(dt.code), "name_en": name_en(dt.code)}
+        for dt in DOCUMENT_TYPES
+    ]

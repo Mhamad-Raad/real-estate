@@ -18,11 +18,19 @@ STEP_NUMBERS = range(FIRST_STEP, LAST_STEP + 1)
 # Every step before the roll-up — the ones that carry institutes, fields and papers.
 WORKING_STEPS = range(FIRST_STEP, LAST_STEP)
 
-# Steps a case may finish without (UC-079, the office's decision on 2026-08-16). Not every
-# allocation reaches the registration institutes, so step 4 must not hold a finished case open.
+# Steps whose **institutes** a case may finish without (UC-079, narrowed by UC-088).
 #
-# **Deliberately does not change the step's own status**: a skipped step stays `in_progress`,
+# Not every allocation reaches the Step-4 registration bodies — the relevant authority and the
+# land map — so those must not hold a finished case open. **The rest of the step still does**:
+# the municipality form and the land number are the case's own paperwork, and the office's first
+# reading of this rule let a case close without them (the office's correction, 2026-08-17).
+#
+# Optionality is therefore per *requirement*, not per step — `status.blocking_requirements` is
+# where that is applied, and `complete_process`, the step-5 roll-up and the compiled report all
+# ask it the same question so the three can never disagree.
+#
+# **Deliberately does not change the step's own status**: a step left short stays `in_progress`,
 # because it genuinely is unfinished and calling it complete would put work on a signed export
 # that nobody did. It is the *case* that may close over it — the compiled report reads the two
 # together and prints "skipped" (§10.3).
-SKIPPABLE_STEPS = frozenset({4})
+OPTIONAL_INSTITUTE_STEPS = frozenset({4})

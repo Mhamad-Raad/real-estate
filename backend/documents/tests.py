@@ -178,10 +178,10 @@ class FileStoreUnitTests(APITestCase):
 
     def test_the_stored_name_keeps_the_short_id_the_download_name_drops(self):
         label = filestore.document_label("RealEstate")
-        self.assertEqual(label, "بەڵگەنامەی خانووبەرە")
+        self.assertEqual(label, "فۆرم و نووسراوی شارەوانی")
         # Two files legitimately share this slot (UC-055), so on disk they need telling apart.
         stored = filestore.compose_stored_name(label=label, sid="7f3ae2ab")
-        self.assertEqual(stored, "بەڵگەنامەی خانووبەرە__7f3ae2ab.pdf")
+        self.assertEqual(stored, "فۆرم و نووسراوی شارەوانی__7f3ae2ab.pdf")
 
     def test_the_case_folder_is_keyed_by_code_and_pid(self):
         rel = filestore.relative_path(
