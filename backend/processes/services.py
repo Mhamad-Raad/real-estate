@@ -17,7 +17,7 @@ from common.models import ActivityLog
 from common.services import record_activity
 
 from . import status as step_status
-from .constants import LAST_STEP, STEP_NUMBERS, WORKING_STEPS
+from .constants import FIRST_STEP, LAST_STEP, STEP_NUMBERS, WORKING_STEPS
 from .models import DuplicateOverride, Process, ProcessInstituteEntry, ProcessStep
 
 
@@ -382,6 +382,59 @@ def _opening_date(process, *, previous_step: int):
     return (previous.end_date if previous else None) or timezone.now().date()
 
 
+def settle_entry(entry) -> None:
+    """What an institute write means for the step that owns it (§5.8).
+
+    Lives here rather than on the viewset because it is a domain rule that writes: `views.py` is
+    HTTP and permissions only (§14.2), and this decides a date that prints on a signed export.
+
+    **Step 2 ends on its institute's approval date, not on the day the box was ticked (UC-090).**
+    Step 2 has exactly one institute (UC-040), so "the step finished" and "that body decided" are
+    the same event and the office already types the date of it on the entry. Stamping
+    `timezone.now()` instead recorded the day the lawyer got round to the screen — often days
+    later, and it printed on the cover sheet as the step's end.
+
+    **Blank stays blank.** A decision recorded without a date leaves the step's end date empty for
+    the office to fill, rather than inventing today; and an end date already on the step is left
+    alone, because a date typed by hand is a correction.
+
+    **Step 3 ends on the last of its institutes to decide (UC-090).** It carries three fixed bodies
+    plus any out-of-city rows, so the step is not over until the furthest one is in — its end date
+    is the **latest** approval date across them all, and it moves as later ones arrive. Blank-only
+    would be wrong here in a way it is not for step 2: it would freeze on whichever institute
+    happened to be decided first.
+
+    That date only ever moves **forward**. A hand-typed date later than every approval is the
+    office saying something this rule cannot see, and it survives; one earlier than an approval
+    that demonstrably exists is corrected.
+    """
+    step = entry.step_number
+    if step == 2:
+        if entry.approval_status != entry.ApprovalStatus.PENDING and entry.approval_date:
+            _close_step_on(entry.process, step, entry.approval_date, only_when_blank=True)
+    elif step == 3:
+        latest = max(
+            (
+                e.approval_date
+                for e in entry.process.institute_entries.all()
+                if e.step_number == 3 and e.approval_date
+            ),
+            default=None,
+        )
+        if latest:
+            _close_step_on(entry.process, step, latest, only_when_blank=False)
+    recompute_step(entry.process, entry.step_number)
+
+
+def _close_step_on(process, step_number: int, date, *, only_when_blank: bool) -> None:
+    """Date a step from its own paperwork, never backwards and never over a later hand-typed one."""
+    step = process.steps.get(step_number=step_number)
+    if step.end_date is not None and (only_when_blank or step.end_date >= date):
+        return
+    step.end_date = date
+    step.save(update_fields=["end_date", "updated_at"])
+
+
 @transaction.atomic
 def advance_step(*, process, actor, expected_version=None, request=None) -> Process:
     """Unlock the next step (§5.2). `current_step` is the highest step the lawyer may open, so
@@ -394,6 +447,24 @@ def advance_step(*, process, actor, expected_version=None, request=None) -> Proc
     process.current_step = before + 1
     process.version += 1
     process.save(update_fields=["current_step", "version", "updated_at"])
+
+    # **Leaving Step 1 is what ends it (UC-090).** Every other step has a finishing moment of its
+    # own — an institute decision closes step 2 (§5.8), closing the case dates step 5 (UC-078) —
+    # but nothing in step 1 ever marks one, so its end date stayed blank on every case in the
+    # database. Proceeding out of it is that moment: the client's papers are gathered and the file
+    # goes to the first institute. Deliberately **only** this step, on the office's instruction
+    # (2026-08-17): steps 2–4 keep their typed end dates, because the day a lawyer walks out of an
+    # institute's office is not the day they happen to open the next step on screen.
+    #
+    # Written before the start date below, so `_opening_date` reads a real value rather than
+    # falling back to today — the two are the same date here, and saying so is the point.
+    if before == FIRST_STEP:
+        closing = process.steps.filter(step_number=before).first()
+        if closing is not None and closing.end_date is None:
+            closing.end_date = timezone.now().date()
+            closing.save(update_fields=["end_date", "updated_at"])
+            # No `recompute_step`, unlike the start date below: step 1's status reads its category,
+            # duplicate flag and papers (§3.6) and never its dates, so there is nothing to re-derive.
 
     # Proceeding into a step is the moment work on it starts, so that is when its start date is
     # stamped (UC-050) — the office was typing it by hand, and only step 2 even offered the field,
@@ -421,6 +492,10 @@ def advance_step(*, process, actor, expected_version=None, request=None) -> Proc
         after={
             "current_step": process.current_step,
             "start_date": str(opened.start_date) if opened else None,
+            # Same reason: a date this call wrote and nobody can trace is a write outside the
+            # trail. `None` for every transition but the first, which is the only one that ends
+            # the step it is leaving (UC-090).
+            "end_date_closed": str(closing.end_date) if before == FIRST_STEP and closing else None,
         },
         request=request,
     )

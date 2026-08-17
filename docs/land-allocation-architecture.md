@@ -41,6 +41,7 @@ This section records where the **built system intentionally differs** from the d
 | **The cover sheet is a record, not today's policy** (2026-08-17, review of UC-088) | — (implicit: a step's printed label follows the completion rule) | §10.3's **`تێپەڕێنرا` (skipped)** label is deliberately **decoupled** from §3.6's gate: it names what happened to a step the case was closed over, whatever the rule says now | Tying them re-labelled allocations the office had already closed and signed under the previous rule — measured, one completed case moved from "skipped" to "in progress" on nothing but a code change, which is the exact reading "skipped" was introduced to prevent |
 | **Every picker offers what the server takes** (2026-08-17, the office — UC-087) | §6.1 has the import path confirm "it is a PDF" | **`application/pdf, image/jpeg, image/png, image/tiff`** on both the slot import and the ID-card capture; the button reads *Import file*. A TIFF card, which no browser can draw, shows a filename placeholder instead of a broken image. The client-side scan assembly stays JPEG/PNG — a real `pdf-lib` limit. See **§6.1** | Three controls had three different rules and none matched the server: import offered PDF alone, so the office's scanner JPEG was not selectable on a path the API has always accepted; the card capture offered `image/*`, letting through WebP/GIF/HEIC that are then refused. Reported as "the imported image shows no preview" |
 | **The intake form keeps what was typed** (2026-08-17, the office — UC-089) | — (§5's intake form; no stated behaviour on switching modes) | Switching between *Scan ID card* and *Enter manually* **no longer blanks the draft or the errors**, and the spouse fields come after every one of the beneficiary's own | The reset was there on the reasoning that one mode must not carry the other's half-entry — but the scan branch never reads that draft, so nothing was ever carried; it only destroyed filled-in forms. It also cleared `category`/`assigned_lawyer` errors, which are **case** fields shown in both modes |
+| **Each step is dated from its own paperwork** (2026-08-17, the office — UC-090) | §5.8 sets step 2's `end_date` to **today** on approval; nothing dates steps 1 or 3 | **Three rules, one per step.** Step 1 is stamped today when the lawyer **proceeds out of it** — the only transition that does. Step 2 takes **its institute's approval date**, and stays blank when the decision carries none. Step 3 takes the **latest** approval date across its institutes and moves forward as later ones arrive. Step 4 stays typed. See **§5.8** | Step 1's end date was blank on every case in the database — nothing ever closed it — and step 2 recorded the day the lawyer got round to the screen rather than the day the institute decided, which then printed on the signed cover sheet as the step's end. Step 3 needed the *last* decision, so a blank-only rule would have frozen it on the first |
 
 ### Temporary simplifications (revisit when the named iteration lands)
 
@@ -486,7 +487,7 @@ erDiagram
         smallint step_number "1..5"
         string status "not_started|in_progress|missing|complete"
         date   start_date "step 2"
-        date   end_date "step 2 - auto on approval, editable"
+        date   end_date "steps 1-3 auto-dated from the paperwork, editable"
         string approval_status "step2 approved / step3 approved|rejected"
         date   approval_date "step 3"
         bool   out_of_city_flag "step 3"
@@ -678,7 +679,7 @@ Each type carries `(code, i18n key, step, required)` plus four fields the build 
 | Step | Required for "complete" |
 |------|-------------------------|
 | 1 | Client + category + marital status set; client-ID and signed-agreement docs present, **plus a spouse ID when the client is married**; duplicate check cleared/overridden. The generated letter is **output of** completing this step, not a requirement of it (§0, §6.6) |
-| 2 | Every Step-2 institute entry has a document + assigned lawyer; start_date set; approval recorded (sets end_date) |
+| 2 | Every Step-2 institute entry has a document + assigned lawyer; start_date set; approval recorded (its **approval date** becomes the step's `end_date`) |
 | 3 | All three Step-3 institute entries complete; each out-of-city row (if flag on) has name + doc + lawyer; approved/rejected + date recorded |
 | 4 | Every Step-4 institute entry has a document + assigned lawyer; **`land_id` recorded; the municipality form present** |
 | 5 | No prior step has a **blocking** requirement outstanding, unless admin-forced; final status recorded. "Blocking" excludes the Step-4 institutes — see the deviation below |
@@ -983,7 +984,7 @@ flowchart TD
 | Step | Inputs | Documents (scan **or** import) | Institutes (from shared enum) | Approval / dates | Lawyer |
 |------|--------|-------------------------------|------------------------------|------------------|--------|
 | **1** | All gov-ID client fields, `land_id` / `land_address`, **Category (A/B/C/G)**, **marital status (+spouse name if married)** — **the beneficiary is created here** (scan · type — those two and no more, UC-028), which is what creates the case (§5, §0). The beneficiary's own fields come first and the **spouse block last** (UC-089) | Client ID → **OCR autofill + verify**, filed by the same submit that creates the case; the signed agreement filed on the case afterwards; **generated** eligibility letter. *(The municipality form moved to Step 4 — UC-037/041.)* | — | — | process-wide only (set at creation) |
-| **2** | `start_date` (user) | one upload **per Step-2 institute** + the approved paperwork | Step-2 institutes | **approval recorded → sets `end_date`** (editable later) | **per-institute** assigned lawyer |
+| **2** | `start_date` (stamped on Proceed) | one upload **per Step-2 institute** + the approved paperwork | Step-2 institutes | **the institute's approval date becomes `end_date`** (editable later) | **per-institute** assigned lawyer |
 | **3** | out-of-city flag; `approval_date` | one upload per **three** Step-3 institutes; **+ repeatable custom rows** (name+doc+lawyer) when flag on | three Step-3 institutes + custom | **approved / rejected + date** | per-institute + per-custom-row lawyer |
 | **4** | **`land_id`** (offered in Step 1, required here — §3.6) | the **municipality form** (2 files) + one upload per **two** Step-4 institutes | two Step-4 institutes — **the only optional part of this step** (§3.6) | — | per-institute assigned lawyer |
 | **5** | final status/outcome | the **compiled export** — *produced by* marking complete, not a separate action (§10.3) | — | mark complete (refused while a prior step still blocks; admin can force) | — |
@@ -1000,7 +1001,7 @@ Each accordion section maps to `PATCH /processes/{id}/steps/{n}/`. Saving valida
 
 ### 5.3 Accordion, editable anytime
 
-Steps render as shadcn `Accordion` items, each independently expandable and editable at any time. Re-opening a completed step and editing it re-runs that step's status computation and (for Step 2) keeps the auto-set `end_date` editable. Every edit is audited.
+Steps render as shadcn `Accordion` items, each independently expandable and editable at any time. Re-opening a completed step and editing it re-runs that step's status computation and keeps any auto-dated `end_date` editable. Every edit is audited.
 
 **Unlocked ≠ ordered.** The It.2.5 gate above only controls *visibility*: once a step is unlocked it stays editable forever, so a lawyer can still go back and fix Step 2 while working Step 4.
 
@@ -1060,7 +1061,17 @@ So "no land twice" holds at the storage layer — even under a race between the 
 
 ### 5.8 End-date auto-set-but-editable rule (Step 2)
 
-When the Step-2 approval is recorded, the server sets `ProcessStep(step=2).end_date = today` automatically. If the step is later edited, `end_date` remains a normal editable field — the auto-set is a convenience default, not a lock. Both the auto-set and any manual change are audited.
+**A step is dated from its own paperwork, never from the day someone reached the screen** *(UC-090, 2026-08-17)*. `processes.services.settle_entry` owns the institute half of this; `advance_step` owns step 1's. Three rules, one per step, and each is the office's answer for that step rather than a single generalisation:
+
+| Step | Its end date | Why that moment |
+|---|---|---|
+| **1** | stamped **today when the lawyer proceeds out of it** | Nothing else in step 1 ever marks a finishing moment, so its end date stayed blank on every case in the database. Leaving it is that moment: the papers are gathered and the file goes to the first institute. **Only this step** proceeds this way — the day a lawyer walks out of an institute's office is not the day they happen to open the next step on screen |
+| **2** | its institute's **approval date** | Step 2 has exactly one institute (UC-040), so "the step finished" and "that body decided" are the same event, and the office already types the date of it. **Blank stays blank** — a decision recorded without a date leaves the field for the office rather than inventing today |
+| **3** | the **latest** approval date across its three institutes and any out-of-city rows | The step is not over until the furthest one is in. Blank-only would be wrong here in a way it is not for step 2: it would freeze on whichever institute happened to be decided first. The date therefore **moves as later approvals arrive** — but only ever **forward**, so a hand-typed date later than every approval survives |
+
+Step 4 has no rule: its end date is typed, like its institutes' dates. Every auto-date is **only ever a default** — the field stays editable and both the auto-set and any manual change are audited.
+
+> **Known consequence.** An approval date earlier than the step's stamped `start_date` produces an inverted pair, which `save_step`'s ordering rule would refuse if a human typed it. The realistic case is **backfilling** — entering a case now for paperwork decided in June. The paperwork's date wins deliberately: refusing it would drop the only real date in the row. Revisit if the office starts entering historic cases in bulk.
 
 ---
 

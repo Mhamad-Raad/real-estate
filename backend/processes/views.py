@@ -46,6 +46,7 @@ from .services import (
     release_client_with_case,
     restore_client_with_case,
     save_step,
+    settle_entry,
 )
 
 SERIALIZERS = {
@@ -329,10 +330,4 @@ class InstituteEntryViewSet(AuditedSoftDeleteViewSet, ModelViewSet):
         recompute_step(process, step_number)
 
     def _after_write(self, entry):
-        # Step-2 approval auto-sets the step's end_date (editable later, §5.8).
-        if entry.step_number == 2 and entry.approval_status != entry.ApprovalStatus.PENDING:
-            step2 = entry.process.steps.get(step_number=2)
-            if step2.end_date is None:
-                step2.end_date = timezone.now().date()
-                step2.save(update_fields=["end_date", "updated_at"])
-        recompute_step(entry.process, entry.step_number)
+        settle_entry(entry)

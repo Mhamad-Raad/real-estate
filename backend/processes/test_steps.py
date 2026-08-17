@@ -1,6 +1,6 @@
 """Per-step save, institute-entry validation, end-date auto-set, and Step-5 completion (§5)."""
 
-from datetime import date
+from datetime import date, timedelta
 
 import tempfile
 from pathlib import Path
@@ -94,16 +94,61 @@ class WorkflowApiTests(APITestCase):
         self.process.refresh_from_db()
         self.assertEqual(self.process.overall_status, "in_progress")
 
-    def test_step2_approval_autosets_end_date(self):
-        entry = self.client.post(
-            reverse("institute-entry-list"),
-            {"process": self.process.id, "step_number": 2, "institute_code": "INST_S2_A",
-             "assigned_lawyer": self.lawyer.id, "approval_status": "approved"},
-            format="json",
+    def _approve(self, step, code, date=None, **over):
+        body = {
+            "process": self.process.id, "step_number": step, "institute_code": code,
+            "assigned_lawyer": self.lawyer.id, "approval_status": "approved", **over,
+        }
+        if date:
+            body["approval_date"] = date
+        resp = self.client.post(reverse("institute-entry-list"), body, format="json")
+        self.assertEqual(resp.status_code, status.HTTP_201_CREATED, resp.data)
+        return resp.data
+
+    def _end_date(self, step):
+        return ProcessStep.objects.get(process=self.process, step_number=step).end_date
+
+    def test_step_2_ends_on_its_institutes_approval_date(self):
+        """UC-090: step 2 has one institute, so "the step finished" and "that body decided" are the
+        same event — and the office types the date of it. Stamping today recorded the day the
+        lawyer got round to the screen, which then printed on the cover sheet as the step's end."""
+        self._approve(2, "INST_S2_A", date="2026-07-02")
+
+        self.assertEqual(str(self._end_date(2)), "2026-07-02")
+
+    def test_step_2_left_blank_when_the_decision_carries_no_date(self):
+        """Blank stays blank rather than inventing today — the office fills it in."""
+        self._approve(2, "INST_S2_A")
+
+        self.assertIsNone(self._end_date(2))
+
+    def test_step_3_ends_on_the_last_institute_to_decide(self):
+        """UC-090: three bodies, so the step is not over until the furthest one is in. Blank-only
+        would freeze it on whichever happened to be decided first."""
+        codes = codes_for_step(3)
+        self._approve(3, codes[0], date="2026-07-01")
+        self.assertEqual(str(self._end_date(3)), "2026-07-01")
+
+        self._approve(3, codes[1], date="2026-07-09")
+        self.assertEqual(str(self._end_date(3)), "2026-07-09")
+
+        # An earlier one arriving later must not drag the step's end backwards.
+        self._approve(3, codes[2], date="2026-07-04")
+        self.assertEqual(str(self._end_date(3)), "2026-07-09")
+
+    def test_a_hand_typed_step_3_end_later_than_every_approval_survives(self):
+        """The office saying something this rule cannot see — the date only moves forward."""
+        codes = codes_for_step(3)
+        self._approve(3, codes[0], date="2026-07-01")
+        row = ProcessStep.objects.get(process=self.process, step_number=3)
+        self.client.patch(
+            reverse("process-steps", args=[self.process.id, 3]),
+            {"end_date": "2026-08-20", "version": row.version}, format="json",
         )
-        self.assertEqual(entry.status_code, status.HTTP_201_CREATED)
-        step2 = ProcessStep.objects.get(process=self.process, step_number=2)
-        self.assertIsNotNone(step2.end_date)  # auto-set on approval (§5.8)
+
+        self._approve(3, codes[1], date="2026-07-09")
+
+        self.assertEqual(str(self._end_date(3)), "2026-08-20")
 
     def test_step_2_completes_on_its_single_institute(self):
         """Step 2 demanded two institutes when only one exists, so it could never complete (UC-040)."""
@@ -489,6 +534,51 @@ class AdvanceStepTests(APITestCase):
         self.assertEqual(resp.data["current_step"], 2)
         self.process.refresh_from_db()
         self.assertEqual(self.process.version, before + 1)
+
+    def _step(self, n):
+        return ProcessStep.objects.get(process=self.process, step_number=n)
+
+    def test_leaving_step_1_is_what_ends_it(self):
+        """UC-090: every other step has a finishing moment of its own — an institute decision,
+        closing the case — but nothing in step 1 ever marked one, so its end date stayed blank on
+        every case in the database. Proceeding out of it is that moment."""
+        self.assertIsNone(self._step(1).end_date)
+
+        self._advance()
+
+        self.assertEqual(self._step(1).end_date, timezone.now().date())
+
+    def test_the_step_it_opens_starts_where_step_1_ended(self):
+        """The end is written first, so `_opening_date` reads a real date rather than falling back
+        to today — the same value here, and saying so is the point (UC-073)."""
+        self._advance()
+
+        self.assertEqual(self._step(2).start_date, self._step(1).end_date)
+
+    def test_a_step_1_end_date_the_office_typed_is_not_overwritten(self):
+        row = self._step(1)
+        # After step 1's start, which `create_process` stamps as today — an end before the start
+        # is refused outright (`save_step`), so this is the only shape a correction can take.
+        typed = str(timezone.now().date() + timedelta(days=3))
+        patched = self.client.patch(
+            reverse("process-steps", args=[self.process.id, 1]),
+            {"end_date": typed, "version": row.version}, format="json",
+        )
+        self.assertEqual(patched.status_code, status.HTTP_200_OK, patched.data)
+
+        self._advance()
+
+        self.assertEqual(str(self._step(1).end_date), typed)
+
+    def test_only_step_1_is_ended_by_proceeding(self):
+        """The office's instruction (2026-08-17): the day a lawyer walks out of an institute's
+        office is not the day they happen to open the next step on screen."""
+        self._advance()  # 1 → 2
+        self._advance()  # 2 → 3
+        self._advance()  # 3 → 4
+
+        self.assertIsNone(self._step(2).end_date)
+        self.assertIsNone(self._step(3).end_date)
 
     def test_advance_is_allowed_while_the_step_is_still_incomplete(self):
         # Step 1 has no documents, yet proceeding is a warning in the UI — never a server block.
