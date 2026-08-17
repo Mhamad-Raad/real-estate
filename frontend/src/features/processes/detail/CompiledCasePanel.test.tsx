@@ -102,6 +102,25 @@ describe("CompiledCasePanel", () => {
     expect(screen.getByRole("button", { name: /compile/i })).toBeEnabled();
   });
 
+  it("does not compile itself later when the closing press had nothing to merge", async () => {
+    // A case force-closed with no documents: the press is the trigger, and attaching the first
+    // paper afterwards must not silently produce an export nobody asked for.
+    const { rerender } = renderPanel({ documents: [], isComplete: true, autoStart: true });
+
+    rerender(
+      <CompiledCasePanel
+        processId={1}
+        documents={ATTACHED}
+        canEdit
+        isComplete
+        autoStart
+      />,
+    );
+    await Promise.resolve();
+
+    expect(compile).not.toHaveBeenCalled();
+  });
+
   it("shows no button at all to someone who cannot edit the case", () => {
     renderPanel({ documents: WITH_EXPORT, isComplete: true, canEdit: false });
 

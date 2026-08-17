@@ -161,13 +161,10 @@ class CompileJobTests(CompileTestBase):
 
 
 class SummaryContextTests(CompileTestBase):
-    def _skippable_step_4(self):
-        """A closed case whose step 4 is short of nothing but its two optional institutes —
-        the only shape the cover sheet is allowed to call "skipped" (UC-088)."""
+    def _closed_over_step_4(self):
+        """A closed case with step 4 left unfinished — the shape the cover sheet names."""
         self.process.overall_status = Process.OverallStatus.COMPLETE
-        self.process.land_id = "L-1"
-        self.process.save(update_fields=["overall_status", "land_id"])
-        self._document(4, "RealEstate")
+        self.process.save(update_fields=["overall_status"])
         ProcessStep.objects.filter(process=self.process, step_number=4).update(
             status=ProcessStep.Status.IN_PROGRESS
         )
@@ -194,21 +191,26 @@ class SummaryContextTests(CompileTestBase):
     def test_a_step_the_finished_case_was_closed_over_prints_as_skipped(self):
         """UC-079: a case may complete over step 4's institutes. On a signed export "in progress"
         would read as work still outstanding, and "complete" would claim work nobody did."""
-        self._skippable_step_4()
+        self._closed_over_step_4()
 
         rows = {row["n"]: row["status"] for row in case_summary_context(self.process, [])["steps"]}
 
         self.assertEqual(rows[to_arabic_indic(4)], LABELS["skipped"])
 
-    def test_a_step_left_short_of_its_own_paperwork_is_not_called_skipped(self):
-        """UC-088: only the Step-4 institutes may be skipped. A step still missing the
-        municipality form was never closed over — saying "skipped" would excuse a real gap."""
-        self._skippable_step_4()
-        Document.objects.filter(process=self.process, step_number=4).delete()
+    def test_the_sheet_records_what_happened_not_what_the_gate_allows_today(self):
+        """UC-088: the label is deliberately **not** tied to the completion rule.
+
+        This case has no municipality form, so today's gate would refuse to close it — yet it is
+        closed, because it was closed under the previous rule or by an admin force. Re-deriving
+        the label from the current policy would rewrite the cover sheet of every allocation the
+        office had already signed.
+        """
+        self._closed_over_step_4()
+        self.assertFalse(Document.objects.filter(process=self.process, step_number=4).exists())
 
         rows = {row["n"]: row["status"] for row in case_summary_context(self.process, [])["steps"]}
 
-        self.assertEqual(rows[to_arabic_indic(4)], LABELS["in_progress"])
+        self.assertEqual(rows[to_arabic_indic(4)], LABELS["skipped"])
 
     def test_an_unfinished_step_on_an_OPEN_case_still_reads_in_progress(self):
         """The relabelling is about a *closed* case — an open one is genuinely still in progress."""

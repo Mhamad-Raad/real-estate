@@ -75,10 +75,12 @@ export function GeneratedDocumentPanel({
     }
   };
 
-  // Exactly one run per `autoStart`, guarded by a ref rather than by the state it would read:
-  // `busy` only turns true after a round trip, so a re-render in between would otherwise queue a
-  // second job. `run` is left out of the deps for the same reason — it is a new function every
-  // render, and depending on it would re-fire on each one.
+  // One decision per `autoStart`, taken at the moment it turns on and never revisited.
+  //
+  // The ref is claimed *before* the runnable check, and `busy`/`unlocked` are deliberately out of
+  // the deps: they were in both, and a case closed with nothing to merge would then compile itself
+  // later, the instant somebody attached the first document. The press is the trigger; if there
+  // was nothing to produce when it happened, there is nothing to produce.
   //
   // Deliberately **not** guarded on `hasResult`: an output that predates the moment being marked
   // here is a stale one, and the whole point of running now is to produce the current file. The
@@ -89,11 +91,12 @@ export function GeneratedDocumentPanel({
       autoRan.current = false;
       return;
     }
-    if (autoRan.current || busy || !unlocked) return;
+    if (autoRan.current) return;
     autoRan.current = true;
+    if (busy || !unlocked) return;
     void run();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoStart, busy, unlocked]);
+  }, [autoStart]);
 
   return (
     <div className="space-y-2 rounded-md border border-border p-3">

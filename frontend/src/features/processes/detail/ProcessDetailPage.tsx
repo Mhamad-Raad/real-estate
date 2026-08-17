@@ -46,7 +46,11 @@ export function ProcessDetailPage() {
   const [createProcess, { isLoading: reapplying }] = useCreateProcessMutation();
   // Which *press* closed the case, not whether it is closed: the compiled export runs off the
   // press (UC-086), so reading the status instead would recompile every old case on opening it.
-  const [justCompleted, setJustCompleted] = useState(false);
+  //
+  // Holds the case id rather than a boolean. React Router reuses this component when only `:id`
+  // changes — `reapply` below navigates exactly like that — so a bare flag would follow the user
+  // onto the next case and compile that one instead.
+  const [completedId, setCompletedId] = useState<number | null>(null);
 
   if (isLoading) {
     return (
@@ -175,14 +179,14 @@ export function ProcessDetailPage() {
                     process={process}
                     canEdit={canEdit}
                     isAdmin={isAdmin}
-                    onCompleted={() => setJustCompleted(true)}
+                    onCompleted={() => setCompletedId(process.id)}
                   />
                   <CompiledCasePanel
                     processId={process.id}
                     documents={process.documents}
                     canEdit={canEdit}
                     isComplete={process.overall_status === "complete"}
-                    autoStart={justCompleted}
+                    autoStart={completedId === process.id}
                   />
                 </div>
               )}
