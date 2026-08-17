@@ -35,12 +35,18 @@ This section records where the **built system intentionally differs** from the d
 | **Documents on the Desktop, not in the Docker VM** (2026-08-11, It.9) | §2.5/D12 already specified a **bind mount** to `Desktop/LandAllocationData/documents` | The dev compose had used a **named volume** since It.2, so 1,558 files sat inside the Docker VM disk. Switched to the bind mount `${DATA_ROOT:-~/Desktop/LandAllocationData}/documents`; live Postgres stays a named volume as the same decision requires. See **§2.5** | Three consequences, all silent: the office could not reach its own archive without the app — the entire point of the Sorani filenames (UC-060); It.9's backup copies *that Desktop folder* to the external drive and would have copied nothing; and `docker system prune --volumes` or a Docker Desktop factory reset would have destroyed every scanned document with no warning naming the data |
 | **Blank forms on the Templates screen** (2026-08-10, It.9 — UC-039) | §6.6 knows one kind of template: a `.docx` letter the system fills in per case | `DocumentTemplate` holds **two** kinds. A **blank form** (`request_form`, the office's `داواکاری`) is a **PDF stored and served byte for byte**: `preview` returns the file itself instead of a sample-data render, `render_to_pdf` refuses it, and its dialog — and only its dialog — carries **Print** and **Download**. Split by `BLANK_FORM_TYPES`, carried to the UI as **`is_blank_form` on each template row**. See **§6.6** | The office's Request paper is printed blank, signed by hand and scanned back in as the optional `Request` document (§6.7) — it has no placeholders to fill. The sheet a citizen signs must be the office's own file, so nothing may re-render or re-encode it |
 | **Appearance settings** (2026-08-02, It.7 — UC-015, UC-031, UC-032, UC-033) | §9 assumes one bundled face and a light/dark theme | Settings offers **mode** (light / dark / **system**), **9 palettes** and **9 typefaces**, all client-only (localStorage, per machine). A palette is **four numbers** every token derives from, so switching one moves the whole screen; a typeface sets Latin **and** Arabic, so the setting is visible in every language. See §9.1 | The office asked for a real palette change rather than an accent tint (UC-032), a font setting that does something in English (UC-031), and more than four of each (UC-033). Deriving tokens from a hue/chroma pair keeps nine palettes at a few hundred bytes and safe in light, dark and RTL |
+| **A slot refuses what it cannot hold** (2026-08-17, the office — UC-085) | §6.7's `expected_parts` is "a hint, never a completion rule"; nothing enforces it | **Capacity, enforced on both write paths** by `documents.services.assert_slot_has_room`: identity cards 2 **sides** (pages — both sides are one document), the municipality form 2 **files**, everything else 1, `InstituteDoc` 1 **per institute entry**. Refusals are i18n keys; the upload control greys out at capacity; making room is a delete. Still not a rule in the other direction — a half-filed card never blocks a step (UC-055). See **§3.4** | The API returned 201 for the Nth file on a full slot, so a card that already held both sides took two more on the next re-scan and the count could only be clamped for display. It lives in the service layer because a *confirmed card scan* files its document straight from staging (§6.5) — the very path the office hit — which a serializer rule would never have seen |
+| **Closing a case is what compiles it** (2026-08-17, the office — UC-086) | §10.3 describes the export as a Step-5 action, available whenever the reviewer wants it | **No Compile button before completion.** The job runs off the mark-complete press, the file appears with its preview, and the button returns afterwards as **Recompile**. The trigger is the *press* and it carries the case id — reading `overall_status` would recompile every closed case on opening it. See **§10.3** | Closing and compiling were two presses with nothing tying them together, so a case marked complete and then left had no compiled file at all — the one document the export exists to produce. What it costs: the file can no longer be produced *before* completion, which §10.3 argued for. The office asked for the button to go |
+| **Only the Step-4 *institutes* are optional** (2026-08-16 → corrected 2026-08-17, the office — UC-079, UC-088) | §3.6 requires every prior step complete before a case may close | **Optionality is per requirement, not per step.** `OPTIONAL_INSTITUTE_STEPS = {4}` drops only that step's `institute:` codes; **`land_id` and the municipality form still block** (the office's explicit call). One predicate — `status.step_blocks_completion()` — is asked by `complete_process`, the Step-5 roll-up and the report, so button, badge and printed page cannot disagree. See **§3.6** | Not every allocation reaches the registration bodies, so those must not hold a finished case open — but the first build made the **whole** step skippable, and a case could then close with no form and no land number on it. The step's own status stays `in_progress` either way: the case closes *over* it rather than pretending it was done |
+| **The cover sheet is a record, not today's policy** (2026-08-17, review of UC-088) | — (implicit: a step's printed label follows the completion rule) | §10.3's **`تێپەڕێنرا` (skipped)** label is deliberately **decoupled** from §3.6's gate: it names what happened to a step the case was closed over, whatever the rule says now | Tying them re-labelled allocations the office had already closed and signed under the previous rule — measured, one completed case moved from "skipped" to "in progress" on nothing but a code change, which is the exact reading "skipped" was introduced to prevent |
+| **Every picker offers what the server takes** (2026-08-17, the office — UC-087) | §6.1 has the import path confirm "it is a PDF" | **`application/pdf, image/jpeg, image/png, image/tiff`** on both the slot import and the ID-card capture; the button reads *Import file*. A TIFF card, which no browser can draw, shows a filename placeholder instead of a broken image. The client-side scan assembly stays JPEG/PNG — a real `pdf-lib` limit. See **§6.1** | Three controls had three different rules and none matched the server: import offered PDF alone, so the office's scanner JPEG was not selectable on a path the API has always accepted; the card capture offered `image/*`, letting through WebP/GIF/HEIC that are then refused. Reported as "the imported image shows no preview" |
+| **The intake form keeps what was typed** (2026-08-17, the office — UC-089) | — (§5's intake form; no stated behaviour on switching modes) | Switching between *Scan ID card* and *Enter manually* **no longer blanks the draft or the errors**, and the spouse fields come after every one of the beneficiary's own | The reset was there on the reasoning that one mode must not carry the other's half-entry — but the scan branch never reads that draft, so nothing was ever carried; it only destroyed filled-in forms. It also cleared `category`/`assigned_lawyer` errors, which are **case** fields shown in both modes |
 
 ### Temporary simplifications (revisit when the named iteration lands)
 
 | Area | Spec target | Current build | Revisit at |
 |------|-------------|---------------|-----------|
-| **`overall_status` values** | `draft \| in_progress \| submitted \| completed \| rejected` (§5.2) | `draft \| in_progress \| complete \| rejected` (no `submitted`; `complete`, not `completed`) | It.4 (compiled export adds the `submitted` stage) |
+| **`overall_status` values** | `draft \| in_progress \| submitted \| completed \| rejected` (§5.2) | `draft \| in_progress \| complete \| rejected` (no `submitted`; `complete`, not `completed`) | **Settled 2026-08-17 — `submitted` is cancelled, not deferred.** The compiled export shipped and is produced *by* closing the case (§10.3, UC-086), so there is no state between closed and sent |
 | **Step-1 completion** | also requires the generated eligibility PDF (§3.6) | **permanent deviation** — the letter is *generated by* completing Step 1, never required *for* it. Requiring it would deadlock: the step waits on the letter while the letter waits on the step. Completion needs the client papers + header fields + a spouse ID when married | — (settled It.3) |
 | **`GenerationJob` and `CardScan` are not soft-deletable** | every domain model extends `SoftDeleteModel` (§3.1) | both extend `TimeStampedModel` only. They record a *run*, not case data — the artefacts they produce (`Document`, and the audit row) are the durable, soft-deletable things, and nothing references either as evidence. `CardScan` instead carries `discarded_at`, which the sweep sets when it deletes an abandoned scan's file while keeping the row (§6.3) | — (settled It.3 / It.5) |
 | **Document naming** | friendly name composed **at verification**; temp `__<id>.pdf` during OCR draft (§6.7) | **as specified, for scanned cards** — a card is staged as `_staging/scan__<id>.pdf` and only composed + filed on confirmation (§6.5). Other uploads still compose at upload, which is correct: they attach to a person who already exists | — (settled It.5). Still open: re-filing after a *later* name edit |
@@ -51,8 +57,8 @@ This section records where the **built system intentionally differs** from the d
 | **OCR pre-processing** | deskew · denoise · CLAHE · binarize — "where most accuracy is won" (§6.2) | **permanent deviation — measured twice, and it made things worse both times.** Thresholding a glossy card shredded the thin Arabic strokes (10 good lines → 70 of noise); re-tested on *photocopied* input it rescued nothing and at two copier passes destroyed a card number the raw read had recovered. No cleanup path exists in the code | — (settled It.5) |
 | **OCR output storage** | `Document.ocr_text` (raw) + `parsed_fields` (§3, §6.2, D2) | **permanent deviation** — neither column exists and raw text is never stored. The reading lives on `CardScan.draft` as per-field `{value, confidence, source, verified}` + warnings. The (predicted → corrected) pairs §6.5 wants are kept in the **append-only audit log**, which no re-read can erase | — (settled It.5) |
 | **What gets OCR'd, and when** | every scanned/imported upload auto-enqueues OCR (§6) | **permanent deviation** — only the two identity cards are read, and a lawyer starts the read deliberately. There is nothing to parse in a title deed, and auto-OCR would burn worker time on every upload | — (settled It.5) |
-| **Per-step `missing` status** | four states incl. auto-derived `missing` (§5.4) | `not_started / in_progress / complete` computed; `missing` not auto-set | It.4/It.5 (when file-expectation rules firm up) |
-| **`document_type` vocabulary** | e.g. `ClientID, SignedAgreement, ApprovalLetter, EligibilityBase` (§6.7) | `ClientID, SpouseID, RealEstate, SignedAgreement, EligibilityLetter` + generic `InstituteDoc` for Steps 2–4; enforced server-side on upload | as document types are finalized |
+| **Per-step `missing` status** | four states incl. auto-derived `missing` (§5.4) | `not_started / in_progress / complete` computed; `missing` not auto-set | **Settled 2026-08-17 — the trigger has fired and the answer is no.** File expectations did firm up (`expected_parts` is an enforced capacity, UC-085), but a fourth *status* still buys nothing: `in_progress` already carries the per-step `missing` list, and the case-closing question is answered by `blocking_requirements` (§3.6), which is a different axis from the badge |
+| **`document_type` vocabulary** | e.g. `ClientID, SignedAgreement, ApprovalLetter, EligibilityBase` (§6.7) | `ClientID, SpouseID, RealEstate, SignedAgreement, Request, InstituteDoc` + the two system outputs `EligibilityLetter, CompiledCase`. **Two things are enforced server-side on upload**: the code must be in the vocabulary, and the slot must have room for the file (§3.4, UC-085) | as document types are finalized |
 | **`ProcessStep.approval_status`** | step carries approval | **done** — column dropped in `processes/0012` (It.8). Approval lives on `ProcessInstituteEntry`, which is the only one any screen reads | — (closed It.8) |
 
 ---
@@ -607,7 +613,7 @@ The codes themselves are deliberately opaque and permanent: they are stored on e
 | `INST_S3_B` | بەڕێوەبەرایەتیی تۆماری خانووبەرە ٢ | Real Estate Registration Directorate 2 |
 | `INST_S3_C` | بەڕێوەبەرایەتیی گشتیی شارەوانییەکان | General Directorate of Municipalities |
 | `INST_S4_A` | لایەنی پەیوەندیدار | The relevant authority |
-| `INST_S4_B` | *(still a placeholder — see below)* | Institute S4-B |
+| `INST_S4_B` | نەخشەی زەوی | Land map |
 
 > **Deviation (2026-08-03, the business's review — UC-040, UC-046).** **Step 2 has exactly one
 > institute, not two.** `INST_S2_B` never existed as a real body, and because
@@ -616,9 +622,12 @@ The codes themselves are deliberately opaque and permanent: they are stored on e
 > `ProcessInstituteEntry` rows that referenced it are **soft-deleted** by `processes/0008`, not
 > hard-deleted (§11.1), then step 2 is re-derived for every case.
 >
-> **`INST_S4_B` is deliberately left untouched.** The business named every other institute and did
-> not mention it, and "unmentioned" is not "delete" — removing a Step-4 body on an inference would
-> silently drop real rows. It keeps its placeholder label until they say what it is.
+> **`INST_S4_B` was deliberately left untouched** at the time. The business named every other
+> institute and did not mention it, and "unmentioned" is not "delete" — removing a Step-4 body on
+> an inference would silently drop real rows. It kept a placeholder label until they said what it
+> was, and they since have: **نەخشەی زەوی / Land map**, as the table above now records. (Corrected
+> 2026-08-17 — the placeholder sentence had outlived the placeholder, while §6.7 was already using
+> `نەخشەی زەوی` as its worked example.)
 
 `GET /api/v1/institutes/` also carries **`name_ckb` and `name_en`** for each code. The case screens
 print the two together — `<Kurdish> — <English>` (UC-054) — because the office deals with bodies
@@ -630,7 +639,33 @@ columns and no room for both (§10.3).
 
 The frontend never hard-codes this list — it reads `GET /api/institutes/`. Institute **display names** are i18n keys, not literals, so Sorani/Arabic/English labels come from the translation files while the stable machine `code` lives in the DB. `ProcessInstituteEntry.institute_code` stores the enum code for fixed institutes; `is_custom=True` + `custom_name` covers Step 3's out-of-city rows (which have no enum code).
 
-**Document types work the same way.** `catalog/document_types.py` is the one definition of the controlled `Document.document_type` vocabulary — `(code, i18n key, step, required)` — exposed read-only at `GET /api/v1/document-types/`. `processes/status.py` derives Step 1's required papers from it and `Step1Panel` lays out its upload slots from it, so a step can never require a document the UI offers no slot for. The vocabulary is deliberately partial (Steps 2–4 use a generic `InstituteDoc`; generated types arrive with It.3 — see §0).
+**Document types work the same way.** `catalog/document_types.py` is the one definition of the controlled `Document.document_type` vocabulary, exposed read-only at `GET /api/v1/document-types/`. `processes/status.py` derives each step's required papers from it and the upload slots are laid out from it, so a step can never require a document the UI offers no slot for. The vocabulary is deliberately partial (Steps 2–4 use a generic `InstituteDoc`; generated types arrive with It.3 — see §0).
+
+Each type carries `(code, i18n key, step, required)` plus four fields the build added:
+
+| Field | What it decides |
+|-------|-----------------|
+| `only_when_married` | the slot exists only for a married beneficiary (the spouse ID) |
+| `generated` | system output — shown as a result, never offered as an upload slot |
+| `expected_parts` | **how much the slot holds, refused past** — see the capacity note below |
+| `counts_pages` | whether a "part" is a **page** or a **file**: an identity card stores both sides as one document, so its slot counts pages and says "sides" (UC-083) |
+
+> **Deviation (2026-08-17, the office — UC-085). `expected_parts` is a capacity, not a hint.** It
+> was documented and commented as "a hint, never a rule", and nothing read it: `POST /documents/`
+> returned 201 for the third, fourth and Nth file on a slot, so a card that already held both sides
+> took two more on the next re-scan and the "2 of 2 sides" count could only be clamped for display.
+> It is now enforced by `documents.services.assert_slot_has_room` — cards 2 **sides**, the
+> municipality form 2 **files**, everything else 1, and the generic `InstituteDoc` 1 **per institute
+> entry** so each body's acceptance is its own slot.
+>
+> **In the service layer, because there are two ways in**: the ordinary upload endpoint and
+> `file_staged_document`, which files a confirmed card scan straight out of staging (§6.5) — the
+> path a *re-scan* takes, and the one the office actually hit. A serializer rule would have guarded
+> only the first. Making room is a delete; the count reads live rows only. It remains **not** a
+> completion rule in the other direction: a card with one side on file is present, and no step is
+> blocked waiting for the second (UC-055).
+
+**Two papers carry an English name as well** (`name_ckb` / `name_en` on the same endpoint, exactly as §3.4 serves for institutes): the map is deliberately sparse, because "Client ID" and "ناسنامەی کڕیار" say the same thing and pairing every slot would be noise. Today it holds one entry — `RealEstate`, printed as **`Municipality form and letter — فۆرم و نووسراوی شارەوانی`** (UC-088). The join lives in one place (`lib/bilingual.ts`) so the two screens cannot drift; the order differs by screen — an institute leads with its Kurdish name, this slot with its English one, as the office asked.
 
 ### 3.5 Marital status & generated documents at the schema level
 
@@ -645,8 +680,8 @@ The frontend never hard-codes this list — it reads `GET /api/institutes/`. Ins
 | 1 | Client + category + marital status set; client-ID and signed-agreement docs present, **plus a spouse ID when the client is married**; duplicate check cleared/overridden. The generated letter is **output of** completing this step, not a requirement of it (§0, §6.6) |
 | 2 | Every Step-2 institute entry has a document + assigned lawyer; start_date set; approval recorded (sets end_date) |
 | 3 | All three Step-3 institute entries complete; each out-of-city row (if flag on) has name + doc + lawyer; approved/rejected + date recorded |
-| 4 | Every Step-4 institute entry has a document + assigned lawyer; **`land_id` recorded; the real-estate document present** |
-| 5 | All prior steps complete (no missing files) unless admin-forced; final status recorded |
+| 4 | Every Step-4 institute entry has a document + assigned lawyer; **`land_id` recorded; the municipality form present** |
+| 5 | No prior step has a **blocking** requirement outstanding, unless admin-forced; final status recorded. "Blocking" excludes the Step-4 institutes — see the deviation below |
 
 > **Deviation (2026-08-03, the business's own review — UC-037, UC-041, UC-038).** Step 1 used to
 > demand two things the office does not possess when a case is opened: the **`land_id`** and the
@@ -665,9 +700,40 @@ The frontend never hard-codes this list — it reads `GET /api/institutes/`. Ins
 > the spouse's when married) — which is all the letter actually renders (§6.6, `row_for_process`).
 > The backend never gated generation at all; this was a frontend lock only.
 
+> **Deviation (2026-08-16 → corrected 2026-08-17, the office — UC-079, UC-088). A case may close
+> over the Step-4 *institutes*, and over nothing else.** Not every allocation reaches the
+> registration bodies, so *the relevant authority* and *the land map* must never hold a finished
+> case open. It was first built as "step 4 is skippable" — the **whole** step — and the office
+> caught that the next day: a case could then be closed with **no municipality form and no land
+> number** on it, and the compiled cover sheet printed "skipped" over the gap.
+>
+> **Optionality is therefore per requirement, not per step.** `processes/constants.py` names
+> `OPTIONAL_INSTITUTE_STEPS = {4}`; `status.blocking_requirements()` is `missing_requirements`
+> minus the `institute:` codes of such a step, and drops nothing else. **`land_id` blocks** (the
+> office's explicit call when asked, 2026-08-17) and so does the municipality form.
+>
+> **One predicate, three callers.** `status.step_blocks_completion()` is what `complete_process`,
+> the Step-5 roll-up in `missing_requirements` and the compiled report all ask, so the button, the
+> badge and the printed page cannot disagree. It reads the stored status first — kept fresh by
+> `recompute_step`, and a complete step has nothing outstanding by definition — and walks the
+> requirements only for a step that is *not* complete.
+>
+> **The step's own status is deliberately untouched.** A step the case closed over stays
+> `in_progress`, because it genuinely is unfinished; calling it complete would put work on a signed
+> export that nobody did. It is the *case* that closes over it, and §10.3's cover sheet names that.
+
 Status values: `not_started` (no data), `in_progress` (some data, some required items missing), `missing` (explicitly flagged outstanding files), `complete`. These drive the accordion badge colors (§5, §8).
 
 **One source of truth.** `processes/status.py` implements the table above as `missing_requirements(process, n, step_row)`, which returns stable codes for everything the step still needs — `land_id`, `start_date`, `duplicate_flag`, `custom_entries`, `doc:<type>`, `institute:<code>`, `step:<n>`. A step is `complete` exactly when that list is empty, so the badge and the Proceed dialog's "still missing" list (§5.2) can never disagree. The list is served per step as `missing` on `ProcessStepSerializer`; the frontend localizes each code (institute codes resolve through the shared enum §3.4, document codes through the shared vocabulary §6.7).
+
+**Completing the step and closing the case are two different questions** *(UC-088, 2026-08-17)*. One source, two answers, and the distinction is deliberate:
+
+| Question | Function | Who asks | Answer for a step 4 whose institutes are undone |
+|---|---|---|---|
+| Is this step finished? | `missing_requirements` | the badge, the Proceed dialog | **no** — `in_progress`, and it says which institutes |
+| Does it stop the case closing? | `blocking_requirements` → `step_blocks_completion` | `complete_process`, the Step-5 roll-up, the compiled report (§10.3) | **no** — those institutes are optional |
+
+`blocking_requirements` is `missing_requirements` minus the `institute:` codes of a step named in `OPTIONAL_INSTITUTE_STEPS`, and minus nothing else. **A step may therefore be `in_progress` and non-blocking at the same time, and that is the point**: the case closes *over* it rather than relabelling work nobody did as done. `step_blocks_completion` is the single predicate all three consumers call, so the button, the badge and the printed page cannot drift apart; it reads the stored status first and walks the requirements only for a step that is not complete.
 
 Two things keep this honest:
 
@@ -798,7 +864,7 @@ A **REST** API (explicitly not GraphQL) under `/api/`, versioned `/api/v1/`, JSO
 | **Categories** | `GET /api/v1/categories/` | List A/B/C/G | All (read) |
 | | `POST/PATCH/DELETE /api/v1/categories/{id}/` | CRUD | Admin |
 | **Institutes** | `GET /api/v1/institutes/` | **Read-only shared enum** (code, i18n key, step) | All |
-| **Document types** | `GET /api/v1/document-types/` | **Read-only shared vocabulary** (code, i18n key, step, required) — §6.7 | All |
+| **Document types** | `GET /api/v1/document-types/` | **Read-only shared vocabulary** — code, i18n key, step, required, `only_when_married`, `generated`, `expected_parts` (the slot's capacity), `counts_pages`, `name_ckb`, `name_en` — §3.4, §6.7 | All |
 | **Clients** | `GET /api/v1/clients/` | Search list; `?search=&pid=` — **no `POST`** (405): a beneficiary is created only by the Step-1 intake, see §0/UC-026 | All (read) |
 | | `GET/PATCH /api/v1/clients/{id}/` | Retrieve / update — **no `DELETE`** (405); a beneficiary is released by deleting their case (UC-061) | Admin or process assignee |
 | **Processes** | `GET /api/v1/processes/` | **Search/filter list** (see 4.3) | All (read all) |
@@ -811,7 +877,7 @@ A **REST** API (explicitly not GraphQL) under `/api/`, versioned `/api/v1/`, JSO
 | **Per-step save** | `PATCH /api/v1/processes/{id}/steps/{n}/` | **Save step n incomplete or complete** | Assignee or Admin |
 | | `GET /api/v1/processes/{id}/steps/{n}/` | Step n data + computed status | All |
 | | `POST /api/v1/processes/{id}/advance-step/` | **Proceed** — unlock the next step (forward-only; body `{version}`) — §5.2 | Assignee or Admin |
-| | `POST /api/v1/processes/{id}/steps/5/complete/` | Mark complete (enforces missing-file rule; admin can force) | Assignee or Admin |
+| | `POST /api/v1/processes/{id}/steps/5/complete/` | Mark complete (refused while a prior step **blocks** — §3.6; admin can force). **The client chains the compile onto a success** (§10.3) | Assignee or Admin |
 | **Institute entries** | `GET /api/v1/institute-entries/?process={id}` | Entries for steps 2–4 — a **top-level** resource filtered by case, not a nested route | All |
 | | `POST /api/v1/institute-entries/` | Add entry (fixed or custom out-of-city) + assigned lawyer; `process` in the body | Assignee or Admin |
 | | `PATCH/DELETE /api/v1/institute-entries/{id}/` | Update lawyer/doc / soft-delete row | Assignee or Admin |
@@ -824,7 +890,7 @@ A **REST** API (explicitly not GraphQL) under `/api/`, versioned `/api/v1/`, JSO
 | | `GET /api/v1/card-scans/{id}/file/` | The staged PDF, for the review screen's preview pane | Own scans; Admin sees all |
 | | `POST /api/v1/card-scans/{id}/confirm/` | **The checked reading becomes real** — creates client + case + filed document, or updates an existing client (`client` + `client_version`) | Own scans; assignee/Admin when filing onto an existing case |
 | **Eligibility PDF** | `POST /api/v1/processes/{id}/generate-eligibility/` | Server-side template→PDF (base always; +spouse if married); returns a job → `202` | Assignee or Admin |
-| **Compiled case** (§10.3) | `POST /api/v1/processes/{id}/compile/` | Step-5 export: summary cover sheet + every document, merged; returns a job → `202` | Assignee or Admin |
+| **Compiled case** (§10.3) | `POST /api/v1/processes/{id}/compile/` | Step-5 export: summary cover sheet + every document, merged; returns a job → `202`. **No completeness gate server-side** — "only after the case closes" is a UI rule (§10.3), deliberately, because an export of an open case is readable output and not a privileged act | Assignee or Admin |
 | **Generation jobs** | `GET /api/v1/generation-jobs/{id}/` | **One poll endpoint for every kind of job** — status, error, resulting Document id | Requester or Admin |
 | | `GET /api/v1/generation-jobs/{id}/file/` | Download a finished bulk PDF; the server names the file (§6.7, UC-066) | Requester or Admin |
 | **Doc templates** | `GET /api/v1/document-templates/` | List templates for selection; `?template_type=process_list` | All (read) |
@@ -863,7 +929,7 @@ GET /api/v1/processes/?search=<name>&pid=<exact>&date_from=2026-01-01&date_to=20
 
 **Partial / step saves.** Each step is a sub-resource `PATCH`ed independently. The server validates only what is present, updates `ProcessStep.status` via the requirement spec, writes the audit entry, and returns the recomputed status. Nothing forces a step to be complete — "save incomplete" is the default path, and `overall_status` stays `draft`/`in_progress`.
 
-**PDF upload (scan or import — same endpoint).** Both the browser-assembled scan PDF and an imported file hit `POST /api/v1/documents/` as `multipart/form-data`. The server: checks the size limit, converts an image to PDF if one was sent (§6.1), **validates the file by actually parsing it** — magic bytes alone let a truncated scan through — writes it to the file store under a deterministic path, computes `sha256`, and creates the `Document` row (`input_source` = `scanned`|`imported`), returning `201`. **Identity cards do not come through here**; they are staged via `POST /card-scans/` and filed by their confirmation (§6.5).
+**PDF upload (scan or import — same endpoint).** Both the browser-assembled scan PDF and an imported file hit `POST /api/v1/documents/` as `multipart/form-data`. The server: checks the size limit, converts an image to PDF if one was sent (§6.1), **validates the file by actually parsing it** — magic bytes alone let a truncated scan through — **refuses it if the slot has no room left** (§3.4, UC-085), writes it to the file store under a deterministic path, computes `sha256`, and creates the `Document` row (`input_source` = `scanned`|`imported`), returning `201`. **Identity cards do not come through here**; they are staged via `POST /card-scans/` and filed by their confirmation (§6.5).
 
 **File download.** `GET /documents/{id}/file/` never serves the file statically. Django checks the caller's permission against the document's parent (client/process), then streams the bytes with `Content-Disposition` set to the human-readable `display_filename` (`<CODE>_<PERSON>_<Sorani label>`, §6.7) — deliberately longer than the on-disk name, so the saved file describes itself once it has left its folder. PDFs are outside Nginx's static root so they cannot be fetched by guessing a URL.
 
@@ -877,11 +943,13 @@ Creating a Process starts a **5-step data-entry flow rendered as collapsible acc
 
 **A case begins *inside* Step 1 (It.7, UC-024 — see §0).** There is no separate "create process" gate that demands a client who already exists: `/processes/new` **is** the Step-1 form. The beneficiary is created there — by **scanning their ID** (§6.5, the card creates the person) or by **typing the details** — together with the category and the land. That ordering is the office's real one: the person and their case are a single act, and the ID card in the lawyer's hand is where both start. **Those two modes are the whole list (UC-028):** picking an existing client was removed, because one person holds one live allocation, so a client already on file already has a case.
 
+**Switching between the two modes keeps what has been typed** *(UC-089, 2026-08-17)*. It used to blank the draft and the field errors on every switch, so a lawyer who glanced at the other tab lost their entry. Nothing was ever protected by that: the scan branch never reads the typed draft — it builds its payload from the confirmed card — and the errors it cleared included `category` and `assigned_lawyer`, which are **case** fields shown in *both* modes, so it was discarding a warning that still applied. The typed form also asks for the beneficiary's own fields first and **the spouse block last**, rather than interrupting a person's details to ask about someone else.
+
 Nothing is persisted until a single **Create** submit, which writes the client, the case (and the scanned ID document, when the scan path was used) in **one transaction**. Abandoning the form therefore leaves **nothing** behind — deliberate, because §11.1 forbids hard deletes, so a half-created case would be permanent clutter in a government register. The duplicate check still runs **before** anything is written, so a second allocation is refused at the same point it always was.
 
 ```mermaid
 flowchart TD
-    START(["/processes/new — the Step 1 form<br/>beneficiary: scan ID · find existing · type details<br/>+ category + land"]) --> DUP{Duplicate check<br/>PID · household · mother name}
+    START(["/processes/new — the Step 1 form<br/>beneficiary: scan ID · type details<br/>+ category + land"]) --> DUP{Duplicate check<br/>PID · household · mother name}
     DUP -- "match found" --> WARN["Strong warning<br/>block save"]
     WARN --> OV{Admin override?}
     OV -- "no" --> WARN
@@ -894,7 +962,7 @@ flowchart TD
     S2["STEP 2 — Institute submissions<br/>per-institute upload + assigned lawyer · start_date · approval → end_date"]
     S3["STEP 3 — Three institutes + out-of-city<br/>3 uploads+lawyers · optional custom rows · approved/rejected + date"]
     S4["STEP 4 — Two institutes<br/>2 uploads + assigned lawyers"]
-    S5["STEP 5 — Complete<br/>compile + print/export whole case · final status · mark complete"]
+    S5["STEP 5 — Complete<br/>mark complete → compiles the whole case · preview/print · recompile"]
 
     S1 -. "save incomplete, return anytime" .-> S1
     S1 --> S2 --> S3 --> S4 --> S5
@@ -914,19 +982,19 @@ flowchart TD
 
 | Step | Inputs | Documents (scan **or** import) | Institutes (from shared enum) | Approval / dates | Lawyer |
 |------|--------|-------------------------------|------------------------------|------------------|--------|
-| **1** | All gov-ID client fields, real-estate fields, **Category (A/B/C/G)**, **marital status (+spouse name if married)** — **the beneficiary is created here** (scan · find existing · type), which is what creates the case (§5, §0) | Client ID → **OCR autofill + verify**, filed by the same submit that creates the case; real-estate papers + signed agreement filed on the case afterwards; **generated** base eligibility PDF (always) + spouse PDF (if married) | — | — | process-wide only (set at creation) |
+| **1** | All gov-ID client fields, `land_id` / `land_address`, **Category (A/B/C/G)**, **marital status (+spouse name if married)** — **the beneficiary is created here** (scan · type — those two and no more, UC-028), which is what creates the case (§5, §0). The beneficiary's own fields come first and the **spouse block last** (UC-089) | Client ID → **OCR autofill + verify**, filed by the same submit that creates the case; the signed agreement filed on the case afterwards; **generated** eligibility letter. *(The municipality form moved to Step 4 — UC-037/041.)* | — | — | process-wide only (set at creation) |
 | **2** | `start_date` (user) | one upload **per Step-2 institute** + the approved paperwork | Step-2 institutes | **approval recorded → sets `end_date`** (editable later) | **per-institute** assigned lawyer |
 | **3** | out-of-city flag; `approval_date` | one upload per **three** Step-3 institutes; **+ repeatable custom rows** (name+doc+lawyer) when flag on | three Step-3 institutes + custom | **approved / rejected + date** | per-institute + per-custom-row lawyer |
-| **4** | — | one upload per **two** Step-4 institutes | two Step-4 institutes | — | per-institute assigned lawyer |
-| **5** | final status/outcome | **compiled export** of all prior data + documents (print/PDF) | — | mark complete (respects missing-file status) | — |
+| **4** | **`land_id`** (offered in Step 1, required here — §3.6) | the **municipality form** (2 files) + one upload per **two** Step-4 institutes | two Step-4 institutes — **the only optional part of this step** (§3.6) | — | per-institute assigned lawyer |
+| **5** | final status/outcome | the **compiled export** — *produced by* marking complete, not a separate action (§10.3) | — | mark complete (refused while a prior step still blocks; admin can force) | — |
 
 ### 5.2 Save-incomplete behavior
 
-Each accordion section maps to `PATCH /processes/{id}/steps/{n}/`. Saving validates only present fields, updates that step's `status`, and leaves the process `draft`/`in_progress`. There is **no forced sequence** — a lawyer can fill Step 4 before Step 2 finishes (common while waiting on institutes). The only ordering gate is Step 5 completion, which checks all steps' missing-file status.
+Each accordion section maps to `PATCH /processes/{id}/steps/{n}/`. Saving validates only present fields, updates that step's `status`, and leaves the process `draft`/`in_progress`. There is **no forced sequence** — a lawyer can fill Step 4 before Step 2 finishes (common while waiting on institutes). The only ordering gate is Step 5 completion, which asks each prior step whether anything **blocking** is still outstanding (§3.6 — not the same as its `missing` list, since the Step-4 institutes are outstanding without blocking).
 
-**`overall_status` lifecycle:** a process is `draft` on creation, flips to `in_progress` once real step data is saved, becomes `submitted` when Step 5 compiles and sends the case to leadership, and finally settles as `completed` or `rejected` per the Step-5 outcome. `current_step` is informational (the furthest step reached) — because editing is non-linear, it is not a gate.
+**`overall_status` lifecycle:** a process is `draft` on creation, flips to `in_progress` once real step data is saved, and settles as `complete` or `rejected` per the Step-5 outcome. **Marking it complete is what produces the compiled export** (§10.3, UC-086) — the reverse of the ordering this sentence used to give, and the reason the `submitted` stage below never arrived: there is no state between "closed" and "sent", because closing it is what sends it. `current_step` is informational (the furthest step reached) — because editing is non-linear, it is not a gate.
 
-> **Implementation note (through It.2, see §0):** the built enum is `draft \| in_progress \| complete \| rejected` — Step-5 completion sets `complete` directly. The `submitted` stage (and renaming `complete`→`completed`) arrives with the Iteration-4 compiled export. Editing a completed process that breaks a step reverts it to `in_progress`.
+> **Implementation note (through It.2, see §0):** the built enum is `draft \| in_progress \| complete \| rejected` — Step-5 completion sets `complete` directly. **The `submitted` stage was never built and is now cancelled** (2026-08-17): the compiled export has shipped and is produced *by* closing the case (§10.3, UC-086), so there is no state between closed and sent. Editing a completed process that breaks a step reverts it to `in_progress`.
 
 > **Implementation note (It.2.5, see §0) — `current_step` is a gate for lawyers.** It holds the highest step the lawyer has unlocked. Steps above it are shown locked (greyed, un-openable, body never mounted); the lawyer unlocks the next one with an explicit **Proceed** on the current step, which opens a confirm dialog and calls `POST /processes/{id}/advance-step/`. Advancing is **forward-only** and optimistic-locked, so an earlier step can never re-lock a later one. Proceeding is *never blocked* by an unfinished step — the dialog just lists what is still missing and lets the lawyer continue. Admins are exempt: they always see all five steps.
 
@@ -1046,11 +1114,11 @@ Because the app is a fully-offline browser SPA, the **default, first-class scan 
 
 **Optional desktop-scanner path (host only).** For a real sheet-fed USB scanner, browsers cannot talk to TWAIN/SANE directly. A tiny **local scanner-helper** service on the **host** (e.g. Python + SANE `scanimage`, or NAPS2's CLI) exposes `http://127.0.0.1:PORT/scan` that returns a PDF; the browser on the host calls it and forwards the PDF to the upload endpoint. **Constraint to flag:** this helper only serves the machine the scanner is physically attached to — the LAN client computer would need its own camera (path above) or its own attached scanner. Recommendation: **make camera-capture the primary path** (works everywhere, zero extra services) and add the helper only if the office already owns a document scanner.
 
-**Import path.** The file picker accepts a file; the frontend confirms it is a PDF. Uploaded with `input_source="imported"`.
+**Import path.** The file picker offers **exactly what the server converts** — PDF, JPEG, PNG, TIFF (`filestore.IMAGE_MAGIC` + PDF) — and the file is uploaded with `input_source="imported"`. See the format note at the end of this section: this used to be "PDF only, confirmed client-side", which locked the office out of their own scanner's output.
 
 **Scan capture as shipped** *(It.6, 2026-07-30)*. Four points where the build settled differently from the sketch above:
 
-- **Every document slot offers both.** `DocumentUpload` renders *Import PDF* beside *Scan* in Steps 1–4, so the camera serves ordinary government papers, not just the ID card in the Step-1 intake form (§5). Importing a ready-made PDF is untouched and stays the shorter path when the office already has one. Both land on `POST /documents/`, differing only in `input_source`.
+- **Every document slot offers both.** `DocumentUpload` renders *Import file* beside *Scan* in Steps 1–4, so the camera serves ordinary government papers, not just the ID card in the Step-1 intake form (§5). Importing a ready-made file is untouched and stays the shorter path when the office already has one. Both land on `POST /documents/`, differing only in `input_source`. *(It read "Import PDF" until UC-088; it takes images too, and always could.)*
 - **Pages are laid out on A4 in the orientation each was shot in**, with the original image bytes embedded untouched — nothing is resampled, so a later read still sees full capture resolution. Uniform page boxes matter because the compiled case file (§10.3) merges these pages with generated letters, and mixed boxes print as a ragged stack.
 - **`opencv.js` enhance was deliberately NOT built.** The OCR spike (§6.2) measured pre-processing as actively *harmful*, and on an archival document it affects only human legibility — a ~9 MB WASM payload for a step with no demonstrated value. Revisit only with measurements, behind a toggle.
 - **`pdf-lib` is dynamically imported**, so it is a separate ~420 kB chunk fetched on the first scan rather than weight in the app shell. It is still bundled into `dist` and served by the office's own Nginx: the no-CDN rule is untouched.
@@ -1060,6 +1128,26 @@ Ordinary scanned documents are **not** OCR'd — reading stays limited to identi
 **Image uploads are converted server-side, and a card's two sides become one PDF** *(deviation from the above, settled It.5)*. A lawyer can photograph an ID today, so `POST /documents/` and `POST /card-scans/` both accept JPEG/PNG/TIFF and convert to PDF on arrival. A card is **one document with two sides**, so `card-scans` merges front and back into a single file: one row, one entry in the case folder, and a reader that gets both sides together — which is what makes the front↔MRZ cross-check possible at all — the store stays PDF-only and every downstream reader (preview, OCR, compile) handles exactly one format. No resampling: OCR accuracy depends on the original resolution. Alpha is flattened onto white, or a transparent PNG renders black. Client-side assembly arrived in It.6, but this server-side conversion stays: it is what lets a single photograph be uploaded through the ordinary import path with no camera involved.
 
 **Uploads are parsed, not sniffed.** `%PDF-` in the first five bytes proves nothing — a truncated scan passes that check, enters the store, and fails much later when the case is compiled or read. Every upload is opened with `PdfReader` and rejected at the door if it will not parse (`filestore.is_readable_pdf`).
+
+> **Deviation (2026-08-17, the office — UC-087). Every file picker offers exactly what the server
+> accepts, and no more.** The office reported that importing a scanner image "does not show the
+> preview". The scanner delivers **TIFF**: the ID-card capture accepted it (`accept="image/*"`),
+> set the side and offered *Retake* — then previewed it with a plain `<img>`, and **no browser can
+> decode TIFF** (measured: `naturalWidth × naturalHeight = 0 × 0`). The lawyer saw a broken icon
+> and reasonably concluded the file had not attached. The server reads TIFF perfectly (201); only
+> the picture of it was broken.
+>
+> Probing it found three controls with three different rules, none matching the server: the slot's
+> import offered **PDF alone** — so a scanner JPEG was not selectable on a path the API has always
+> taken; the card capture offered `image/*`, which let through WebP, GIF and the iPhone's HEIC,
+> all of which preview happily and are then refused as "not a readable PDF"; only the client-side
+> scan assembly was honest, and that limit is real (`pdf-lib` embeds JPEG and PNG and nothing else).
+>
+> Both pickers now offer `application/pdf, image/jpeg, image/png, image/tiff`. A format offered
+> must work. And because a TIFF is a **readable** card the browser cannot draw, the capture box
+> falls back to naming the file — *"Attached; this file cannot be shown here, but it will be read"*
+> — driven by the `<img>`'s own `onError`, which is the only thing that can know: a TIFF has a
+> perfectly ordinary image MIME type.
 
 ### 6.2 OCR — engine, pre-processing, languages
 
@@ -1109,6 +1197,8 @@ When the reading completes, the **side-by-side review screen** shows the staged 
 **A married beneficiary is two cards.** Marital status is not on the card, so the scan screen asks; when married, the spouse's card is captured and read alongside the beneficiary's. The beneficiary's confirmation creates the record — including the spouse block the letter prints and the `spouse_pid` the household rule reads (§5.7) — and the spouse's card is then filed onto it, because the client has to exist before their spouse's document can belong anywhere. The confirm response carries the client's id **and version** so that second call satisfies the optimistic lock. If it fails, the beneficiary is still saved and Step 1 simply shows the spouse ID outstanding, with the scan still staged to retry.
 
 **Confirmation is what makes anything real.** `POST /card-scans/{id}/confirm/` runs one transaction: create the `Client` → create the `Process` → compose the name → **move** the staged file into `<CATEGORY>/<CODE>_<PID>/` → create the `Document` already `verification_status="verified"` → write the audit → recompute step status. Passing an existing `client` (with its `client_version`, so the optimistic lock applies) updates that person instead — which is how a **spouse card** and a **replacement scan** work, through the same path rather than a parallel one.
+
+**Confirm can be refused, and a replacement scan is the case that does it** *(UC-085, 2026-08-17)*. `file_staged_document` calls `assert_slot_has_room` (§3.4) before it writes anything, so confirming a card onto a slot that already holds its two sides comes back **400** rather than filing a third. This is the office-visible half of that rule: a re-scan was how a card came to have four sides. Nothing is consumed — the scan stays staged and still confirmable — so the lawyer deletes the old card and confirms this one. The PID conflict below is the other way this transaction refuses; there are no others.
 
 Three rules hold here:
 
@@ -1194,8 +1284,9 @@ Two things here: the **folder hierarchy** (category → person → documents, mi
 > | **on download** (`display_filename`) | `<CODE>_<PERSON>_<label>.pdf` | |
 >
 > - The person folder becomes a **case** folder, `<CODE>_<PID>`. The PID stays — it is still the identity the system turns on, and still not `client.id`, for the reason above — but a person may hold more than one case over time (a re-application after a rejection, §5.7), and their papers were landing in one undifferentiated folder: two `ClientID`s, two `SignedAgreement`s, nothing but a short id to say which case each belonged to. This replaces "a person keeps one folder per category" below. Cases opened before codes existed keep the plain PID folder they already had.
-> - **`<label>` is the Sorani name** of the issuing body (`نەخشەی زەوی`) or, where there is no institute, of the paper itself (`بەڵگەنامەی خانووبەرە`) — never the machine code. Same reason the generated documents are Sorani (§6.6): `INST_S4_B` tells someone looking for the land map nothing. The names are code constants (`INSTITUTE_NAMES_CKB`, `DOCUMENT_TYPE_NAMES_CKB`), so they are as stable as the codes were — correcting one renames later files, never filed ones — and they are **not** the per-user UI translation, which would make a filename depend on who uploaded it.
-> - **Inner spaces survive sanitization.** These are phrases a person reads; `بەڵگەنامەی_خانووبەرە` is harder to scan than the words it is made of. Runs of whitespace collapse to one so a stray double space cannot make two names look different.
+> - **`<label>` is the Sorani name** of the issuing body (`نەخشەی زەوی`) or, where there is no institute, of the paper itself (`فۆرم و نووسراوی شارەوانی`) — never the machine code. Same reason the generated documents are Sorani (§6.6): `INST_S4_B` tells someone looking for the land map nothing. The names are code constants (`INSTITUTE_NAMES_CKB`, `DOCUMENT_TYPE_NAMES_CKB`), so they are as stable as the codes were and they are **not** the per-user UI translation, which would make a filename depend on who uploaded it.
+> - **Correcting a name renames later files and never filed ones**, which is the point rather than a limitation: the paper the office filed last week is still called what it is called. Exercised for real on 2026-08-17 — `RealEstate` went from `بەڵگەنامەی خانووبەرە` to the office's own name for it, **`فۆرم و نووسراوی شارەوانی`** (UC-088), and every document already on disk kept its old name.
+> - **Inner spaces survive sanitization.** These are phrases a person reads; `فۆرم_و_نووسراوی_شارەوانی` is harder to scan than the words it is made of. Runs of whitespace collapse to one so a stray double space cannot make two names look different.
 > - The **download name drops the `__<shortid>` and the machine type**. The short id exists to keep two files apart on disk — `RealEstate` legitimately holds two papers (UC-055) — and to survive re-filing; a download has neither constraint, since the browser numbers a repeat. The case code leads and already begins with the category letter, so naming the category again would only repeat it.
 > - **Consequence for `refile.py`:** the short id is spliced back into the *stored* name only. A download name carries none, and splicing into a name with no `__` would leave nothing but the id.
 
@@ -1222,7 +1313,7 @@ documents/                                  # bind-mounted from Desktop/LandAllo
 | `<CATEGORY>` | `Category.code` (A/B/C/G) | stable and safe by construction |
 | `<INSTITUTE>` | canonical institute label from the shared enum (§3.4); `custom_name` for out-of-city rows; **`General`** when the document has no institute (Step-1 client papers, generated eligibility/compiled PDFs) | a **fixed canonical (romanized) label**, *not* the per-user UI translation — so the filename never changes with the viewer's language |
 | `<PERSON>` | the document's **subject**, sanitized — `Client.full_name`, except a `SpouseID`, which uses `Client.spouse_name` | a spouse's ID card lives in the beneficiary's folder because it is their case, but the document *is* the spouse's paper; naming it after the beneficiary would misdescribe it. Download name only — the on-disk name has no person part |
-| `<DOCUMENT>` | `Document.document_type` — a controlled label (e.g. `ClientID`, `SignedAgreement`, `ApprovalLetter`, `EligibilityBase`) | controlled vocabulary keeps it stable and safe |
+| `<DOCUMENT>` | `Document.document_type` — a controlled code (`ClientID`, `SpouseID`, `RealEstate`, `SignedAgreement`, `Request`, `InstituteDoc`, `EligibilityLetter`, `CompiledCase`); the filename carries its **Sorani name**, not the code, per UC-060 below | controlled vocabulary keeps it stable and safe |
 | `__<shortid>` | first 6–8 hex of the document UUID | **guarantees uniqueness** on disk — no collisions when several files share the other parts. Since UC-060 it appears in `file_path` only; the download name has no such constraint |
 
 **Why the suffix + sanitization are non-negotiable (this is how human-readable names are done safely):**
@@ -1324,7 +1415,7 @@ sequenceDiagram
 | Process — **open a case in another lawyer's name** | ✅ (2026-08-06) | ✅ |
 | Process — **reassign an existing case** | ❌ | ✅ |
 | Process — **override duplicate** | ❌ | ✅ |
-| Process — force-complete with missing files | ❌ | ✅ |
+| Process — force-complete with missing files | ❌ | ✅ *(only for a step short of its **own** paperwork; the Step-4 institutes need no force at all — §3.6)* |
 | Home dashboard | ✅ | ✅ |
 | Reports | ❌ | ✅ |
 | Settings (language, appearance — client-only, §9.1) | ✅ | ✅ |
@@ -1379,7 +1470,9 @@ src/
 - **Multi-step accordion form with per-step save** — shadcn `Accordion`; each `StepSection` has its own `PATCH` mutation and dirty-tracking; a save button per step; badges from `step_status_summary`. Steps are independently editable at any time.
 - **Per-step missing-file status/color badges** — a `StepBadge` maps `status` → grey/amber/red/green (§5.4), plus a process-level rollup.
 - **Side-by-side scan / OCR-verify screen** — staged-PDF preview pane (`GET /card-scans/{id}/file/`) + pre-filled **editable** fields pane, per-field OCR-source/confidence markers, the **match-warning** confirmation gate, and a manual-entry path that stays open when the reading fails. Confirming posts to `/card-scans/{id}/confirm/`, which is what creates the client (§6.5). Since It.7 (UC-024) it is the **scan branch of the Step-1 intake form** (`/processes/new`), not a page of its own.
-- **Scan capture** — `ScanDocumentDialog` (shipped It.6) uses the shared `useCamera` hook + bundled `pdf-lib` to build a multi-page PDF client-side; same upload path as import, and offered beside *Import PDF* on every document slot. No `opencv.js` — see §6.1.
+- **Scan capture** — `ScanDocumentDialog` (shipped It.6) uses the shared `useCamera` hook + bundled `pdf-lib` to build a multi-page PDF client-side; same upload path as import, and offered beside *Import file* on every document slot. No `opencv.js` — see §6.1. **The three file inputs carry deliberately different `accept` lists**: the slot import and the ID-card capture take `pdf,jpeg,png,tiff` (what the server converts), while this dialog takes `jpeg,png` alone because it draws each page onto a canvas before assembling — a real `pdf-lib` limit, not an oversight (§6.1).
+- **The intake form** — `ProcessCreatePage` holds the mode switcher, the case fields (category, lawyer, land) shown in both modes, and the pre-save duplicate gate that guards *both* create paths (§5.7). The typed branch renders `ClientFields`, **shared with the client-details panel inside a case** so the two screens can never ask for different things — the DB check constraint on a married client depends on that. Switching modes does not discard the draft (§5).
+- **Generated-document panels** — `GeneratedDocumentPanel` is the shared shell for "the system produced this PDF": one button, three labels, and the start → poll-until-settled → show run. Each panel supplies what finishing *means* for it, because the outputs land in different places — the Step-1 letter is a standalone job file (UC-075), the compiled case is a `Document` on the process. `CompiledCasePanel` adds the auto-start off the mark-complete press and the Recompile button (§10.3).
 - **Repeatable custom-institute rows (Step 3)** — `react-hook-form` `useFieldArray` renders add/remove `(custom name + upload + lawyer)` rows, shown when `out_of_city_flag` is on.
 - **Shared institute enum** — `institutesApi` fetches `GET /institutes/` once and caches it; every institute dropdown/label reads from that cache, so the frontend never hard-codes the list.
 - **Processes-list multi-select → generate document (§6.8)** — a checkbox column on the processes table with filter-aware select-all; the selected rows drive a **"Generate document"** toolbar action that picks a `process_list` template and calls `POST /processes/generate-document/`, then opens the resulting PDF to print/save (progress via the same generation polling).
@@ -1444,6 +1537,35 @@ Step 5 compiles the whole case for higher operations/leadership. Implemented **s
 
 This reuses the same LibreOffice + Celery plumbing as eligibility generation, so there is one RTL-PDF path to maintain, not several. **RTL/multilingual layout is a known hard spot** — validate the summary template with real Sorani/Arabic data before rollout.
 
+> **Deviation (2026-08-17, the office — UC-086). Marking the case complete is what produces the
+> export.** Closing a case and compiling it were two separate presses with nothing tying them
+> together, so a case marked complete and then left had **no compiled file at all** — the one
+> document this export exists to produce. There is now no Compile button before completion: the
+> job runs off the mark-complete press, the finished file appears in the panel with its preview,
+> and the button returns afterwards as **Recompile**, for a case amended after it closed. A
+> complete case with no export still shows the button — an older case, or a compile that failed —
+> since otherwise nothing could ever produce one.
+>
+> **The trigger is the press, not the status.** Reading `overall_status == "complete"` would
+> recompile every already-closed case the moment somebody opened it, writing a new document to a
+> finished record just by looking at it. The flag is set by the mark-complete handler and carries
+> **the case id**, not a boolean: the detail route is reused when only `:id` changes, so a bare
+> flag would follow the user onto the next case. It fires once, and only if there was something to
+> merge at the moment of the press.
+>
+> **What this gives up:** the compiled file could previously be produced *before* completion, on
+> the argument that the reviewer reads it in order to decide. The office asked for the button to
+> go, so the export is now strictly what a closed case produces.
+
+**The cover sheet is a record, not a re-derivation of today's policy.** A step the case was closed
+over prints **`تێپەڕێنرا` (skipped)** rather than "in progress" (which reads as work outstanding on
+a finished allocation) or "complete" (which would claim work nobody did). That label is
+deliberately **not** tied to the completion gate of §3.6: the gate is policy and it changes, and
+tying the two re-labelled every allocation the office had already closed and signed under the
+previous rule — measured, it moved a completed case from "skipped" to "in progress" on nothing but
+a code change. An admin force is the only way a step can now be left short of its own paperwork,
+and "skipped" describes that just as truthfully. *(2026-08-17, found in review of UC-088.)*
+
 ---
 
 ## 11. Soft-Delete, Audit & Activity Logging
@@ -1496,7 +1618,7 @@ The table below is the *system's* half. The **host's** half — firewall, Window
 | **Access control** | Server-side RBAC (§7): auth → role gate → object-level → field-level. UI hiding is never the boundary. |
 | **Audit integrity** | Append-only `activity_log`, enforced by database trigger on every connection (`common/0003`); before/after JSONB; login/override/verify all logged. **One write path only:** Django's admin site is not installed (It.8) — it wrote straight to the tables, so a staff account could hard-DELETE a `Document` row (proved: gone from `all_objects`, zero audit rows) and edit a case with no optimistic lock and no before/after trail. An invariant is worth what its narrowest bypass allows. |
 | **At-rest protection (offline)** | **Full-disk encryption on the host** — **BitLocker** in production (Windows), **FileVault** in development (macOS) — protects **both** the Postgres `pgdata` volume and the Desktop document store without breaking OCR/preview; the only at-rest option that works fully offline with these workloads (D9). Encrypt the external backup drive too. |
-| **Document store safety** | PDFs live **outside** any web/static root (in the Desktop data folder, §2.5); served only via the permission-checked `/documents/{id}/file/` endpoint; folders keyed by stable IDs and human-readable filenames are **whitelist-sanitized (NFC, illegal chars stripped) with a unique suffix** (§6.7), and the app **never trusts a filename for lookup** — it uses `file_path` — so path traversal is impossible; `sha256` per file to detect corruption/tampering; strict PDF magic-byte + size validation on upload. **Size limits are split (2026-07-28):** `MAX_UPLOAD_BYTES` (25 MB) bounds what a *user* may send, while server-produced files use `MAX_GENERATED_BYTES` (200 MB) — the compiled case export (§10.3) merges documents that were each already accepted, so the upload cap would reject a legitimate export of a large case. |
+| **Document store safety** | PDFs live **outside** any web/static root (in the Desktop data folder, §2.5); served only via the permission-checked `/documents/{id}/file/` endpoint; folders keyed by stable IDs and human-readable filenames are **whitelist-sanitized (NFC, illegal chars stripped) with a unique suffix** (§6.7), and the app **never trusts a filename for lookup** — it uses `file_path` — so path traversal is impossible; `sha256` per file to detect corruption/tampering; size validation on upload plus **one of four accepted formats** (PDF/JPEG/PNG/TIFF), each converted to PDF and **parse-verified**, never sniffed by magic bytes alone (§6.1). **Size limits are split (2026-07-28):** `MAX_UPLOAD_BYTES` (25 MB) bounds what a *user* may send, while server-produced files use `MAX_GENERATED_BYTES` (200 MB) — the compiled case export (§10.3) merges documents that were each already accepted, so the upload cap would reject a legitimate export of a large case. |
 | **Duplicate-prevention integrity** | App-level check **and** two DB partial-unique indexes — `ix_client_pid_active` (identities) + `ix_process_active_alloc` (one active allocation per client); admin-only override with mandatory reason, recorded in both `DuplicateOverride` and `ActivityLog`. The indexes hold even under a two-computer race. The **household rule** (§5.7) is app-level only — no index can express a cross-row `pid`↔`spouse_pid` condition — so it is re-derived on every edit rather than trusted once. |
 | **Concurrent edits (lost updates)** | Optimistic locking: a `version`/`updated_at` check on every `PATCH` returns HTTP 409 on a stale write, so the two computers cannot silently overwrite each other. |
 | **Least privilege (DB)** | **Enforced by trigger, not by role — changed 2026-08-12.** The plan was a restricted app role with a separate privileged one for migrations; It.9's security review found it had never been built, so the app was connecting as the database **owner** and the append-only trail rested on nothing but our own code choosing not to write. `common/0003` puts two `BEFORE UPDATE`/`BEFORE DELETE` triggers on `activity_log` instead. It is the stronger control here: a `REVOKE` binds only the role it names and never the owner, while a trigger binds every connection including anyone holding the password from `deploy/.env`. It also needs no second DB user, no compose or `.env` change, and no step the office could get wrong. INSERT stays open (all the app ever does); TRUNCATE is left alone so Django can flush test databases and `pg_restore` can load the table. **What this does not cover:** the app role can still DROP/ALTER schema, and a superuser can drop the triggers — a restricted role remains the answer if the threat model ever includes a hostile operator rather than a careless one. |
