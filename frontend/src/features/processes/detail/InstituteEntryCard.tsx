@@ -193,6 +193,9 @@ export function InstituteEntryCard({
               documentType="InstituteDoc"
               instituteEntry={entry.id}
               label={t("workflow.import")}
+              // One acceptance per institute (UC-085) — the same capacity the backend enforces.
+              disabled={docs.length > 0}
+              disabledReason={t("errors.slot.filesFull")}
             />
           )}
         </div>

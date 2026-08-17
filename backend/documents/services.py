@@ -9,18 +9,48 @@ from rest_framework import status
 from docxtpl import DocxTemplate
 from rest_framework.exceptions import APIException, ValidationError
 
-from catalog.document_types import SPOUSE_ID
+from catalog.document_types import SPOUSE_ID, slot_capacity
 from common.models import ActivityLog
 from common.services import record_activity
+from common.validators import SLOT_FILES_FULL, SLOT_SIDES_FULL
 
 from . import filestore
 from .models import Document, DocumentTemplate
+from .selectors import slot_usage
 
 
 class PayloadTooLarge(APIException):
     status_code = status.HTTP_413_REQUEST_ENTITY_TOO_LARGE
     default_detail = "The uploaded file is too large."
     default_code = "file_too_large"
+
+
+def assert_slot_has_room(
+    *, process, step_number: int, document_type: str, pages: int, institute_entry=None
+) -> None:
+    """Refuse a file the slot has no room for (UC-085).
+
+    An identity card has exactly two sides and every other paper is filed once — the office was
+    able to keep adding to a full slot, so a card ended up with four sides after a re-scan and the
+    count could only be capped for display. Capacity is `expected_parts` (§6.7), so the rule and
+    the "2 of 2 sides" hint can never disagree.
+
+    Enforced here rather than in the serializer because both upload paths must obey it: the import
+    button and the confirmed card scan, which files its document straight from staging. Making
+    room is a delete — the rule counts live rows only.
+    """
+    limit, by_pages = slot_capacity(document_type)
+    filed = slot_usage(
+        process_id=process.id,
+        step_number=step_number,
+        document_type=document_type,
+        institute_entry_id=institute_entry.id if institute_entry else None,
+        by_pages=by_pages,
+    )
+    # A card's pages are its sides, so a two-page scan fills the slot on its own; anything else
+    # counts as the one paper it is, however many pages that paper happens to have.
+    if filed + (pages if by_pages else 1) > limit:
+        raise ValidationError({"file": [SLOT_SIDES_FULL if by_pages else SLOT_FILES_FULL]})
 
 
 def read_upload(upload, *, limit: int | None = None) -> bytes:
@@ -119,6 +149,11 @@ def file_staged_document(
     # happens on commit. This is the path that produces a two-page card from two scans (UC-083).
     staged = Path(settings.DOCUMENTS_ROOT) / staged_path
     pages = filestore.count_pages(staged.read_bytes()) if staged.is_file() else 0
+    # A re-scan of a card already on file is what filled a slot past its two sides — the lawyer
+    # deletes the old one first, exactly as they would to replace an imported PDF.
+    assert_slot_has_room(
+        process=process, step_number=step_number, document_type=document_type, pages=pages
+    )
     with transaction.atomic():
         document = Document.objects.create(
             process=process,
@@ -221,6 +256,17 @@ def create_document(
         raise PayloadTooLarge()
 
     content = normalise_to_pdf(content)
+    pages = filestore.count_pages(content)
+    # Only what a person files: the compiled export and the letters are system output that
+    # supersedes its own previous copy, so a capacity meant for uploads does not apply to them.
+    if not generated:
+        assert_slot_has_room(
+            process=process,
+            step_number=step_number,
+            document_type=document_type,
+            pages=pages,
+            institute_entry=institute_entry,
+        )
 
     display, rel = compose_location(
         process=process, document_type=document_type, institute_entry=institute_entry
@@ -239,7 +285,7 @@ def create_document(
                 sha256=filestore.sha256_hex(content),
                 original_filename=original_filename[:255],
                 size_bytes=len(content),
-                page_count=filestore.count_pages(content),
+                page_count=pages,
                 uploaded_by=actor,
             )
             record_activity(

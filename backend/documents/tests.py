@@ -95,7 +95,10 @@ class DocumentApiTests(APITestCase):
         """The camera path (§6.1) assembles the pages in the browser and posts the finished PDF
         to this same endpoint — it differs from an import only in what the row says it is."""
         self.client.force_authenticate(self.lawyer)
+        # Not a card: a card slot holds two sides and no more (UC-085), and what this pins is
+        # that the camera path keeps every page it captured, whatever paper it is capturing.
         resp = self._upload(
+            document_type="SignedAgreement",
             file=pdf_file("scan.pdf", make_pdf(pages=3)),
             input_source=Document.InputSource.SCANNED,
         )

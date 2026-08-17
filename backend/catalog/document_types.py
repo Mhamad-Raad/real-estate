@@ -23,8 +23,9 @@ class DocumentType(NamedTuple):
     only_when_married: bool = False
     # Produced by the system (§6.6) — shown as output, never offered as an upload slot.
     generated: bool = False
-    # How many parts the office files here. Drives the UI hint only — completion still asks
-    # whether the type is present at all, so a slot short of its second part is not blocked.
+    # How many parts the office files here — the slot's **capacity**, enforced on upload (UC-085).
+    # It is not a *completion* rule in the other direction: a slot short of its second part still
+    # counts as present, so a step is never blocked on it (UC-055).
     expected_parts: int = 1
     # **What a "part" is.** For most papers it is a file, one row each. An identity card is not:
     # both sides are deliberately stored as ONE document with two pages
@@ -85,6 +86,18 @@ DOCUMENT_TYPES: list[DocumentType] = [
 ]
 
 DOCUMENT_TYPE_CODES = frozenset(dt.code for dt in DOCUMENT_TYPES)
+_BY_CODE: dict[str, DocumentType] = {dt.code: dt for dt in DOCUMENT_TYPES}
+
+
+def slot_capacity(code: str) -> tuple[int, bool]:
+    """How much one slot may hold, and whether that is counted in **pages** or in **files** (§6.7).
+
+    A card holds two sides in one document, so its capacity is pages; every other slot counts the
+    papers filed under it. An unknown code gets the conservative single-file answer — the upload
+    serializer refuses those anyway, so this only keeps the rule closed if that ever changes.
+    """
+    dt = _BY_CODE.get(code)
+    return (dt.expected_parts, dt.counts_pages) if dt else (1, False)
 
 
 # The Sorani names, for the **filenames** — the same reason `INSTITUTE_NAMES_CKB` exists. The

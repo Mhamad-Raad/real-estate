@@ -34,9 +34,18 @@ class IdSheetTests(TestCase):
             actor=self.admin,
         )
 
-    def _card(self, doc_type=CLIENT_ID, content=None) -> Document:
+    def _case(self, pid: str):
+        """Another case to file a card on — a slot only takes two sides (UC-085), so a layout test
+        that needs more card pages than that has to spread them over more than one beneficiary."""
+        return create_process(
+            client=make_client(full_name="B", pid=pid, mother_full_name="M"),
+            assigned_lawyer=self.admin,
+            actor=self.admin,
+        )
+
+    def _card(self, doc_type=CLIENT_ID, content=None, process=None) -> Document:
         return create_document(
-            process=self.process,
+            process=process or self.process,
             step_number=1,
             document_type=doc_type,
             input_source=Document.InputSource.IMPORTED,
@@ -54,8 +63,8 @@ class IdSheetTests(TestCase):
         self.assertEqual(round(float(sheets[0].mediabox.width)), round(SHEET[0]))
 
     def test_more_cards_than_fit_flow_onto_another_sheet(self):
-        """A case can carry more than four card pages — none of them may be dropped."""
-        cards = [self._card() for _ in range(PER_SHEET + 1)]
+        """A sheet that is full must flow onto the next — none of the cards may be dropped."""
+        cards = [self._card(process=self._case(f"MANY-{i}")) for i in range(PER_SHEET + 1)]
 
         self.assertEqual(len(card_sheets(cards)), 2)
 
@@ -76,8 +85,9 @@ class IdSheetTests(TestCase):
         self.assertEqual(card_sheets([card]), [])
 
     def test_the_compiled_file_carries_the_sheet_instead_of_the_card_pages(self):
-        for _ in range(4):
-            self._card()
+        # Four card pages the way the office actually files them: both sides in one scan each.
+        self._card(content=make_pdf(pages=2))
+        self._card(SPOUSE_ID, make_pdf(pages=2))
         other = create_document(
             process=self.process,
             step_number=2,

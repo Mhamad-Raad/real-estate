@@ -486,6 +486,35 @@ class ConfirmOntoAnExistingClientTests(ScanTestBase):
         self.assertEqual(self.client_row.pid, "200103487811")
         self.assertEqual(Client.objects.count(), 1)
 
+    def test_a_scan_is_refused_once_the_card_slot_holds_both_sides(self):
+        """The office's bug (UC-085): a re-scan of a card already on file added a third and a
+        fourth side. The slot has to refuse it here too — this path files its document straight
+        out of staging, so a rule that only guarded the import button would leave the door open."""
+        self._confirm(
+            scan=self._read(self._scan(content=make_pdf(pages=2))),
+            values=dict(CONFIRMED),
+            client=self.client_row,
+            client_version=self.client_row.version,
+            actor=self.lawyer,
+        )
+        self.client_row.refresh_from_db()
+        again = self._read(self._scan())
+
+        with self.assertRaises(ValidationError):
+            self._confirm(
+                scan=again,
+                values=dict(CONFIRMED),
+                client=self.client_row,
+                client_version=self.client_row.version,
+                actor=self.lawyer,
+            )
+
+        self.assertEqual(Document.objects.count(), 1)
+        # The scan survives, so the lawyer can delete the old card and confirm this one instead.
+        again.refresh_from_db()
+        self.assertFalse(again.is_confirmed)
+        self.assertTrue((settings.DOCUMENTS_ROOT / again.file_path).exists())
+
     def test_a_spouse_card_is_filed_under_the_spouses_own_name(self):
         """It lives in the beneficiary's folder — it is their case — but the document *is* the
         spouse's paper, so naming it after the beneficiary would misdescribe it (§6.7)."""

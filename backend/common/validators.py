@@ -35,6 +35,11 @@ PHONE_LENGTH = "errors.phone.length"
 BIRTH_FUTURE = "errors.birthDate.future"
 BIRTH_TOO_OLD = "errors.birthDate.tooOld"
 STEP_END_BEFORE_START = "errors.stepDate.endBeforeStart"
+# Refusing a document a slot has no room for (UC-085). Not a field validator — the rule lives in
+# `documents.services` — but its message is one more thing the API says to the office, so it is
+# registered here with the rest and covered by the same translation guard.
+SLOT_SIDES_FULL = "errors.slot.sidesFull"
+SLOT_FILES_FULL = "errors.slot.filesFull"
 
 VALIDATION_KEYS = (
     PHONE_CHARS,
@@ -42,6 +47,8 @@ VALIDATION_KEYS = (
     BIRTH_FUTURE,
     BIRTH_TOO_OLD,
     STEP_END_BEFORE_START,
+    SLOT_SIDES_FULL,
+    SLOT_FILES_FULL,
 )
 
 # Digits, plus the separators people actually type on a form. **The dash is not one of them**

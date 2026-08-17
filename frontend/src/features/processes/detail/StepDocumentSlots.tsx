@@ -53,6 +53,9 @@ export function StepDocumentSlots({
           // scanned as a three-page PDF read "3 of 2 sides", which looks like a fault rather than
           // an answer (UC-084). Nothing is hidden — every file is still listed underneath.
           const have = Math.min(filed, expected);
+          // A full slot takes nothing more (UC-085) — the backend refuses it either way, and a
+          // live case can already sit over capacity, so this asks `>=` rather than `===`.
+          const full = filed >= expected;
           return (
             <div key={type} className="space-y-2">
               <div className="flex items-center justify-between gap-2">
@@ -75,6 +78,8 @@ export function StepDocumentSlots({
                     step={step}
                     documentType={type}
                     label={t("workflow.import")}
+                    disabled={full}
+                    disabledReason={t(byPage ? "errors.slot.sidesFull" : "errors.slot.filesFull")}
                   />
                 )}
               </div>

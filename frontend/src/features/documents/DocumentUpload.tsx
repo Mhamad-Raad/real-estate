@@ -22,6 +22,7 @@ export function DocumentUpload({
   instituteEntry = null,
   label,
   disabled = false,
+  disabledReason,
 }: {
   process: number;
   step: number;
@@ -29,6 +30,8 @@ export function DocumentUpload({
   instituteEntry?: number | null;
   label?: string;
   disabled?: boolean;
+  /** Why both controls are greyed out — a full slot looks like a fault without it. */
+  disabledReason?: string;
 }) {
   const { t } = useTranslation();
   const [upload, { isLoading }] = useUploadDocumentMutation();
@@ -41,14 +44,18 @@ export function DocumentUpload({
       await upload({ process, step_number: step, document_type: documentType, institute_entry: instituteEntry, file }).unwrap();
       toast.success(t("workflow.uploaded"));
     } catch (err) {
-      toast.error(apiErrorMessage(err, t("workflow.uploadError")));
+      // `t` last: the server answers a refused upload with an i18n key, not an English sentence.
+      toast.error(apiErrorMessage(err, t("workflow.uploadError"), undefined, t));
     } finally {
       if (inputRef.current) inputRef.current.value = "";
     }
   };
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div
+      className="flex flex-wrap items-center gap-2"
+      title={disabled ? disabledReason : undefined}
+    >
       <input ref={inputRef} type="file" accept="application/pdf" className="hidden" onChange={onFile} />
       <Button
         type="button"

@@ -620,6 +620,10 @@
     },
     "stepDate": {
       "endBeforeStart": "The end date cannot be before the start date."
+    },
+    "slot": {
+      "sidesFull": "This card already has both sides on file — delete one to add another.",
+      "filesFull": "This slot already holds every paper it takes — delete one to add another."
     }
   }
 }
