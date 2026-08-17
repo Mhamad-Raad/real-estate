@@ -12,9 +12,14 @@ import type { ClientInput, MaritalStatus } from "./types";
 
 const MARITAL: MaritalStatus[] = ["single", "married", "divorced", "widowed"];
 
-// The beneficiary's fields, in one place. Used by the Clients dialog and by the Step-1 intake form
-// (§5, UC-024) — two screens that must ask for exactly the same things or the DB check constraint
-// on a married client will reject one of them.
+// The beneficiary's fields, in one place. Used by the Step-1 **intake form** (§5, UC-024) and by
+// the **client details panel** on the case page — two screens that must ask for exactly the same
+// things or the DB check constraint on a married client will reject one of them.
+//
+// (It said "the Clients dialog" until UC-089: that screen creates nothing any more — one person
+// holds one live allocation, so a beneficiary is created with their case and nowhere else,
+// UC-026. A stale sentence about which screens share this is not harmless; it is what a reader
+// checks instead of grepping, and this one sent a review looking at a dialog that does not exist.)
 export function ClientFields({
   value: form,
   onChange,
