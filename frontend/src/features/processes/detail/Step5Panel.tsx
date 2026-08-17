@@ -16,10 +16,13 @@ export function Step5Panel({
   process,
   canEdit,
   isAdmin,
+  onCompleted,
 }: {
   process: ProcessDetail;
   canEdit: boolean;
   isAdmin: boolean;
+  /** Closing the case is what compiles it (UC-086) — the panel below runs off this press. */
+  onCompleted: () => void;
 }) {
   const { t } = useTranslation();
   const [complete, { isLoading }] = useCompleteProcessMutation();
@@ -30,6 +33,7 @@ export function Step5Panel({
     try {
       await complete({ id: process.id, version: process.version, force }).unwrap();
       toast.success(t("workflow.completed"));
+      onCompleted();
     } catch (err) {
       toast.error(apiErrorMessage(err, t("workflow.missingFiles")));
     }

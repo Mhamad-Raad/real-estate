@@ -15,17 +15,30 @@ import { GeneratedDocumentPanel } from "./GeneratedDocumentPanel";
 
 const COMPILED_TYPE = "CompiledCase";
 
-// The Step-5 leadership export (§10.3): a summary cover sheet followed by every document on the
-// case, merged into one PDF. Available before completion too — the compiled file is often what
-// the reviewer reads *in order to* decide.
+/**
+ * The Step-5 leadership export (§10.3): a summary cover sheet followed by every document on the
+ * case, merged into one PDF.
+ *
+ * **Marking the case complete is what produces it (UC-086)** — the office was pressing two
+ * buttons to finish one case, and a case closed without the second press had no export at all.
+ * So there is no Compile button before completion; `autoStart` fires the job off the press that
+ * closed the case, and the button comes back afterwards as **Recompile**, which is how a case
+ * amended after closing gets a fresh file. It also appears on a complete case with no export —
+ * an older one, or a compile that failed — since otherwise nothing could ever produce one.
+ */
 export function CompiledCasePanel({
   processId,
   documents,
-  canGenerate,
+  canEdit,
+  isComplete,
+  autoStart,
 }: {
   processId: number;
   documents: DocumentMeta[];
-  canGenerate: boolean;
+  canEdit: boolean;
+  isComplete: boolean;
+  /** Set by the mark-complete press itself, so opening an old case never compiles anything. */
+  autoStart: boolean;
 }) {
   const { t } = useTranslation();
   const dispatch = useAppDispatch();
@@ -40,10 +53,11 @@ export function CompiledCasePanel({
       icon={FileStack}
       title={t("workflow.compiledSection")}
       hint={t("workflow.compiledHint")}
-      canGenerate={canGenerate}
+      canGenerate={canEdit && (isComplete || compiled.length > 0)}
       unlocked={hasAttachments}
       hasResult={compiled.length > 0}
       starting={isLoading}
+      autoStart={autoStart}
       onStart={() => compile({ process: processId }).unwrap()}
       // The output is a new Document on the process — refetch the case so it appears.
       onFinished={() => {

@@ -1,4 +1,5 @@
 import { ArrowLeft, RotateCcw } from "lucide-react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useParams } from "react-router-dom";
 
@@ -43,6 +44,9 @@ export function ProcessDetailPage() {
   const navigate = useNavigate();
   const num = useNum();
   const [createProcess, { isLoading: reapplying }] = useCreateProcessMutation();
+  // Which *press* closed the case, not whether it is closed: the compiled export runs off the
+  // press (UC-086), so reading the status instead would recompile every old case on opening it.
+  const [justCompleted, setJustCompleted] = useState(false);
 
   if (isLoading) {
     return (
@@ -167,11 +171,18 @@ export function ProcessDetailPage() {
               )}
               {n === 5 && (
                 <div className="space-y-4">
-                  <Step5Panel process={process} canEdit={canEdit} isAdmin={isAdmin} />
+                  <Step5Panel
+                    process={process}
+                    canEdit={canEdit}
+                    isAdmin={isAdmin}
+                    onCompleted={() => setJustCompleted(true)}
+                  />
                   <CompiledCasePanel
                     processId={process.id}
                     documents={process.documents}
-                    canGenerate={canEdit}
+                    canEdit={canEdit}
+                    isComplete={process.overall_status === "complete"}
+                    autoStart={justCompleted}
                   />
                 </div>
               )}

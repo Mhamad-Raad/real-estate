@@ -329,7 +329,7 @@
     "compileStarted": "بدأ تجميع ملف المعاملة…",
     "compileFailed": "تعذّر تجميع ملف المعاملة.",
     "compileLocked": "أضف مستنداً واحداً على الأقل قبل التجميع.",
-    "noCompiledYet": "لم يُجمّع بعد.",
+    "noCompiledYet": "يُنتَج عند وضع علامة اكتمال على المعاملة.",
     "sectionBeneficiary": "المستفيد",
     "sectionLand": "الأرض والفئة",
     "sectionPapers": "أوراق المستفيد",

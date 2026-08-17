@@ -329,7 +329,7 @@
     "compileStarted": "Compiling the case file…",
     "compileFailed": "Could not compile the case file.",
     "compileLocked": "Attach at least one document before compiling.",
-    "noCompiledYet": "Not compiled yet.",
+    "noCompiledYet": "Produced when the case is marked complete.",
     "sectionBeneficiary": "Beneficiary",
     "sectionLand": "Land & category",
     "sectionPapers": "Client papers",

@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import type { ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
@@ -29,6 +29,8 @@ interface GeneratedDocumentPanelProps {
     empty: string;
     locked: string;
   };
+  /** Runs the job once, without a button press, when the owning panel says the moment has come. */
+  autoStart?: boolean;
   onStart: () => Promise<GenerationJob>;
   /** What this panel does with a finished job — the two outputs land in different places. */
   onFinished: (job: GenerationJob) => void;
@@ -53,6 +55,7 @@ export function GeneratedDocumentPanel({
   unlocked,
   hasResult,
   labels,
+  autoStart = false,
   onStart,
   onFinished,
   starting,
@@ -71,6 +74,26 @@ export function GeneratedDocumentPanel({
       toast.error(apiErrorMessage(err, labels.failed));
     }
   };
+
+  // Exactly one run per `autoStart`, guarded by a ref rather than by the state it would read:
+  // `busy` only turns true after a round trip, so a re-render in between would otherwise queue a
+  // second job. `run` is left out of the deps for the same reason — it is a new function every
+  // render, and depending on it would re-fire on each one.
+  //
+  // Deliberately **not** guarded on `hasResult`: an output that predates the moment being marked
+  // here is a stale one, and the whole point of running now is to produce the current file. The
+  // backend supersedes the previous copy, so this replaces rather than accumulates (§6.6).
+  const autoRan = useRef(false);
+  useEffect(() => {
+    if (!autoStart) {
+      autoRan.current = false;
+      return;
+    }
+    if (autoRan.current || busy || !unlocked) return;
+    autoRan.current = true;
+    void run();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoStart, busy, unlocked]);
 
   return (
     <div className="space-y-2 rounded-md border border-border p-3">
