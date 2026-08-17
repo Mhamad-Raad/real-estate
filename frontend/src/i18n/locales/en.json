@@ -262,7 +262,7 @@
       "EligibilityLetter": "Eligibility letter",
       "CompiledCase": "Compiled case file"
     },
-    "import": "Import PDF",
+    "import": "Import file",
     "upload": "Upload",
     "uploaded": "Document uploaded",
     "uploadError": "Could not upload the file.",
@@ -475,7 +475,8 @@
     "spouseIncomplete": "The spouse's name, birth date and mother's name are all needed.",
     "spouseFileError": "The beneficiary was saved, but the spouse's card could not be filed. Try attaching it from the case.",
     "openFullSize": "Open full size",
-    "qualityHint": "Check the scan is sharp and complete — this image is the archived record."
+    "qualityHint": "Check the scan is sharp and complete — this image is the archived record.",
+    "noPreview": "Attached — this file cannot be shown here, but it will be read."
   },
   "scan": {
     "action": "Scan",

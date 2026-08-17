@@ -1,5 +1,5 @@
 import { Camera, RotateCcw, Upload, X } from "lucide-react";
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,16 @@ import { useCamera } from "@/hooks/useCamera";
 // A card side, held as a File so the camera and the file picker produce the same thing and the
 // upload code never has to know which one it came from.
 export type CardSide = { file: File; url: string };
+
+/** Stands in for a card the browser cannot draw — names the file, so it reads as attached. */
+function Attached({ name, note }: { name: string; note: string }) {
+  return (
+    <div className="p-6 text-center text-xs text-muted-foreground">
+      <p className="font-medium text-foreground">{name}</p>
+      <p className="mt-1">{note}</p>
+    </div>
+  );
+}
 
 /** Capture one side of the card — with the computer's camera, or from a file. */
 export function CardCapture({
@@ -27,6 +37,11 @@ export function CardCapture({
   const { t } = useTranslation();
   const inputRef = useRef<HTMLInputElement>(null);
   const camera = useCamera();
+  // A TIFF is a **readable** card — the server converts it (§6.7) — but no browser can decode one
+  // in an `<img>`, so the office's scanner output rendered as a broken icon and looked like the
+  // file had not attached at all (UC-087). Only the tag knows: this is set from its own error.
+  const [undecodable, setUndecodable] = useState(false);
+  useEffect(() => setUndecodable(false), [side?.url]);
 
   const openCamera = async () => {
     if (!(await camera.open())) toast.error(t("cardScan.cameraDenied"));
@@ -70,10 +85,19 @@ export function CardCapture({
               aria-label={label}
               className="h-56 w-full"
             >
-              <p className="p-6 text-center text-xs text-muted-foreground">{side.file.name}</p>
+              <Attached name={side.file.name} note={t("cardScan.noPreview")} />
             </object>
+          ) : undecodable ? (
+            // Says the card IS attached. A blank box would send the lawyer looking for a fault
+            // that is not there — the reading works on a file the browser cannot draw.
+            <Attached name={side.file.name} note={t("cardScan.noPreview")} />
           ) : (
-            <img src={side.url} alt={label} className="max-h-56 w-full object-contain" />
+            <img
+              src={side.url}
+              alt={label}
+              className="max-h-56 w-full object-contain"
+              onError={() => setUndecodable(true)}
+            />
           )
         ) : camera.active ? (
           <video
@@ -89,10 +113,13 @@ export function CardCapture({
       </div>
 
       <div className="flex flex-wrap gap-2">
+        {/* Exactly what the server can read (`documents.filestore.IMAGE_MAGIC` + PDF). `image/*`
+            also offered WebP, GIF and the iPhone's HEIC, which preview happily and are then
+            refused on Read as "not a readable PDF" — a format offered here must work (UC-087). */}
         <input
           ref={inputRef}
           type="file"
-          accept="image/*,application/pdf"
+          accept="application/pdf,image/jpeg,image/png,image/tiff"
           className="hidden"
           onChange={onFile}
         />

@@ -56,7 +56,17 @@ export function DocumentUpload({
       className="flex flex-wrap items-center gap-2"
       title={disabled ? disabledReason : undefined}
     >
-      <input ref={inputRef} type="file" accept="application/pdf" className="hidden" onChange={onFile} />
+      {/* The formats the server actually takes: a PDF as-is, or a scanner/camera image it converts
+          on arrival (`documents.filestore.IMAGE_MAGIC`). It offered PDF alone, so the office could
+          not pick the JPEG or TIFF their scanner produces even though the API accepts it (UC-087).
+          Kept in step with that list — a format offered here and refused there is a dead end. */}
+      <input
+        ref={inputRef}
+        type="file"
+        accept="application/pdf,image/jpeg,image/png,image/tiff"
+        className="hidden"
+        onChange={onFile}
+      />
       <Button
         type="button"
         variant="outline"
