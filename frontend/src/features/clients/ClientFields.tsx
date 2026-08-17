@@ -83,8 +83,79 @@ export function ClientFields({
         </Select>
         {err("marital_status")}
       </div>
-      {/* The generated letter prints a spouse row of name / birth date / mother's name,
-          so a married client needs all three (§6.6). */}
+      <div className="space-y-2">
+        <Label htmlFor={id("dob")}>{t("clients.dateOfBirth")}</Label>
+        <Input
+          id={id("dob")}
+          type="date"
+          value={form.date_of_birth ?? ""}
+          onChange={set("date_of_birth")}
+          required
+          {...bad("date_of_birth")}
+        />
+        {err("date_of_birth")}
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor={id("pob")}>{t("clients.placeOfBirth")}</Label>
+        <Input id={id("pob")} value={form.place_of_birth} onChange={set("place_of_birth")} {...bad("place_of_birth")} />
+        {err("place_of_birth")}
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor={id("phone")}>{t("clients.phone")}</Label>
+        {/* `tel` + LTR: a phone is dialled left-to-right whatever the page direction, and the
+            input mode brings up a numeric keypad rather than a full keyboard. */}
+        <Input
+          id={id("phone")}
+          type="tel"
+          inputMode="tel"
+          dir="ltr"
+          className="text-start"
+          value={form.phone}
+          // Filtered as it is typed: the server refuses a bad number, but a box that swallows
+          // letters until Save tells the lawyer at the end of the form, not at the keystroke.
+          onChange={(e) => {
+            onFieldEdit?.("phone");
+            onChange({ ...form, phone: sanitisePhoneInput(e.target.value) });
+          }}
+          {...bad("phone")}
+        />
+        {err("phone")}
+      </div>
+      {/* One column like every other field (UC-089). It spanned the row, which made the address
+          twice the width of the phone beside it and left that phone alone on a half-empty line. */}
+      <div className="space-y-2">
+        <Label htmlFor={id("address")}>{t("clients.address")}</Label>
+        <Input id={id("address")} value={form.address} onChange={set("address")} {...bad("address")} />
+        {err("address")}
+      </div>
+      {/* Hidden on the intake form, where the case's own category is asked once and copied here. */}
+      {showCategory && (
+        <div className="space-y-2">
+          <Label htmlFor={id("category")}>{t("clients.category")}</Label>
+          <Select
+            id={id("category")}
+            value={form.category ?? ""}
+            onChange={(e) => {
+              onFieldEdit?.("category");
+              onChange({ ...form, category: e.target.value ? Number(e.target.value) : null });
+            }}
+            invalid={Boolean(errors.category)}
+          >
+            <option value="">{t("common.none")}</option>
+            {(categories ?? []).map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.code} — {c.name}
+              </option>
+            ))}
+          </Select>
+          {err("category")}
+        </div>
+      )}
+      {/* **Last, after every one of the beneficiary's own fields (UC-089).** It used to sit right
+          under Marital status, which pushed the client's date of birth, phone and address below
+          the spouse block — so the form asked about the spouse in the middle of asking about the
+          beneficiary. The generated letter prints a spouse row of name / birth date / mother's
+          name, so a married client needs all three (§6.6). */}
       {form.marital_status === "married" && (
         <>
           <div className="space-y-2">
@@ -131,72 +202,6 @@ export function ClientFields({
             <p className="text-xs text-muted-foreground">{t("clients.spousePidHint")}</p>
           </div>
         </>
-      )}
-      <div className="space-y-2">
-        <Label htmlFor={id("dob")}>{t("clients.dateOfBirth")}</Label>
-        <Input
-          id={id("dob")}
-          type="date"
-          value={form.date_of_birth ?? ""}
-          onChange={set("date_of_birth")}
-          required
-          {...bad("date_of_birth")}
-        />
-        {err("date_of_birth")}
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor={id("pob")}>{t("clients.placeOfBirth")}</Label>
-        <Input id={id("pob")} value={form.place_of_birth} onChange={set("place_of_birth")} {...bad("place_of_birth")} />
-        {err("place_of_birth")}
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor={id("phone")}>{t("clients.phone")}</Label>
-        {/* `tel` + LTR: a phone is dialled left-to-right whatever the page direction, and the
-            input mode brings up a numeric keypad rather than a full keyboard. */}
-        <Input
-          id={id("phone")}
-          type="tel"
-          inputMode="tel"
-          dir="ltr"
-          className="text-start"
-          value={form.phone}
-          // Filtered as it is typed: the server refuses a bad number, but a box that swallows
-          // letters until Save tells the lawyer at the end of the form, not at the keystroke.
-          onChange={(e) => {
-            onFieldEdit?.("phone");
-            onChange({ ...form, phone: sanitisePhoneInput(e.target.value) });
-          }}
-          {...bad("phone")}
-        />
-        {err("phone")}
-      </div>
-      <div className="space-y-2 sm:col-span-2">
-        <Label htmlFor={id("address")}>{t("clients.address")}</Label>
-        <Input id={id("address")} value={form.address} onChange={set("address")} {...bad("address")} />
-        {err("address")}
-      </div>
-      {/* Hidden on the intake form, where the case's own category is asked once and copied here. */}
-      {showCategory && (
-        <div className="space-y-2">
-          <Label htmlFor={id("category")}>{t("clients.category")}</Label>
-          <Select
-            id={id("category")}
-            value={form.category ?? ""}
-            onChange={(e) => {
-              onFieldEdit?.("category");
-              onChange({ ...form, category: e.target.value ? Number(e.target.value) : null });
-            }}
-            invalid={Boolean(errors.category)}
-          >
-            <option value="">{t("common.none")}</option>
-            {(categories ?? []).map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.code} — {c.name}
-              </option>
-            ))}
-          </Select>
-          {err("category")}
-        </div>
       )}
     </div>
   );

@@ -1,5 +1,5 @@
 import { ArrowLeft, PenLine, ScanLine } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
@@ -45,7 +45,7 @@ export function ProcessCreatePage() {
   const [lawyer, setLawyer] = useState("");
 
   const [draft, setDraft] = useState<ClientDraft>(EMPTY_CLIENT);
-  const { errors, setErrors, setFromError, clear, clearAll } = useFieldErrors();
+  const { errors, setErrors, setFromError, clear } = useFieldErrors();
 
   const { data: categories } = useListCategoriesQuery();
   // `/lawyers/`, not the paginated `/users/`: that one stops at 25 and lists people who have left.
@@ -105,11 +105,13 @@ export function ProcessCreatePage() {
   // A lawyer always takes their own case; an admin says whose it is (mirrored server-side, §7.2).
   const assignedLawyer = isAdmin ? (lawyer ? Number(lawyer) : null) : (currentUser?.id ?? null);
 
-  // Switching how the beneficiary is identified must not carry the other mode's half-entry along.
-  useEffect(() => {
-    setDraft(EMPTY_CLIENT);
-    clearAll(); // the errors described the abandoned draft, not the blank one replacing it
-  }, [mode, clearAll]);
+  // **Switching modes deliberately keeps what has been typed (UC-089).** This used to blank the
+  // draft and the errors, on the reasoning that one mode must not carry the other's half-entry
+  // along — but the scan branch never reads `draft` (it builds its payload from the confirmed
+  // card), so nothing was ever carried anywhere. All the reset did was destroy a filled-in form
+  // for anyone who looked at the other tab and came back. The errors stay for the same reason:
+  // `category` and `assigned_lawyer` are **case** fields, shown in both modes, so clearing them
+  // threw away a warning that still applied.
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();

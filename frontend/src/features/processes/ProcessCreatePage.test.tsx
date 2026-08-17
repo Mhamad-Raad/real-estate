@@ -90,3 +90,18 @@ describe("ProcessCreatePage duplicate gate (UC-027)", () => {
     expect(create).not.toHaveBeenCalled();
   });
 });
+
+// Looking at the other tab and coming back used to wipe a filled-in form (UC-089).
+describe("ProcessCreatePage mode switch", () => {
+  it("keeps what was typed when the user looks at the scan tab and comes back", async () => {
+    render(<ProcessCreatePage />);
+    await fillManualForm();
+
+    await userEvent.click(screen.getByRole("button", { name: /scan id card/i }));
+    await userEvent.click(screen.getByRole("button", { name: /enter manually/i }));
+
+    expect(screen.getByLabelText("Full name")).toHaveValue("Test Person");
+    expect(screen.getByLabelText("National ID")).toHaveValue("200001011234");
+    expect(screen.getByLabelText("Mother's full name")).toHaveValue("Test Mother");
+  });
+});
