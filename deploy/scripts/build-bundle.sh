@@ -416,14 +416,62 @@ STEP 21. Copy the ".env" file from this folder onto the external drive
   WHEN A NEW VERSION IS GIVEN TO YOU LATER
 ------------------------------------------------------------------------
 
-  1. BACK UP FIRST. It is the only way back:
-         docker compose exec backend python manage.py backup_db
-  2. docker load -i images.tar.gz
-  3. docker compose up -d
-  4. docker compose exec backend python manage.py migrate
+  ** DO NOT start the new folder on its own, and never rename or move
+     the folder you installed from. Docker names everything after that
+     folder — INCLUDING THE DATABASE. Started from a differently named
+     folder, the app comes up EMPTY: every case gone from the screen.
+     The old data is still on the disk, but the app is no longer
+     looking at it. This is measured behaviour, not a warning in
+     principle. **
 
-  Keep your existing .env file — do not replace it. The database is not
-  inside these files; it survives the update.
+  So: you copy the NEW files INTO the folder you already use.
+
+  1. BACK UP FIRST. It is the only way back. In PowerShell, inside
+     your CURRENT install folder:
+
+         docker compose exec backend python manage.py backup_db
+
+     Then copy Desktop\LandAllocationData\db-backups onto the drive.
+
+  2. Write down the name Docker uses for the app, so you can prove
+     nothing moved:
+
+         docker compose ls
+
+     Note what the NAME column says. It must read the SAME at the end.
+
+  3. Stop the app. This deletes nothing:
+
+         docker compose down
+
+  4. From the new folder on the drive, copy these ON TOP of the files
+     of the same name in your CURRENT install folder:
+
+         images.tar.gz
+         docker-compose.yml
+         VERSION
+         nginx            (the whole folder)
+
+     ** Do NOT copy .env.example over your .env, and do not touch
+        .env itself. It holds your database password. **
+
+  5. Back in PowerShell, still in your CURRENT folder:
+
+         docker load -i images.tar.gz
+         docker compose up -d
+         docker compose exec backend python manage.py migrate
+
+  6. CHECK, in this order:
+         - docker compose ls shows the SAME name as step 2
+         - http://localhost/ footer reads the new version
+         - your cases are all still listed
+
+     ** If the case list is empty, STOP. Do not enter anything, do not
+        create a case. Call the developer. Nothing is lost — the app is
+        pointed at the wrong database and it can be pointed back. **
+
+  You do NOT need to run create_admin or install_templates again. Your
+  logins, your categories and your documents are untouched by this.
 
 
 ------------------------------------------------------------------------
