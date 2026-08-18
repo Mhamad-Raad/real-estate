@@ -309,6 +309,8 @@ volumes:
 
 `restart: unless-stopped` means the whole stack comes back automatically after a power cycle — important because the host is switched on each working morning.
 
+**⚠️ The install folder's name is part of the database's identity (measured 2026-08-18).** The compose file declares no top-level `name:` and nothing exports `COMPOSE_PROJECT_NAME`, so Compose derives the project from **the directory the compose file sits in**, and the live Postgres volume is `<project>_db_data`. The same file in two bundle folders is two different databases — `landalloc-1.0.0-build2` → `landalloc-100-build2`, `landalloc-1.1.0-build3` → `landalloc-110-build3`. Starting a **new** bundle folder therefore brings the app up on an **empty** database: nothing is destroyed, the old volume simply stops being the one in use, but on screen it is indistinguishable from total data loss. **An update is consequently applied by copying the new files *into* the folder the office already runs** (`images.tar.gz`, `docker-compose.yml`, `VERSION`, `nginx/`), never by starting the new folder, and that folder must never be renamed or moved. INSTALL.txt's upgrade section carries this with `docker compose ls` recorded before and after as proof. Pinning `name:` would *not* be a safe retrofit — the office's project is already `landalloc-100-build2`, so pinning would point the next upgrade at a volume that does not exist. (`docker-compose.dev.yml` does pin a name, which is why dev never surfaced this.)
+
 ### 2.4 Startup / shutdown expectations
 
 - **Morning start:** power on the host; Docker + `restart: unless-stopped` bring the stack up with no operator action. The client computer just opens the browser.
