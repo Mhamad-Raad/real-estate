@@ -375,6 +375,8 @@ APP_BUILD=1
 | Every `activity_log` row | `app_build` — a bad record can be traced to the build that wrote it |
 | Version-mismatch banner | shown when the bundle and the server disagree; half an update is a real outcome, and every symptom of it otherwise looks like an app bug |
 
+**One caveat, learned by breaking the first install (2026-08-18).** `deploy/docker-compose.yml` reaches the file as `../VERSION` — correct in the repo, where the compose file sits one level under the root, and wrong in the bundle, which puts both files in **one** folder and so resolves the path outside it (Compose aborts with `env_file not found`). `deploy/scripts/build-bundle.sh` **rewrites that line to `VERSION` as it copies**, and fails the build if the rewrite ever stops matching; the repo file is deliberately left alone, because that is what dev runs against. Nothing caught this earlier because the production stack had only ever been brought up *from the repo*, never from a built bundle.
+
 **Naming:** the app's version is `app_version` / `build` **everywhere it is exposed, never `version`** — that name is already the optimistic-lock counter on every model, serializer and mutation (§7.2), and sharing it would make two unrelated things indistinguishable across the whole API.
 
 **Two deliberate exceptions, both easy to "fix" by mistake:**

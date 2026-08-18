@@ -64,7 +64,18 @@ docker save \
   | gzip > "$BUNDLE/images.tar.gz"
 
 # Everything needed to run them. The office has no copy of this repository.
-cp    "$ROOT/deploy/docker-compose.yml" "$BUNDLE/"
+# NOT a plain copy. The repo keeps `deploy/docker-compose.yml` one level under the root VERSION,
+# so `env_file: - ../VERSION` is right there and wrong here — the bundle puts both files in ONE
+# folder, `../VERSION` resolves to the bundle's parent, and Compose aborts the office's install
+# with "env_file not found" (hit live, 2026-08-13). Rewritten as it is copied so the repo file,
+# which dev runs against, stays correct.
+sed 's|- \.\./VERSION|- VERSION|' "$ROOT/deploy/docker-compose.yml" > "$BUNDLE/docker-compose.yml"
+# A silent no-op here ships a bundle that cannot start, so fail the build instead. Matches the
+# list-item form only — a prose mention of `../VERSION` in a comment breaks nothing.
+if grep -qE '^[[:space:]]*-[[:space:]]*\.\./VERSION' "$BUNDLE/docker-compose.yml"; then
+    echo "ERROR: docker-compose.yml still references ../VERSION - the rewrite above missed it." >&2
+    exit 1
+fi
 cp -R "$ROOT/deploy/nginx"              "$BUNDLE/"
 cp    "$ROOT/deploy/.env.example"       "$BUNDLE/"
 cp    "$ROOT/VERSION"                   "$BUNDLE/"
@@ -144,6 +155,13 @@ STEP 5.  After the restart, open Docker Desktop from the Start menu.
          Wait until it says "Engine running" (bottom-left, green).
          The first start can take a few minutes. Leave it open.
 
+         ** If it says "virtualization support not detected" and the
+            engine stops, do NOT go into the BIOS. Two Windows features
+            are missing. The fix is at the bottom of this file, under
+            "IF SOMETHING GOES WRONG" -> "Docker says virtualization is
+            not supported". It takes five minutes and needs no internet.
+            This happened on the first install. **
+
 
 ------------------------------------------------------------------------
   PART 2 — SET UP THE APP                (about 20 minutes)
@@ -162,6 +180,12 @@ STEP 6.  Make the folder where the office's files will be kept.
 
 STEP 7.  Open PowerShell inside this install folder:
          - Open the folder in File Explorer.
+           ** "This install folder" is the one holding images.tar.gz,
+              named landalloc-${APP_VERSION}-build${APP_BUILD}.
+              What you copied from the USB CONTAINS that folder — open
+              it first.
+              Every command from STEP 8 on must run inside it, or you
+              get "the system cannot find the file specified". **
          - Hold SHIFT and right-click on empty space inside it.
          - Choose "Open PowerShell window here".
 
@@ -193,6 +217,10 @@ STEP 10. Open the new ".env" file in Notepad:
 
          DB_PASSWORD=
              Make up a password. WRITE IT DOWN on your paper.
+             ** LETTERS AND NUMBERS ONLY. No # and no @ — they break
+                the file quietly, and the password is locked into the
+                database the first time it starts. Getting this wrong
+                is only fixable by wiping the database. **
 
          DATA_ROOT=
              The folder from STEP 6, but with FORWARD slashes:
@@ -323,6 +351,42 @@ STEP 21. Copy the ".env" file from this folder onto the external drive
 
   First: is Docker Desktop running? Open it, look for the green
   "Engine running". Most problems are just that it is not started.
+
+
+  DOCKER SAYS VIRTUALIZATION IS NOT SUPPORTED, ENGINE STOPPED
+  -----------------------------------------------------------
+  This stopped the very first install (2026-08-13). It is not the BIOS.
+
+  Task Manager showing "Virtualization: Enabled" does NOT mean Docker
+  can run — that line only reports the processor. What is usually
+  missing is two WINDOWS FEATURES.
+
+  Open PowerShell AS ADMINISTRATOR (Start menu, type powershell,
+  right-click it, "Run as administrator"). It opens in
+  C:\Windows\system32 — that is correct for these three, they are
+  system-wide. Type them one at a time:
+
+      dism.exe /online /enable-feature /featurename:Microsoft-Windows-Subsystem-Linux /all /norestart
+      dism.exe /online /enable-feature /featurename:VirtualMachinePlatform /all /norestart
+      bcdedit /set hypervisorlaunchtype auto
+
+  Then RESTART the computer and open Docker Desktop again. It should
+  reach green.
+
+  These install from the disk. They need no internet.
+
+  Check WSL first if you want to be sure where the fault is. Type:
+
+      wsl --version
+
+  If a version prints, WSL is fine and the problem is the features
+  above. Do not compare the number against anything you read online —
+  that it prints at all is the pass. If it prints nothing or an error,
+  WSL did not install: go back to STEP 2.
+
+  ** Remember the two working folders. The three commands above run in
+     system32. Everything from STEP 8 on runs INSIDE the install folder
+     (STEP 7). Mixing them up is the other thing that catches people. **
 
   In PowerShell, inside this folder:
 
