@@ -83,6 +83,9 @@ cp    "$ROOT/docs/runbooks/restore.md"  "$BUNDLE/"
 cp    "$ROOT/docs/runbooks/hardening.md" "$BUNDLE/"
 
 cat > "$BUNDLE/installers/PUT-INSTALLERS-HERE.txt" <<'TXT'
+ONLY needed for a computer that has never had the app. If you are UPDATING a machine that
+already runs it, ignore this folder completely — Docker and WSL are already installed there.
+
 Download these on ANY machine with internet and drop them in this folder before carrying the
 drive to the office. They cannot be bundled automatically — they are Microsoft's and Docker's,
 not ours, and both refuse to be redistributed by a script.
@@ -108,6 +111,12 @@ cat > "$BUNDLE/INSTALL.txt" <<TXT
   LAND ALLOCATION SYSTEM — ${APP_VERSION} (build ${APP_BUILD})
   How to install it on the office computer
 ========================================================================
+
+** IS THE APP ALREADY RUNNING ON THIS COMPUTER? **
+   Then this file is NOT for you. Close it and open  UPDATE.txt
+   on this drive instead: six steps, nothing to install, and it
+   keeps every case already on the machine.
+   This file is only for a computer that has never had the app.
 
 Read this from top to bottom and do each step in order.
 You do NOT need internet on the office computer. Everything is in this
@@ -499,6 +508,183 @@ STEP 21. Copy the ".env" file from this folder onto the external drive
   [ ] 19. hardening.md done
   [ ] 20. Backup drive encrypted, recovery key printed and locked away
   [ ] 21. .env copied onto the backup drive
+TXT
+
+# The office already runs the app, so the fresh-install note is the wrong document to hand them.
+# This one assumes Docker, WSL and a live database, and its whole job is to not lose that database.
+cat > "$BUNDLE/UPDATE.txt" <<TXT
+========================================================================
+  LAND ALLOCATION SYSTEM — UPDATE TO ${APP_VERSION} (build ${APP_BUILD})
+  For the office computer that ALREADY runs the app
+========================================================================
+
+If the app has NEVER been on this computer, close this and open
+INSTALL.txt instead.
+
+Nothing gets installed today. Docker and WSL are already on this
+machine and stay exactly as they are. You can ignore the "installers"
+folder on this drive completely.
+
+Nothing of yours is replaced: your cases, your scanned documents, your
+logins, your categories and your settings all stay. About 15 minutes.
+
+
+------------------------------------------------------------------------
+  READ THIS ONCE BEFORE YOU START
+------------------------------------------------------------------------
+
+  ** DO NOT open this new folder and start the app from inside it, and
+     do not rename or move the folder you already use. **
+
+  Docker names the app — and its database — after the folder it is
+  started from. Start it from a folder with a different name and the
+  app comes up EMPTY: every case gone from the screen. Nothing is
+  deleted, the app is simply looking at the wrong database, but it is
+  frightening and it is avoidable.
+
+  So the whole update is: you copy FOUR THINGS from this drive INTO
+  the folder the office already uses, and you run everything there.
+
+
+------------------------------------------------------------------------
+  THE SIX STEPS
+------------------------------------------------------------------------
+
+STEP 1.  Open PowerShell inside your CURRENT install folder — the one
+         you have always used, the one with your .env file in it.
+         (Open it in File Explorer, hold SHIFT, right-click empty
+          space, choose "Open PowerShell window here".)
+
+STEP 2.  BACK UP FIRST. It is the only way back. Type:
+
+             docker compose exec backend python manage.py backup_db
+
+         Then plug in the external drive and copy this folder onto it:
+             Desktop\\LandAllocationData\\db-backups
+
+         ** Do not skip this. Everything below is safe, but a backup is
+            what makes that true. **
+
+STEP 3.  Write down what Docker calls the app, so you can prove at the
+         end that nothing moved. Type:
+
+             docker compose ls
+
+         Copy the word under NAME onto your paper. It must read the
+         SAME in step 6.
+
+STEP 4.  Stop the app. This deletes nothing. Type:
+
+             docker compose down
+
+STEP 5.  From this drive, copy these FOUR onto the ones with the same
+         name in your CURRENT install folder, replacing them:
+
+             images.tar.gz
+             docker-compose.yml
+             VERSION
+             nginx              (the whole folder)
+
+         ** Do NOT copy .env.example, and do NOT touch your .env file.
+            It holds your database password. If you replace it, the
+            app cannot open its own database. **
+
+STEP 6.  Back in PowerShell, still in your CURRENT folder, type these
+         three, one at a time, waiting for each:
+
+             docker load -i images.tar.gz
+             docker compose up -d
+             docker compose exec backend python manage.py migrate
+
+         The middle one needs about a minute before the app answers.
+
+
+------------------------------------------------------------------------
+  NOW CHECK IT, IN THIS ORDER
+------------------------------------------------------------------------
+
+  1. Type:  docker compose ls
+     The NAME must be the same word you wrote down in step 3.
+
+  2. Open  http://localhost/
+     The footer must read:  ${APP_VERSION} (build ${APP_BUILD})
+
+  3. Log in and open the case list. YOUR CASES MUST ALL BE THERE.
+
+  4. Open one existing case and check its documents still open.
+
+  ** If the case list is empty: STOP. Do not create anything, do not
+     type anything in. Nothing is lost — the app is pointed at the
+     wrong database and it can be pointed back. Call the developer. **
+
+  You do NOT need to run create_admin or install_templates again.
+  Doing so is not needed and only invites mistakes.
+
+
+------------------------------------------------------------------------
+  WHAT IS NEW IN THIS VERSION
+------------------------------------------------------------------------
+
+  From your own testing in the office:
+
+  - Every step now carries its own dates, taken from the paperwork of
+    that step rather than the day the step was opened.
+  - Step 3 can only be closed by an institute that has actually
+    decided. A date typed against a still-pending body no longer
+    closes it.
+  - In step 4 only the two institutes are optional. The land number
+    and the municipality form are required again.
+  - Marking a case complete now compiles the case file by itself. The
+    button comes back afterwards as Recompile.
+  - A document slot refuses a file it has no room for, and the
+    identity card is counted by its two sides, not by files.
+  - Identity cards print four to a page, cropped to the card, so they
+    come out at their real size.
+  - The intake form keeps what you have typed when you switch tabs,
+    and asks about the spouse last.
+  - The spouse identity card has its own slot.
+  - A text-size setting that scales the whole app.
+  - Passwords can be held to reveal, and a new one must be confirmed.
+  - The step-1 letter is produced to print, not filed onto the case.
+
+
+------------------------------------------------------------------------
+  IF SOMETHING GOES WRONG
+------------------------------------------------------------------------
+
+  Is everything up?
+      docker compose ps
+      Every line should say "running" or "healthy".
+
+  What went wrong?
+      docker compose logs backend --tail 50
+
+  Is the app healthy?
+      Open  http://localhost/api/v1/health/
+      Every item must say "ok".
+
+  Nothing at all responds:
+      docker compose down
+      docker compose up -d
+
+  Going back to the old version is possible and your backup from
+  step 2 is what does it. Call the developer rather than trying it
+  from memory.
+
+
+------------------------------------------------------------------------
+  TICK-LIST
+------------------------------------------------------------------------
+
+  [ ] 1. PowerShell open in the CURRENT install folder
+  [ ] 2. backup_db run, db-backups copied to the drive
+  [ ] 3. docker compose ls — NAME written down
+  [ ] 4. docker compose down
+  [ ] 5. Four things copied in (.env NOT touched)
+  [ ] 6. docker load / up -d / migrate
+  [ ] 7. docker compose ls — NAME is the same
+  [ ] 8. Footer reads ${APP_VERSION} (build ${APP_BUILD})
+  [ ] 9. All cases still listed, one case opened and checked
 TXT
 
 echo
