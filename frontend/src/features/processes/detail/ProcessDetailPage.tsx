@@ -108,13 +108,14 @@ export function ProcessDetailPage() {
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
-      <Link
-        to="/processes"
-        className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeft className="size-4 rtl:rotate-180" />
-        {t("workflow.backToList")}
-      </Link>
+      {/* A real button rather than a muted text link (UC-100): the office could not pick the way
+          back out of the page at a glance, and this is the control they use on every case. */}
+      <Button asChild variant="outline" size="sm" className="font-semibold">
+        <Link to="/processes">
+          <ArrowLeft className="size-4 rtl:rotate-180" />
+          {t("workflow.backToList")}
+        </Link>
+      </Button>
 
       {/* The page is titled for what it is, not for whose it is (UC-053) — the beneficiary moves
           into the subtitle rather than being dropped, since it is how a lawyer recognises the case. */}

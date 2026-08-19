@@ -111,18 +111,23 @@ export function InstituteStepPanel({
       {/* Step 4 is the only institute step that also owns a field and a document: the registration
           institutes are what produce the land number and the real-estate paper (UC-037, UC-041). */}
       {step === 4 && (
-        <div className="space-y-4 rounded-lg bg-muted/40 p-3">
-          {/* The address rides along with the number (UC-049) — same stored value as Step 1,
-              shown here because this is where the registration institutes settle both. */}
-          <LandDetailsForm
-            process={process}
-            canEdit={canEdit}
-            idPrefix="s4"
-            fields={["land_id", "land_address"]}
-            landIdRequired
-          />
+        <>
+          <div className="space-y-4 rounded-lg bg-muted/40 p-3">
+            {/* The address rides along with the number (UC-049) — same stored value as Step 1,
+                shown here because this is where the registration institutes settle both. */}
+            <LandDetailsForm
+              process={process}
+              canEdit={canEdit}
+              idPrefix="s4"
+              fields={["land_id", "land_address"]}
+              landIdRequired
+            />
+          </div>
+          {/* Outside the land card on the office's instruction (UC-099): the municipality form is
+              a paper they file, not a property of the land number, and Step 1 already separates
+              its land details from its papers the same way. */}
           <StepDocumentSlots process={process} step={4} canEdit={canEdit} />
-        </div>
+        </>
       )}
 
       {step === 3 && (
