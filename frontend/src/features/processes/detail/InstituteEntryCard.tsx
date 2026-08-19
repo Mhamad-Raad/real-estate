@@ -80,8 +80,10 @@ export function InstituteEntryCard({
   return (
     <div className="space-y-3 rounded-lg border border-border p-3">
       <div className="flex items-center justify-between gap-2">
+        {/* The custom name grows into the row rather than sitting under a fixed cap: these are
+            full Sorani institute names, and `max-w-xs` cut them off mid-phrase (UC-091). */}
         {entry.is_custom ? (
-          <div className="max-w-xs space-y-1">
+          <div className="min-w-0 flex-1 space-y-1">
             <Input
               value={field.value("custom_name")}
               disabled={!canEdit}
