@@ -243,7 +243,7 @@
     "flaggedNote": "Possible duplicate — an admin must override before this case can be completed.",
     "step1": "Step 1 — Client & documents",
     "step2": "Step 2 — Institute submissions",
-    "step3": "Step 3 — Institutes & out-of-city",
+    "step3": "Step 3 — Institutes & out of city",
     "step4": "Step 4 — Final institutes",
     "step5": "Step 5 — Complete",
     "stepStatus": {
@@ -283,8 +283,8 @@
     "customName": "Institute name",
     "newCustom": "New institute",
     "addEntry": "Add",
-    "addCustom": "Add out-of-city row",
-    "outOfCity": "Out-of-city submissions",
+    "addCustom": "Add out of city row",
+    "outOfCity": "Out of city submissions",
     "startDate": "Start date",
     "endDate": "End date",
     "endDateOnDone": "Set automatically when the case is marked complete.",
@@ -307,7 +307,7 @@
       "category": "Category",
       "duplicate_flag": "Duplicate warning not yet overridden",
       "start_date": "Start date",
-      "custom_entries": "Out-of-city institutes"
+      "custom_entries": "Out of city institutes"
     },
     "generatedSection": "Generated letter",
     "generate": "Generate document",
