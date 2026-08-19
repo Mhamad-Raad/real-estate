@@ -352,7 +352,15 @@ def save_step(*, process, step_number, data, actor, expected_version=None, reque
     # Only the ordering: whether a step date may be in the *future* is a question about how the
     # office works — a planned date is plausible — and inventing an answer would refuse real
     # paperwork. This pair is self-contradictory under any such policy.
-    if step.start_date and step.end_date and step.end_date < step.start_date:
+    # Skipped for the roll-up step, which has no start date worth ordering against (UC-094) — and
+    # cases opened before that change still carry a stamped one, so the check has to stand down
+    # here rather than rely on the column being empty.
+    if (
+        step_number != LAST_STEP
+        and step.start_date
+        and step.end_date
+        and step.end_date < step.start_date
+    ):
         raise ValidationError({"end_date": STEP_END_BEFORE_START})
     step.status = step_status.compute_step_status(process, step_number, step)
     step.version += 1
@@ -478,8 +486,12 @@ def advance_step(*, process, actor, expected_version=None, request=None) -> Proc
     # which is why the compiled cover sheet printed dates for step 2 alone (UC-058a).
     # **Only when blank**: a date entered by hand is usually a correction (the papers actually went
     # out last Tuesday), and overwriting it silently would discard that.
+    # **Not the roll-up step (UC-094).** Step 5 holds no paperwork of its own — `_step_has_data`
+    # says so — so a start date there dates nothing. Stamping one made the office's real closing
+    # date, typed off a document dated earlier, fail the ordering check below against a date they
+    # never entered.
     opened = process.steps.filter(step_number=process.current_step).first()
-    if opened is not None and opened.start_date is None:
+    if opened is not None and opened.start_date is None and process.current_step != LAST_STEP:
         opened.start_date = _opening_date(process, previous_step=before)
         opened.save(update_fields=["start_date", "updated_at"])
         # A start date is step data, so the step is no longer `not_started` — re-derive it, or the

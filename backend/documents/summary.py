@@ -6,7 +6,7 @@ code change.
 """
 
 from catalog.institutes import INSTITUTES, name_ckb
-from processes.constants import OPTIONAL_INSTITUTE_STEPS, STEP_NUMBERS
+from processes.constants import LAST_STEP, OPTIONAL_INSTITUTE_STEPS, STEP_NUMBERS
 from processes.models import Process, ProcessStep
 
 from .letters import to_arabic_indic
@@ -101,7 +101,14 @@ def _step_rows(process) -> list[dict]:
         {
             "n": to_arabic_indic(number),
             "status": _step_status(process, by_number[number]) if number in by_number else "",
-            "start_date": _date(by_number[number].start_date) if number in by_number else "",
+            # The roll-up step has no start of its own (UC-094); older cases still carry a
+            # stamped one, and printing it on a signed document would date something that never
+            # happened.
+            "start_date": (
+                _date(by_number[number].start_date)
+                if number in by_number and number != LAST_STEP
+                else ""
+            ),
             "end_date": _date(by_number[number].end_date) if number in by_number else "",
         }
         for number in STEP_NUMBERS

@@ -16,6 +16,8 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 
+from processes.constants import LAST_STEP
+
 from accounts.models import User
 from catalog.models import Category
 from clients.models import Client
@@ -759,14 +761,18 @@ class StepStartDateTests(APITestCase):
         self.assertEqual(self._step(2).start_date, finished)
 
     def test_each_step_inherits_the_end_date_of_the_one_before_it(self):
-        """Walking the whole case: every step picks up its own predecessor, not step 1's."""
+        """Walking the whole case: every working step picks up its own predecessor, not step 1's.
+
+        Step 5 is excluded deliberately (UC-094) — it is a roll-up with no paperwork of its own,
+        so it takes no start date to inherit one into."""
         ends = {1: date(2026, 3, 9), 2: date(2026, 4, 2), 3: date(2026, 5, 20), 4: date(2026, 6, 1)}
         for n in (1, 2, 3, 4):
             step = self._step(n)
             step.end_date = ends[n]
             step.save(update_fields=["end_date"])
             self.assertEqual(self._proceed().status_code, status.HTTP_200_OK)
-            self.assertEqual(self._step(n + 1).start_date, ends[n])
+            expected = ends[n] if n + 1 != LAST_STEP else None
+            self.assertEqual(self._step(n + 1).start_date, expected)
 
     def test_proceeding_does_not_overwrite_a_date_entered_by_hand(self):
         """A typed date is usually a correction — the papers went out earlier than today."""
@@ -778,9 +784,30 @@ class StepStartDateTests(APITestCase):
         self.assertEqual(self._proceed().status_code, status.HTTP_200_OK)
         self.assertEqual(self._step(2).start_date, earlier)
 
-    def test_every_step_gets_a_start_date_as_the_case_walks_forward(self):
-        """Steps 3, 4 and 5 had no dates at all before this, so the cover sheet printed none."""
+    def test_every_working_step_gets_a_start_date_as_the_case_walks_forward(self):
+        """Steps 3 and 4 had no dates at all before this, so the cover sheet printed none."""
         for _ in range(4):
             self.assertEqual(self._proceed().status_code, status.HTTP_200_OK)
-        for n in (1, 2, 3, 4, 5):
+        for n in (1, 2, 3, 4):
             self.assertIsNotNone(self._step(n).start_date, f"step {n} has no start date")
+
+    def test_the_roll_up_step_is_never_given_a_start_date(self):
+        """UC-094: step 5 holds no paperwork, so a start date there dates nothing — and stamping
+        one made the office's real closing date fail an ordering check against a date they never
+        entered."""
+        for _ in range(4):
+            self.assertEqual(self._proceed().status_code, status.HTTP_200_OK)
+        self.assertIsNone(self._step(LAST_STEP).start_date)
+
+    def test_the_closing_date_is_accepted_even_when_it_predates_the_case(self):
+        """The whole point of UC-094: a case backfilled from June's paperwork must take June."""
+        for _ in range(4):
+            self.assertEqual(self._proceed().status_code, status.HTTP_200_OK)
+        step5 = self._step(LAST_STEP)
+        resp = self.client.patch(
+            reverse("process-steps", args=[self.process.id, LAST_STEP]),
+            {"end_date": "2026-06-01", "version": step5.version},
+            format="json",
+        )
+        self.assertEqual(resp.status_code, status.HTTP_200_OK, resp.data)
+        self.assertEqual(str(self._step(LAST_STEP).end_date), "2026-06-01")
