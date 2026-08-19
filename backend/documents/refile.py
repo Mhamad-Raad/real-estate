@@ -24,30 +24,40 @@ from common.services import record_activity
 
 from . import filestore
 from .models import Document
-from .services import compose_location
+from .services import compose_names
 
 
-def _target(document) -> tuple[str, Path]:
-    """Where this document *should* live and be called, given the client as they are now."""
-    return compose_location(
+def _target(document) -> tuple[str, str, Path]:
+    """Where this document *should* live and be called, given the client as they are now.
+
+    Deliberately `compose_names`, not `compose_location`: the latter **claims** a filename on disk,
+    which is right for a new document and wrong for one that already has a name to keep.
+    """
+    return compose_names(
         process=document.process,
         document_type=document.document_type,
         institute_entry=document.institute_entry,
     )
 
 
-def _keep_short_id(new_name: str, old_path: str) -> str:
-    """Reuse the existing short id so the file stays traceable across the rename (§6.7).
+def _keep_number(label: str, old_path: str) -> str:
+    """Carry the file's number across the rename, refreshing only the derived label (UC-097).
 
-    Falls back to the freshly composed name if the old path carries no `__<shortid>` — a shape
-    this codebase never produces, but one a hand-placed file could have. Without the guard the
-    whole old path would be spliced in as the "short id", slashes and all, and the rename would
-    write outside the folder it was aiming at.
+    The number is what tells two files in one slot apart, so it belongs to the *file* and must
+    survive a move — exactly the job the `__<shortid>` did before it (§6.7). Composing the name
+    from the label plus that number, rather than reserving a fresh one, is also what keeps
+    re-filing **idempotent**: a reservation claims a new number on every call, so running it twice
+    would move every document a second time and burn a number doing it.
     """
-    marker, _, tail = old_path.rpartition("__")
-    if not marker or "/" in tail:
-        return new_name
-    return f"{new_name.rpartition('__')[0]}__{filestore.sanitize(tail.removesuffix('.pdf'), 'x', 40)}.pdf"
+    return filestore.numbered_name(label, filestore.number_of(old_path))
+
+
+def _taken(rel: Path, document, claimed: set[str]) -> bool:
+    """Whether `rel` is spoken for by anything other than this document — a name another document
+    is moving to in this same run, or a file already on disk."""
+    return str(rel) != document.file_path and (
+        str(rel) in claimed or (settings.DOCUMENTS_ROOT / rel).exists()
+    )
 
 
 @transaction.atomic
@@ -62,12 +72,26 @@ def refile_client_documents(client, *, actor=None, request=None) -> list[int]:
         Document.objects.filter(process__client=client)
         .select_related("process__client", "process__category", "institute_entry")
     )
+    # Every name this run has already handed out, so two documents in one slot cannot be sent to
+    # the same place. It matters for files stored **before** UC-097: two of them carry different
+    # `__<shortid>`s and both parse as "number 1", so both would compose the same new name and the
+    # second move would overwrite the first — a citizen's paper, silently gone.
+    claimed = {d.file_path for d in documents}
     for document in documents:
-        display, rel = _target(document)
-        # Keep the original short id — only the *derived* parts of the name may change. The stored
-        # name alone: since UC-060 the download name carries no short id to preserve, and splicing
-        # one into a name with no `__` would leave nothing but the id.
-        rel = rel.parent / _keep_short_id(rel.name, document.file_path)
+        display, label, directory = _target(document)
+        # Keep the original number — only the *derived* parts of the name may change. The stored
+        # name alone: since UC-060 the download name carries no discriminator to preserve.
+        rel = directory / _keep_number(label, document.file_path)
+        claimed.discard(document.file_path)
+        if _taken(rel, document, claimed):
+            # Not `reserve_stored_name`: that probes the filesystem, and this run's moves are all
+            # deferred to commit, so nothing is on disk yet and every collision would be handed
+            # the same free name. `claimed` is the only record of what this run has promised.
+            n = 2
+            while _taken(directory / filestore.numbered_name(label, n), document, claimed):
+                n += 1
+            rel = directory / filestore.numbered_name(label, n)
+        claimed.add(str(rel))
         if str(rel) == document.file_path and display == document.display_filename:
             continue
 

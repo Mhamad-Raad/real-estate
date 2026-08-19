@@ -247,11 +247,17 @@ class ConfirmCreatesTheClientTests(ScanTestBase):
         )
 
         document = Document.objects.get()
-        # `<CATEGORY>/<CODE>_<PID>/<label>__<sid>.pdf` — one folder per case, and a short on-disk
-        # name because the folders already carry the category and the person (§6.7). This case has
-        # no category and so no code, which is why the folder is the bare PID.
+        # `<CATEGORY>/<CODE>_<PID>/<label>.pdf` — one folder per case, and a short on-disk name
+        # because the folders already carry the category and the person (§6.7). This case has no
+        # category and so no code, which is why the folder is the bare PID.
         self.assertEqual(document.file_path, f"NA/200103487811/{Path(document.file_path).name}")
-        self.assertTrue(Path(document.file_path).name.startswith("ناسنامەی کڕیار__"))
+        # A confirmed scan is filed like any other document (UC-097): the label, then Windows-style
+        # numbering if this folder already holds one. Not asserted as the *first* file — the class
+        # shares one document root, so earlier tests have already filed this label for this PID.
+        name = Path(document.file_path).name
+        self.assertTrue(name.startswith("ناسنامەی کڕیار"), name)
+        self.assertTrue(name.endswith(".pdf"), name)
+        self.assertNotIn("__", name)
         # The download name is self-describing, and says it in the language the office reads.
         self.assertIn("ناسنامەی کڕیار", document.display_filename)
         self.assertIn("محمد", document.display_filename)

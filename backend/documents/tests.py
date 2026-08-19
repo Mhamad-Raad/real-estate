@@ -176,12 +176,38 @@ class FileStoreUnitTests(APITestCase):
         )
         self.assertEqual(name, "A_Ahmad Ali_ناسنامەی کڕیار.pdf")
 
-    def test_the_stored_name_keeps_the_short_id_the_download_name_drops(self):
+    def test_a_second_file_in_one_slot_is_numbered_not_hashed(self):
+        """UC-097: the office browses this archive in Explorer, and an 8-character hex suffix on
+        every file made it unreadable. Two papers legitimately share the `RealEstate` slot
+        (UC-055), so the second is numbered the way Windows numbers a repeated copy."""
         label = filestore.document_label("RealEstate")
         self.assertEqual(label, "فۆرم و نووسراوی شارەوانی")
-        # Two files legitimately share this slot (UC-055), so on disk they need telling apart.
-        stored = filestore.compose_stored_name(label=label, sid="7f3ae2ab")
-        self.assertEqual(stored, "فۆرم و نووسراوی شارەوانی__7f3ae2ab.pdf")
+        directory = filestore.case_directory(
+            category_code="A", unique_code="A18", pid="199036880522"
+        )
+        keys = dict(directory=directory, label=label)
+
+        first = filestore.reserve_stored_name(**keys)
+        second = filestore.reserve_stored_name(**keys)
+        third = filestore.reserve_stored_name(**keys)
+
+        self.assertEqual(first.name, "فۆرم و نووسراوی شارەوانی.pdf")
+        self.assertEqual(second.name, "فۆرم و نووسراوی شارەوانی (2).pdf")
+        self.assertEqual(third.name, "فۆرم و نووسراوی شارەوانی (3).pdf")
+        self.assertEqual(str(first.parent), "A/A18_199036880522")
+
+    def test_reserving_a_name_claims_it_so_a_concurrent_filing_cannot_take_it(self):
+        """The name is claimed by creating the file, not by looking at the folder — two lawyers
+        filing the same slot at once would otherwise both see the same slot free."""
+        keys = dict(
+            directory=filestore.case_directory(
+                category_code="A", unique_code="A19", pid="199036880523"
+            ),
+            label=filestore.document_label("ClientID"),
+        )
+        rel = filestore.reserve_stored_name(**keys)
+        self.assertTrue((settings.DOCUMENTS_ROOT / rel).exists())
+        self.assertNotEqual(filestore.reserve_stored_name(**keys), rel)
 
     def test_the_case_folder_is_keyed_by_code_and_pid(self):
         rel = filestore.relative_path(

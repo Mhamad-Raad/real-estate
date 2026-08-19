@@ -93,16 +93,19 @@ def normalise_to_pdf(content: bytes, *, field: str = "file") -> bytes:
     return content
 
 
-def compose_location(*, process, document_type: str, institute_entry=None) -> tuple[str, "Path"]:
-    """The download name and the store path for a document on this process (§6.7).
+def compose_names(*, process, document_type: str, institute_entry=None) -> tuple[str, str, "Path"]:
+    """The download name, the label and the case folder for a document on this process (§6.7).
 
-    Both need the person: the category and PID key the folder, and the subject names the file.
-    That is why a scanned ID is only filed once its reading has been confirmed — before that, the
-    very fields this composition needs are still what the card is proposing.
+    Everything about where a document belongs **except which file inside the folder** — that last
+    part differs between filing a new document (claim the next free number) and re-filing an
+    existing one (keep the number it already has), so it is the caller's to decide.
+
+    All of it needs the person: the category and PID key the folder, and the subject names the
+    file. That is why a scanned ID is only filed once its reading has been confirmed — before
+    that, the very fields this composition needs are still what the card is proposing.
     """
     client = process.client
     category_code = process.category.code if process.category_id else "NA"
-    sid = filestore.short_id()
     # One label serves both names — the issuing body when there is one, else the paper's own name.
     label = filestore.document_label(document_type, institute_entry)
     display = filestore.compose_display_name(
@@ -111,13 +114,22 @@ def compose_location(*, process, document_type: str, institute_entry=None) -> tu
         person_name=subject_name(client, document_type),
         label=label,
     )
-    rel = filestore.relative_path(
-        category_code=category_code,
-        unique_code=process.unique_code,
-        pid=client.pid,
-        stored_filename=filestore.compose_stored_name(label=label, sid=sid),
+    directory = filestore.case_directory(
+        category_code=category_code, unique_code=process.unique_code, pid=client.pid
     )
-    return display, rel
+    return display, label, directory
+
+
+def compose_location(*, process, document_type: str, institute_entry=None) -> tuple[str, "Path"]:
+    """The download name and a **freshly claimed** store path — for a document being filed now.
+
+    The name is claimed on disk as it is composed (UC-097), so the caller's write, or the move
+    deferred to commit, lands somewhere no concurrent filing can have taken.
+    """
+    display, label, directory = compose_names(
+        process=process, document_type=document_type, institute_entry=institute_entry
+    )
+    return display, filestore.reserve_stored_name(directory=directory, label=label)
 
 
 def file_staged_document(

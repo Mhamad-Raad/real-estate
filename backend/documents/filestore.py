@@ -4,12 +4,13 @@ The DB is authoritative: we always look files up by `Document.file_path`, never 
 name. Every filename component is whitelist-sanitized, so path traversal is impossible and
 Sorani/Arabic names survive on NTFS/APFS.
 
-Layout: `<CATEGORY>/<CODE>_<PID>/<label>__<shortid>.pdf`, where the label is the Sorani name of
+Layout: `<CATEGORY>/<CODE>_<PID>/<label>.pdf`, where the label is the Sorani name of
 the issuing body or of the paper itself — the archive has to be navigable by hand, without the
 app, by people who do not know what `INST_S4_B` is (UC-060).
 """
 
 import hashlib
+import os
 import re
 import shutil
 import unicodedata
@@ -168,17 +169,58 @@ def compose_display_name(*, unique_code: str, category_code: str, person_name: s
     return f"{lead}_{sanitize(person_name, 'Unknown')}_{label}.pdf"
 
 
-def compose_stored_name(*, label: str, sid: str) -> str:
-    """The **on-disk** name. Shorter than the download name: the folders above already say the
-    case and the person, so repeating them buys nothing and makes a name correction rewrite the
-    filesystem.
+_NUMBERED_SUFFIX = re.compile(r" \((\d+)\)$")
 
-    The `__<shortid>` stays here and only here. It is what keeps two files apart when a slot
-    legitimately holds more than one — `RealEstate` expects two papers (UC-055) — and what lets a
-    file survive any number of re-filings. A download has no such constraint: the browser numbers
-    a repeat, and the name is free to stay clean.
+
+def numbered_name(label: str, n: int) -> str:
+    """`<label>.pdf`, then `<label> (2).pdf` — the one place the on-disk format is written."""
+    safe = sanitize(label)
+    return f"{safe}.pdf" if n <= 1 else f"{safe} ({n}).pdf"
+
+
+def number_of(stored_filename: str) -> int:
+    """The `(n)` a stored name carries, or 1 for the unnumbered first file."""
+    match = _NUMBERED_SUFFIX.search(Path(stored_filename).name.removesuffix(".pdf"))
+    return int(match.group(1)) if match else 1
+
+
+def case_directory(*, category_code: str, unique_code: str, pid: str) -> Path:
+    """The case's folder, relative to `DOCUMENTS_ROOT` — the part of a document's path that a
+    re-file may change (a corrected PID or code), as opposed to the filename, which follows it."""
+    return Path(sanitize(category_code, "NA", 10)) / case_dir(unique_code=unique_code, pid=pid)
+
+
+# A slot holds two papers at most today (`RealEstate`, UC-055) and an ID card two sides, so this
+# ceiling is a runaway guard, not a limit anyone can reach by filing.
+MAX_SAME_LABEL = 500
+
+
+def reserve_stored_name(*, directory: Path, label: str) -> Path:
+    """Claim the next free on-disk name for `label`, returning it relative to `DOCUMENTS_ROOT`.
+
+    Windows-style numbering (UC-097, the office's call): `<label>.pdf`, then `<label> (2).pdf`.
+    It replaces a `__<shortid>` of 8 hex characters that made the archive unreadable to the people
+    who browse it in Explorer — which is the whole reason the store uses human names (§6.7).
+    Two sides of one card now read as a pair rather than as two unrelated files.
+
+    **The name is claimed by creating the file, not by looking at the folder.** Two lawyers filing
+    the same slot at the same moment would otherwise both find `(2)` free and one would overwrite
+    the other — `O_EXCL` makes the check and the claim a single operation. The empty placeholder
+    is overwritten by the `write_pdf` or `move_into_place` that follows.
     """
-    return f"{label}__{sid}.pdf"
+    (settings.DOCUMENTS_ROOT / directory).mkdir(parents=True, exist_ok=True)
+    safe = sanitize(label)
+    for n in range(1, MAX_SAME_LABEL + 1):
+        rel = directory / numbered_name(safe, n)
+        try:
+            handle = os.open(
+                settings.DOCUMENTS_ROOT / rel, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644
+            )
+        except FileExistsError:
+            continue
+        os.close(handle)
+        return rel
+    raise RuntimeError(f"More than {MAX_SAME_LABEL} files already stored under {safe!r}")
 
 
 def case_dir(*, unique_code: str, pid: str) -> str:
@@ -197,10 +239,9 @@ def case_dir(*, unique_code: str, pid: str) -> str:
 
 
 def relative_path(*, category_code: str, unique_code: str, pid: str, stored_filename: str) -> Path:
-    """`<CATEGORY>/<CODE>_<PID>/<label>__<shortid>.pdf`, relative to DOCUMENTS_ROOT."""
+    """`<CATEGORY>/<CODE>_<PID>/<stored filename>`, relative to DOCUMENTS_ROOT."""
     return (
-        Path(sanitize(category_code, "NA", 10))
-        / case_dir(unique_code=unique_code, pid=pid)
+        case_directory(category_code=category_code, unique_code=unique_code, pid=pid)
         / stored_filename
     )
 

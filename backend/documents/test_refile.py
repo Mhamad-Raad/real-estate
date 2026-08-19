@@ -91,16 +91,55 @@ class RefileTests(APITestCase):
         self.assertTrue((settings.DOCUMENTS_ROOT / self.document.file_path).exists())
         self.assertFalse(old.exists())
 
-    def test_the_short_id_survives_the_move_so_the_file_stays_traceable(self):
-        sid = self.document.file_path.rsplit("__", 1)[-1]
+    def test_the_file_number_survives_the_move_so_two_files_stay_apart(self):
+        """UC-097: the `(n)` is what tells two files in one slot apart, so it belongs to the file
+        and must follow it across a re-file — the job the `__<shortid>` did before it."""
+        from documents import filestore
+
+        number = filestore.number_of(self.document.file_path)
         self.client_row.pid = "PID-2"
         self.client_row.save(update_fields=["pid"])
         self._refile()
 
         self.document.refresh_from_db()
-        self.assertTrue(self.document.file_path.endswith(sid))
-        # The download name carries no short id to keep — it is the stored name's job (UC-060).
+        self.assertEqual(filestore.number_of(self.document.file_path), number)
+        # No hex suffix survives anywhere: the archive is browsed by hand (UC-060, UC-097).
+        self.assertNotIn("__", self.document.file_path.rsplit("/", 1)[-1])
         self.assertNotIn("__", self.document.display_filename)
+
+    def test_two_pre_numbering_files_in_one_slot_do_not_collide(self):
+        """Files stored before UC-097 carry different `__<shortid>`s and both read as "number 1",
+        so both would compose the same new name — and the second move would overwrite a citizen's
+        paper. The re-file must hand the second one a number of its own instead."""
+        from documents import filestore
+
+        second = Document.objects.create(
+            process=self.document.process,
+            step_number=self.document.step_number,
+            document_type=self.document.document_type,
+            file_path=f"{Path(self.document.file_path).parent}/old__deadbeef.pdf",
+            display_filename="old.pdf",
+            sha256=self.document.sha256,
+            size_bytes=self.document.size_bytes,
+            uploaded_by=self.document.uploaded_by,
+        )
+        for doc in (self.document, second):
+            path = settings.DOCUMENTS_ROOT / doc.file_path
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(b"%PDF-1.4 old")
+
+        self.client_row.pid = "PID-COLLIDE"
+        self.client_row.save(update_fields=["pid"])
+        self._refile()
+
+        self.document.refresh_from_db()
+        second.refresh_from_db()
+        self.assertNotEqual(self.document.file_path, second.file_path)
+        for doc in (self.document, second):
+            self.assertTrue(
+                (settings.DOCUMENTS_ROOT / doc.file_path).exists(), doc.file_path
+            )
+        self.assertEqual(filestore.number_of(second.file_path), 2)
 
     def test_re_filing_is_audited(self):
         self.client_row.pid = "PID-3"

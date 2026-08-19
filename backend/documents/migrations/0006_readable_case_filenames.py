@@ -40,11 +40,14 @@ def _rebuild(filestore, document, process, client):
         ),
         label=label,
     )
+    # Inlined rather than calling `filestore.compose_stored_name`: that helper was replaced by
+    # Windows-style numbering in UC-097, and a data migration must keep producing what it produced
+    # when it ran. The `__<shortid>` shape below is what this migration's own parsing above expects.
     rel = filestore.relative_path(
         category_code=category_code,
         unique_code=process.unique_code,
         pid=client.pid,
-        stored_filename=filestore.compose_stored_name(label=label, sid=sid),
+        stored_filename=f"{label}__{sid}.pdf",
     )
     return display, rel
 
