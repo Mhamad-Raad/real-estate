@@ -180,7 +180,7 @@ class GenerationJobTests(APITestCase):
         # Age it past the window. `created_at` is auto_now_add, so the ORM cannot set it directly.
         GenerationJob.objects.filter(pk=stale_job.pk).update(
             created_at=timezone.now()
-            - timedelta(days=settings.GENERATED_LETTER_RETENTION_DAYS + 1)
+            - timedelta(days=settings.GENERATED_OUTPUT_RETENTION_DAYS + 1)
         )
 
         fresh = self._run_eligibility(template)
@@ -244,6 +244,53 @@ class GenerationJobTests(APITestCase):
         self.assertTrue((settings.DOCUMENTS_ROOT / job.output_path).is_file())
         # It spans people, so it is not a Document on anyone's process (§6.8).
         self.assertFalse(Document.objects.filter(process=self.process).exists())
+
+    def test_an_expired_list_is_swept_when_the_next_one_is_generated(self):
+        """UC-096: `_generated/lists/` grew by one permanent PDF per generation, for ever — the
+        sweep was letters-only, so the office found the folder full of files nothing points at."""
+        template = make_template(DocumentTemplate.TemplateType.PROCESS_LIST, build_process_list)
+        stale_job = GenerationJob.objects.create(
+            kind=GenerationJob.Kind.PROCESS_LIST, template=template,
+            process_ids=[self.process.id], requested_by=self.lawyer,
+        )
+        run_process_list_job(stale_job.id)
+        stale_job.refresh_from_db()
+        stale_path = settings.DOCUMENTS_ROOT / stale_job.output_path
+        self.assertTrue(stale_path.is_file())
+        GenerationJob.objects.filter(pk=stale_job.pk).update(
+            created_at=timezone.now()
+            - timedelta(days=settings.GENERATED_OUTPUT_RETENTION_DAYS + 1)
+        )
+
+        fresh = GenerationJob.objects.create(
+            kind=GenerationJob.Kind.PROCESS_LIST, template=template,
+            process_ids=[self.process.id], requested_by=self.lawyer,
+        )
+        run_process_list_job(fresh.id)
+        fresh.refresh_from_db()
+
+        self.assertFalse(stale_path.exists(), "an expired list letter was kept for ever")
+        self.assertTrue((settings.DOCUMENTS_ROOT / fresh.output_path).is_file())
+
+    def test_a_recent_list_is_left_alone(self):
+        """A list has no per-case predecessor to supersede, so only age may retire one — the
+        colleague printing this morning's list must not lose it to this afternoon's."""
+        template = make_template(DocumentTemplate.TemplateType.PROCESS_LIST, build_process_list)
+        theirs = GenerationJob.objects.create(
+            kind=GenerationJob.Kind.PROCESS_LIST, template=template,
+            process_ids=[self.process.id], requested_by=self.lawyer,
+        )
+        run_process_list_job(theirs.id)
+        theirs.refresh_from_db()
+        theirs_path = settings.DOCUMENTS_ROOT / theirs.output_path
+
+        mine = GenerationJob.objects.create(
+            kind=GenerationJob.Kind.PROCESS_LIST, template=template,
+            process_ids=[self.process.id], requested_by=self.lawyer,
+        )
+        run_process_list_job(mine.id)
+
+        self.assertTrue(theirs_path.is_file(), "a list generated minutes ago was swept")
 
     def test_a_failed_render_marks_the_job_failed_with_its_reason(self):
         template = make_template(

@@ -56,32 +56,47 @@ def _fail(job: GenerationJob, message: str) -> None:
     job.save(update_fields=["status", "error", "updated_at"])
 
 
-def _discard_stale_letters(job: GenerationJob) -> None:
-    """Clear out letter files nobody can still be reading (UC-075).
+# The generated kinds no case ever points at, and so the only ones whose files are ours to remove.
+# `COMPILED_CASE` is deliberately absent: it is filed on the case as a real `Document` (§10.3).
+UNFILED_KINDS = (
+    GenerationJob.Kind.ELIGIBILITY,
+    GenerationJob.Kind.PROCESS_LIST,
+    GenerationJob.Kind.PROCESS_CODES,
+)
 
-    The Step-1 letter is deliberately not archived, so nothing on a case ever points at one of
-    these files: the screen forgets the job as soon as the lawyer leaves Step 1, and after that
-    the PDF is unreachable. Two things go, both file-only — **the job rows always stay**, because
-    they are the record of who generated whose letter (§11):
 
-    1. this case's previous letter, superseded by the one just rendered;
-    2. **any** letter older than the retention window, which is what stops the directory growing
-       by one permanent file per case ever generated — the office's whole reason for taking the
-       letter off the case in the first place.
+def _discard_stale_output(job: GenerationJob) -> None:
+    """Clear out generated files nobody can still be reading (UC-075, UC-096).
+
+    None of these are archived, so nothing on a case ever points at one: the screen forgets the
+    job as soon as the lawyer navigates away, and after that the PDF is unreachable. Two things
+    go, both file-only — **the job rows always stay**, because they are the record of who
+    generated what (§11):
+
+    1. the previous output this one supersedes — for a letter, the same case's earlier copy;
+    2. **any** output of this kind older than the retention window, which is what stops the
+       directory growing by one permanent file per generation ever run.
+
+    A list letter belongs to no single case (§6.8), so it has no per-case predecessor to supersede
+    and age alone retires it. Sweeping the lists at all is the fix for the office finding
+    `_generated/lists/` growing without bound — it was letters-only before (UC-096).
 
     Swept here rather than from `CELERY_BEAT_SCHEDULE` on purpose: the office computers are on
     09:00–14:00 and beat does not replay a schedule it slept through, so a nightly sweep would
-    never once run. Generating a letter is exactly when this directory grows, so cleaning up at
-    that moment keeps it bounded without depending on the scheduler at all.
+    never once run. Generating is exactly when these directories grow, so cleaning up at that
+    moment keeps them bounded without depending on the scheduler at all.
     """
+    if job.kind not in UNFILED_KINDS:
+        return
     root = Path(settings.DOCUMENTS_ROOT)
-    cutoff = timezone.now() - timedelta(days=settings.GENERATED_LETTER_RETENTION_DAYS)
+    cutoff = timezone.now() - timedelta(days=settings.GENERATED_OUTPUT_RETENTION_DAYS)
     stale = (
-        GenerationJob.objects.filter(kind=GenerationJob.Kind.ELIGIBILITY)
+        GenerationJob.objects.filter(kind=job.kind)
         .exclude(pk=job.pk)
         .exclude(output_path="")
-        .filter(Q(process_id=job.process_id) | Q(created_at__lt=cutoff))
     )
+    aged = Q(created_at__lt=cutoff)
+    stale = stale.filter(Q(process_id=job.process_id) | aged if job.process_id else aged)
     for old in stale:
         (root / old.output_path).unlink(missing_ok=True)
 
@@ -106,7 +121,7 @@ def run_eligibility_job(job_id: int) -> None:
         destination.mkdir(parents=True, exist_ok=True)
         out_file = destination / f"letter_{job.id}.pdf"
         out_file.write_bytes(pdf)
-        _discard_stale_letters(job)
+        _discard_stale_output(job)
 
         job.output_path = f"{GENERATED_LETTERS_DIR}/{out_file.name}"
         job.status = GenerationJob.Status.DONE
@@ -143,6 +158,7 @@ def _run_bulk_job(job_id: int, *, build_context, stem: str) -> None:
         destination.mkdir(parents=True, exist_ok=True)
         out_file = destination / f"{stem}_{job.id}.pdf"
         out_file.write_bytes(pdf)
+        _discard_stale_output(job)
 
         job.output_path = f"{GENERATED_LISTS_DIR}/{out_file.name}"
         job.status = GenerationJob.Status.DONE
