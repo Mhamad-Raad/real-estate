@@ -42,7 +42,9 @@ export function ProcessCreatePage() {
   const [category, setCategory] = useState("");
   const [landId, setLandId] = useState("");
   const [landAddress, setLandAddress] = useState("");
-  const [lawyer, setLawyer] = useState("");
+  // Whoever opens the case owns it unless the admin says otherwise (UC-092). A lawyer never
+  // sees this field and is assigned server-side; only an admin had to pick from an empty box.
+  const [lawyer, setLawyer] = useState(() => (currentUser?.id ? String(currentUser.id) : ""));
 
   const [draft, setDraft] = useState<ClientDraft>(EMPTY_CLIENT);
   const { errors, setErrors, setFromError, clear } = useFieldErrors();
