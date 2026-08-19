@@ -25,11 +25,11 @@ from .letters import eligibility_context, process_codes_context, process_list_co
 from .models import DocumentTemplate, GenerationJob
 from .rendering import RenderError, docx_to_pdf
 
-# List letters span people, so they live outside the per-person tree (§6.8).
-GENERATED_LISTS_DIR = "_generated/lists"
-# The Step-1 letter is produced to be read and printed, not archived (UC-075) — so it lands here
-# rather than in the beneficiary's folder, and never becomes a Document on the case.
-GENERATED_LETTERS_DIR = "_generated/letters"
+# Both live under `settings.GENERATED_ROOT`, which is **outside the office's archive** (UC-101):
+# a list spans people so it belongs to no case folder (§6.8), and the Step-1 letter is produced to
+# be read and printed rather than archived (UC-075). Neither is ever a Document on a case.
+GENERATED_LISTS_DIR = "lists"
+GENERATED_LETTERS_DIR = "letters"
 
 
 def render_to_pdf(template: DocumentTemplate, context: dict, out_dir: Path) -> bytes:
@@ -79,7 +79,7 @@ def _discard_stale_output(job: GenerationJob) -> None:
 
     A list letter belongs to no single case (§6.8), so it has no per-case predecessor to supersede
     and age alone retires it. Sweeping the lists at all is the fix for the office finding
-    `_generated/lists/` growing without bound — it was letters-only before (UC-096).
+    the lists directory growing without bound — it was letters-only before (UC-096).
 
     Swept here rather than from `CELERY_BEAT_SCHEDULE` on purpose: the office computers are on
     09:00–14:00 and beat does not replay a schedule it slept through, so a nightly sweep would
@@ -88,7 +88,7 @@ def _discard_stale_output(job: GenerationJob) -> None:
     """
     if job.kind not in UNFILED_KINDS:
         return
-    root = Path(settings.DOCUMENTS_ROOT)
+    root = Path(settings.GENERATED_ROOT)
     cutoff = timezone.now() - timedelta(days=settings.GENERATED_OUTPUT_RETENTION_DAYS)
     stale = (
         GenerationJob.objects.filter(kind=job.kind)
@@ -117,7 +117,7 @@ def run_eligibility_job(job_id: int) -> None:
         with tempfile.TemporaryDirectory(prefix="gen-") as work:
             pdf = render_to_pdf(job.template, eligibility_context(job.process), Path(work))
 
-        destination = Path(settings.DOCUMENTS_ROOT) / GENERATED_LETTERS_DIR
+        destination = Path(settings.GENERATED_ROOT) / GENERATED_LETTERS_DIR
         destination.mkdir(parents=True, exist_ok=True)
         out_file = destination / f"letter_{job.id}.pdf"
         out_file.write_bytes(pdf)
@@ -154,7 +154,7 @@ def _run_bulk_job(job_id: int, *, build_context, stem: str) -> None:
         with tempfile.TemporaryDirectory(prefix="gen-") as work:
             pdf = render_to_pdf(job.template, build_context(processes), Path(work))
 
-        destination = Path(settings.DOCUMENTS_ROOT) / GENERATED_LISTS_DIR
+        destination = Path(settings.GENERATED_ROOT) / GENERATED_LISTS_DIR
         destination.mkdir(parents=True, exist_ok=True)
         out_file = destination / f"{stem}_{job.id}.pdf"
         out_file.write_bytes(pdf)

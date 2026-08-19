@@ -146,7 +146,7 @@ class GenerationJobTests(APITestCase):
         job = self._run_eligibility(template)
 
         self.assertEqual(job.status, GenerationJob.Status.DONE)
-        self.assertTrue((settings.DOCUMENTS_ROOT / job.output_path).is_file())
+        self.assertTrue((settings.GENERATED_ROOT / job.output_path).is_file())
         # Nothing on the case, so nothing for the compiled export to pick up either.
         self.assertIsNone(job.document)
         self.assertFalse(
@@ -155,7 +155,7 @@ class GenerationJobTests(APITestCase):
             ).exists()
         )
         # It lives outside the beneficiary's folder, like the other unfiled outputs (§6.8).
-        self.assertTrue(job.output_path.startswith("_generated/"))
+        self.assertTrue(job.output_path.startswith("letters/"))
 
     def test_letters_from_other_cases_are_swept_once_they_expire(self):
         """UC-075: nothing on a case points at a letter file, so without this the store would grow
@@ -175,7 +175,7 @@ class GenerationJobTests(APITestCase):
         )
         run_eligibility_job(stale_job.id)
         stale_job.refresh_from_db()
-        stale_path = settings.DOCUMENTS_ROOT / stale_job.output_path
+        stale_path = settings.GENERATED_ROOT / stale_job.output_path
         self.assertTrue(stale_path.is_file())
         # Age it past the window. `created_at` is auto_now_add, so the ORM cannot set it directly.
         GenerationJob.objects.filter(pk=stale_job.pk).update(
@@ -186,7 +186,7 @@ class GenerationJobTests(APITestCase):
         fresh = self._run_eligibility(template)
 
         self.assertFalse(stale_path.exists(), "an expired letter from another case was kept")
-        self.assertTrue((settings.DOCUMENTS_ROOT / fresh.output_path).is_file())
+        self.assertTrue((settings.GENERATED_ROOT / fresh.output_path).is_file())
 
     def test_a_recent_letter_on_another_case_is_left_alone(self):
         """The sweep must not delete a letter a colleague is printing at the next desk."""
@@ -206,7 +206,7 @@ class GenerationJobTests(APITestCase):
 
         self._run_eligibility(template)
 
-        self.assertTrue((settings.DOCUMENTS_ROOT / theirs.output_path).is_file())
+        self.assertTrue((settings.GENERATED_ROOT / theirs.output_path).is_file())
 
     def test_regenerating_replaces_the_previous_letter_file(self):
         """Nothing on the case points at these, so each run must clear the last one's file."""
@@ -215,12 +215,12 @@ class GenerationJobTests(APITestCase):
         )
 
         first = self._run_eligibility(template)
-        first_path = settings.DOCUMENTS_ROOT / first.output_path
+        first_path = settings.GENERATED_ROOT / first.output_path
         second = self._run_eligibility(template)
 
         self.assertNotEqual(first.output_path, second.output_path)
         self.assertFalse(first_path.exists(), "the superseded letter was left on disk")
-        self.assertTrue((settings.DOCUMENTS_ROOT / second.output_path).is_file())
+        self.assertTrue((settings.GENERATED_ROOT / second.output_path).is_file())
         # The job rows both survive — they are the record of who generated what (§11).
         self.assertEqual(
             GenerationJob.objects.filter(
@@ -240,13 +240,13 @@ class GenerationJobTests(APITestCase):
 
         job.refresh_from_db()
         self.assertEqual(job.status, GenerationJob.Status.DONE)
-        self.assertTrue(job.output_path.startswith("_generated/lists/"))
-        self.assertTrue((settings.DOCUMENTS_ROOT / job.output_path).is_file())
+        self.assertTrue(job.output_path.startswith("lists/"))
+        self.assertTrue((settings.GENERATED_ROOT / job.output_path).is_file())
         # It spans people, so it is not a Document on anyone's process (§6.8).
         self.assertFalse(Document.objects.filter(process=self.process).exists())
 
     def test_an_expired_list_is_swept_when_the_next_one_is_generated(self):
-        """UC-096: `_generated/lists/` grew by one permanent PDF per generation, for ever — the
+        """UC-096: the lists directory grew by one permanent PDF per generation, for ever — the
         sweep was letters-only, so the office found the folder full of files nothing points at."""
         template = make_template(DocumentTemplate.TemplateType.PROCESS_LIST, build_process_list)
         stale_job = GenerationJob.objects.create(
@@ -255,7 +255,7 @@ class GenerationJobTests(APITestCase):
         )
         run_process_list_job(stale_job.id)
         stale_job.refresh_from_db()
-        stale_path = settings.DOCUMENTS_ROOT / stale_job.output_path
+        stale_path = settings.GENERATED_ROOT / stale_job.output_path
         self.assertTrue(stale_path.is_file())
         GenerationJob.objects.filter(pk=stale_job.pk).update(
             created_at=timezone.now()
@@ -270,7 +270,7 @@ class GenerationJobTests(APITestCase):
         fresh.refresh_from_db()
 
         self.assertFalse(stale_path.exists(), "an expired list letter was kept for ever")
-        self.assertTrue((settings.DOCUMENTS_ROOT / fresh.output_path).is_file())
+        self.assertTrue((settings.GENERATED_ROOT / fresh.output_path).is_file())
 
     def test_a_recent_list_is_left_alone(self):
         """A list has no per-case predecessor to supersede, so only age may retire one — the
@@ -282,7 +282,7 @@ class GenerationJobTests(APITestCase):
         )
         run_process_list_job(theirs.id)
         theirs.refresh_from_db()
-        theirs_path = settings.DOCUMENTS_ROOT / theirs.output_path
+        theirs_path = settings.GENERATED_ROOT / theirs.output_path
 
         mine = GenerationJob.objects.create(
             kind=GenerationJob.Kind.PROCESS_LIST, template=template,

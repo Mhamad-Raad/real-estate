@@ -127,7 +127,7 @@ class ListDownloadIsOneShotTests(TestCase):
 
     It belongs to no case — it is a bulk export of many citizens' details that the office saves or
     prints on the spot — so keeping every one ever produced grew the store for nothing and left
-    personal data sitting in `_generated` indefinitely.
+    personal data sitting in the generated scratch directory indefinitely.
     """
 
     def setUp(self):
@@ -140,13 +140,13 @@ class ListDownloadIsOneShotTests(TestCase):
             template_type=DocumentTemplate.TemplateType.PROCESS_LIST,
             name="L", file_path="x/y.docx", sha256="0" * 64,
         )
-        out = Path(settings.DOCUMENTS_ROOT) / "_generated/lists/list_1.pdf"
+        out = Path(settings.GENERATED_ROOT) / "lists/list_1.pdf"
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_bytes(make_pdf(1))
         self.path = out
         self.job = GenerationJob.objects.create(
             kind=GenerationJob.Kind.PROCESS_LIST, template=template,
-            status=GenerationJob.Status.DONE, output_path="_generated/lists/list_1.pdf",
+            status=GenerationJob.Status.DONE, output_path="lists/list_1.pdf",
             process_ids=[], requested_by=self.actor,
         )
         self.api = APIClient()
@@ -176,5 +176,5 @@ class ListDownloadIsOneShotTests(TestCase):
         self.api.get(f"/api/v1/generation-jobs/{self.job.id}/file/")
         self.job.refresh_from_db()
 
-        self.assertEqual(self.job.output_path, "_generated/lists/list_1.pdf")
+        self.assertEqual(self.job.output_path, "lists/list_1.pdf")
         self.assertEqual(self.job.status, self.job.Status.DONE)

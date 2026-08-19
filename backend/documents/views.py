@@ -160,7 +160,7 @@ class GenerationJobViewSet(ReadOnlyModelViewSet):
         job = self.get_object()
         if job.status != GenerationJob.Status.DONE or not job.output_path:
             raise Http404("This job has no downloadable file.")
-        path = settings.DOCUMENTS_ROOT / job.output_path
+        path = settings.GENERATED_ROOT / job.output_path
         if not path.exists():
             # Gone for one of two ordinary reasons, and the message has to say which — "file is
             # missing" reads like a fault when nothing went wrong, and regenerating is one click.

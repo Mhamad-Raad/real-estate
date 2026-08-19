@@ -91,11 +91,26 @@ MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_BYTES", str(25 * 1024 * 1024)))
 # of a large case; this is a runaway-merge backstop, not an input restriction.
 MAX_GENERATED_BYTES = int(os.getenv("MAX_GENERATED_BYTES", str(200 * 1024 * 1024)))
 
+# Where generated letters and lists are rendered — **deliberately NOT under `DOCUMENTS_ROOT`**
+# (UC-101, the office's call). None of them is filed on a case, so none belongs in the office's
+# archive: they were appearing in `LandAllocationData` and in every backup for files whose whole
+# life is "generate it, download it, print it". Scratch space instead — the archive now holds
+# only real case documents and the Step-5 compiled export.
+#
+# The one thing this costs: a restart between generating and downloading loses the file. The
+# download endpoint already answers that case with "Generate it again if needed" rather than an
+# error, because a list is deleted on first download anyway.
+GENERATED_ROOT = (
+    Path(tempfile.mkdtemp(prefix="las-test-generated-"))
+    if TESTING
+    else Path(os.getenv("GENERATED_ROOT", str(Path(tempfile.gettempdir()) / "las-generated")))
+)
+
 # How long a Step-1 letter's PDF is kept before the next generation sweeps it (§6.6, UC-075).
 # No generated letter or list is filed on a case, so once the lawyer navigates away nothing can
 # reach the file again — a day is generous for "generated it, printing it now", and keeps the
-# office's document store from growing by one permanent PDF per generation. Named for *output*
-# rather than the letter since UC-096: the same window now retires the lists too.
+# scratch directory from growing by one permanent PDF per generation. Named for *output* rather
+# than the letter since UC-096: the same window now retires the lists too.
 GENERATED_OUTPUT_RETENTION_DAYS = int(os.getenv("GENERATED_OUTPUT_RETENTION_DAYS", "1"))
 
 # Admin-uploaded .docx letter templates (§3.5, §6.6) — kept beside the documents they generate.
