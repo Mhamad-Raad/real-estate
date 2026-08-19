@@ -112,6 +112,10 @@ export function InstituteStepPanel({
           institutes are what produce the land number and the real-estate paper (UC-037, UC-041). */}
       {step === 4 && (
         <>
+          {/* Above the land card, not inside it (UC-099): the municipality form is a paper the
+              office files, so it belongs with the institutes' own file inputs directly above it —
+              every upload on the step reads as one run, and the land number closes the step. */}
+          <StepDocumentSlots process={process} step={4} canEdit={canEdit} />
           <div className="space-y-4 rounded-lg bg-muted/40 p-3">
             {/* The address rides along with the number (UC-049) — same stored value as Step 1,
                 shown here because this is where the registration institutes settle both. */}
@@ -123,10 +127,6 @@ export function InstituteStepPanel({
               landIdRequired
             />
           </div>
-          {/* Outside the land card on the office's instruction (UC-099): the municipality form is
-              a paper they file, not a property of the land number, and Step 1 already separates
-              its land details from its papers the same way. */}
-          <StepDocumentSlots process={process} step={4} canEdit={canEdit} />
         </>
       )}
 
