@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "@/lib/toast";
 
-import { downloadFile, fetchBlobUrl, fileUrlFor, type FileSource } from "./download";
+import { fetchBlobUrl, fileUrlFor, saveBlobUrl, type FileSource } from "./download";
 
 // Inline PDF preview + print. The bytes need an auth header, so they are fetched as a blob and
 // handed to the iframe as an object URL — a plain <iframe src> would come back 401.
@@ -25,6 +25,9 @@ export function DocumentPreview({
   const { t } = useTranslation();
   const token = useAppSelector((s) => s.auth.access);
   const [url, setUrl] = useState<string | null>(null);
+  // Captured with the blob so downloading needs no second request (UC-102) — a generated letter is
+  // deleted the moment it is read, so a re-fetch would find nothing there.
+  const [serverName, setServerName] = useState<string | null>(null);
   const frame = useRef<HTMLIFrameElement>(null);
   const href = fileUrlFor(source);
 
@@ -33,7 +36,7 @@ export function DocumentPreview({
     let cancelled = false;
 
     fetchBlobUrl(href, token)
-      .then((created) => {
+      .then(({ objectUrl: created, filename }) => {
         // The document may have changed (regenerated) while this was in flight.
         if (cancelled) {
           URL.revokeObjectURL(created);
@@ -41,6 +44,7 @@ export function DocumentPreview({
         }
         objectUrl = created;
         setUrl(created);
+        setServerName(filename ?? null);
       })
       .catch(() => toast.error(t("workflow.previewError")));
 
@@ -63,11 +67,10 @@ export function DocumentPreview({
             variant="outline"
             size="sm"
             disabled={!url}
-            onClick={() =>
-              downloadFile(href, title, token).catch(() =>
-                toast.error(t("workflow.downloadError")),
-              )
-            }
+            onClick={() => {
+              if (!url) return;
+              saveBlobUrl(url, serverName ?? `${title}.pdf`);
+            }}
           >
             <Download className="size-4" />
             {t("common.download")}

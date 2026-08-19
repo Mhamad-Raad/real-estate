@@ -171,6 +171,33 @@ class ListDownloadIsOneShotTests(TestCase):
         self.assertEqual(resp.status_code, 404)
         self.assertIn("already been downloaded", str(resp.data["detail"]))
 
+    def test_a_step_1_letter_is_collected_on_its_first_read_too(self):
+        """UC-102 — the office's instruction was *"just don't save it"*. The letter used to be
+        exempt because its inline preview reads this same endpoint; the client now downloads from
+        the blob the preview already holds, so one read serves preview, print and download."""
+        from .models import DocumentTemplate, GenerationJob
+
+        template = DocumentTemplate.objects.create(
+            template_type=DocumentTemplate.TemplateType.ELIGIBILITY_SINGLE,
+            name="E", file_path="x/e.docx", sha256="1" * 64,
+        )
+        out = Path(settings.GENERATED_ROOT) / "letters/letter_1.pdf"
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_bytes(make_pdf(1))
+        job = GenerationJob.objects.create(
+            kind=GenerationJob.Kind.ELIGIBILITY, template=template,
+            status=GenerationJob.Status.DONE, output_path="letters/letter_1.pdf",
+            process_ids=[], requested_by=self.actor,
+        )
+
+        first = self.api.get(f"/api/v1/generation-jobs/{job.id}/file/")
+        self.assertEqual(first.status_code, 200)
+        self.assertFalse(out.is_file(), "the letter outlived the read that served it")
+
+        second = self.api.get(f"/api/v1/generation-jobs/{job.id}/file/")
+        self.assertEqual(second.status_code, 404)
+        self.assertIn("no longer available", str(second.data["detail"]))
+
     def test_the_job_row_still_records_what_was_produced(self):
         """The file goes; the trail of who exported whose data does not (§11)."""
         self.api.get(f"/api/v1/generation-jobs/{self.job.id}/file/")

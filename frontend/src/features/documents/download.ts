@@ -65,17 +65,32 @@ export async function downloadGenerationJob(id: number, token: string | null) {
   return downloadFile(`/api/v1/generation-jobs/${id}/file/`, `document_${id}.pdf`, token);
 }
 
-/** Blob URL for inline preview/print — the file needs the auth header, so it cannot be an <iframe src>. */
+/** Blob URL for inline preview/print — the file needs the auth header, so it cannot be an <iframe src>.
+ *
+ * Returns the server's filename alongside the blob so the **download can be served from this same
+ * blob** instead of asking the server a second time (UC-102). That is what lets a generated letter
+ * be deleted the moment it is read: one read now covers preview, print and download.
+ */
 export async function fetchBlobUrl(url: string, token: string | null) {
   const res = await fetch(url, {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
   if (!res.ok) throw new Error("preview failed");
-  return URL.createObjectURL(await res.blob());
+  return { objectUrl: URL.createObjectURL(await res.blob()), filename: serverFilename(res) };
+}
+
+/** Save an already-fetched blob under `filename` — no second request, so nothing is read twice. */
+export function saveBlobUrl(objectUrl: string, filename: string) {
+  const a = document.createElement("a");
+  a.href = objectUrl;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
 }
 
 export async function fetchDocumentBlobUrl(id: number, token: string | null) {
-  return fetchBlobUrl(`/api/v1/documents/${id}/file/`, token);
+  return (await fetchBlobUrl(`/api/v1/documents/${id}/file/`, token)).objectUrl;
 }
 
 const templatePreviewUrl = (id: number) => `/api/v1/document-templates/${id}/preview/`;
@@ -83,7 +98,7 @@ const templatePreviewUrl = (id: number) => `/api/v1/document-templates/${id}/pre
 /** A letter is a `.docx` the server renders to PDF with sample data; a blank form is served as
  * the stored PDF itself (§6.6). Both arrive here as PDF bytes. */
 export async function fetchTemplatePreviewUrl(id: number, token: string | null) {
-  return fetchBlobUrl(templatePreviewUrl(id), token);
+  return (await fetchBlobUrl(templatePreviewUrl(id), token)).objectUrl;
 }
 
 /** Saves what the dialog is showing. The blank form is the one the office keeps a paper copy of,

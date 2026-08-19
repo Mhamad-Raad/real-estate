@@ -81,7 +81,7 @@ export function CardReviewPanel({
     let cancelled = false;
 
     fetchBlobUrl(`/api/v1/card-scans/${scan.id}/file/`, token)
-      .then((created) => {
+      .then(({ objectUrl: created }) => {
         if (cancelled) {
           URL.revokeObjectURL(created);
           return;
