@@ -205,3 +205,34 @@ describe("CardReviewPanel field errors", () => {
     expect(await screen.findByTestId("extra-phone")).not.toHaveTextContent("none");
   });
 });
+
+
+// The scan is the door the office actually uses, and this panel is where a lawyer corrects what the
+// OCR proposed — so the ID box has to behave like the intake box, not like a free-text field.
+describe("CardReviewPanel national ID box", () => {
+  const pidBox = () => screen.getByLabelText(/national id/i) as HTMLInputElement;
+
+  it("refuses a letter typed into the card's number", async () => {
+    renderPanel({ draft: { fields: { pid: field("") }, warnings: [] } });
+
+    await userEvent.type(pidBox(), "a");
+
+    expect(pidBox().value).toBe("");
+  });
+
+  it("folds an Arabic-Indic digit, as the dedup key is stored in ASCII", async () => {
+    renderPanel({ draft: { fields: { pid: field("") }, warnings: [] } });
+
+    await userEvent.type(pidBox(), "٧");
+
+    expect(pidBox().value).toBe("7");
+  });
+
+  it("stops at twelve digits", async () => {
+    renderPanel({ draft: { fields: { pid: field("") }, warnings: [] } });
+
+    await userEvent.type(pidBox(), "1234567890123456");
+
+    expect(pidBox().value).toBe("123456789012");
+  });
+});

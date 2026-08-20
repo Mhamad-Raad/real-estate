@@ -1,4 +1,5 @@
-import { render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { ClientFields } from "./ClientFields";
@@ -54,5 +55,41 @@ describe("ClientFields layout", () => {
     renderFields(EMPTY_CLIENT);
 
     expect(document.getElementById("c-spouse")).toBeNull();
+  });
+});
+
+
+// `pid.test.ts` proves the filter works; these prove the boxes actually call it. A helper wired to
+// the wrong field would leave that unit test just as green — which is how the spouse box shipped
+// unfiltered while the beneficiary's own was done (reported by the office, 2026-08-20).
+//
+// One keystroke per assertion, deliberately: the input is **controlled** by the `value` prop, and
+// the parent here is a mock that never feeds a new one back — so the box is empty before every
+// keystroke and only the filtering of that single character can be observed. Accumulation and the
+// 12-digit cap are `pid.test.ts`'s job.
+describe("national ID boxes filter as they are typed", () => {
+  const typeOne = async (id: string, char: string) => {
+    // Testing Library cleans up between *tests*, not between renders inside one — without this the
+    // second lookup finds the first render's node, whose `onChange` is a different mock.
+    cleanup();
+    const onChange = vi.fn();
+    render(<ClientFields value={married} onChange={onChange} showCategory={false} />);
+    await userEvent.type(document.getElementById(id) as HTMLInputElement, char);
+    return onChange.mock.calls.at(-1)?.[0] as ClientInput;
+  };
+
+  it("drops a letter from the beneficiary's ID", async () => {
+    expect((await typeOne("c-pid", "a")).pid).toBe("");
+    expect((await typeOne("c-pid", "7")).pid).toBe("7");
+  });
+
+  it("drops a letter from the SPOUSE's ID", async () => {
+    expect((await typeOne("c-spouse-pid", "a")).spouse_pid).toBe("");
+    expect((await typeOne("c-spouse-pid", "7")).spouse_pid).toBe("7");
+  });
+
+  it("folds an Arabic-Indic digit in both boxes", async () => {
+    expect((await typeOne("c-pid", "٧")).pid).toBe("7");
+    expect((await typeOne("c-spouse-pid", "٧")).spouse_pid).toBe("7");
   });
 });
