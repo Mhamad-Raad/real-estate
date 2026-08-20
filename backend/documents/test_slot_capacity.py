@@ -9,6 +9,7 @@ the import button and a confirmed card scan, which files its document straight o
 import tempfile
 from pathlib import Path
 
+from django.conf import settings
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import override_settings
 from django.urls import reverse
@@ -16,12 +17,13 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from accounts.models import User
-from catalog.document_types import CLIENT_ID
+from catalog.document_types import CLIENT_ID, SPOUSE_ID
 from clients.factories import make_client
 from common.validators import SLOT_FILES_FULL, SLOT_SIDES_FULL
 from processes.models import ProcessInstituteEntry
 from processes.services import create_process
 
+from . import filestore
 from .factories import make_pdf
 from .models import Document
 
@@ -51,13 +53,47 @@ class SlotCapacityTests(APITestCase):
         return self.client.post(reverse("document-list"), body, format="multipart")
 
     def test_a_card_takes_two_sides_and_refuses_a_third(self):
+        """UC-103: the second side **joins** the first, so two sides are one two-page document —
+        and the third is still refused, because capacity counts sides, not rows."""
         self.assertEqual(self._post().status_code, status.HTTP_201_CREATED)
         self.assertEqual(self._post().status_code, status.HTTP_201_CREATED)
 
         resp = self._post()
 
         self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(Document.objects.count(), 1)
+        self.assertEqual(Document.objects.get().page_count, 2)
+
+    def test_the_second_side_joins_the_first_instead_of_filing_beside_it(self):
+        """UC-103, the office's ask: a card is one paper with two sides, so the archive and the
+        screen should show one entry holding page 1 and page 2 — not two loose files to pair up."""
+        first = self._post()
+        self.assertEqual(first.status_code, status.HTTP_201_CREATED)
+        document_id = Document.objects.get().id
+        before = Document.objects.get().sha256
+
+        self.assertEqual(self._post().status_code, status.HTTP_201_CREATED)
+
+        document = Document.objects.get()
+        self.assertEqual(document.id, document_id, "a second row was filed for one card")
+        self.assertEqual(document.page_count, 2)
+        self.assertNotEqual(document.sha256, before, "the merged file was not re-hashed")
+        # The bytes on disk must agree with the row that describes them.
+        stored = (settings.DOCUMENTS_ROOT / document.file_path).read_bytes()
+        self.assertEqual(filestore.count_pages(stored), 2)
+        self.assertEqual(document.size_bytes, len(stored))
+
+    def test_the_spouse_card_merges_on_its_own_slot(self):
+        """The two cards are separate slots — a spouse's side must never join the beneficiary's."""
+        self._post()
+        self._post(document_type=SPOUSE_ID)
+        self._post(document_type=SPOUSE_ID)
+
         self.assertEqual(Document.objects.count(), 2)
+        self.assertEqual(
+            {(d.document_type, d.page_count) for d in Document.objects.all()},
+            {(CLIENT_ID, 1), (SPOUSE_ID, 2)},
+        )
 
     def test_a_card_already_holding_both_sides_in_one_file_is_full(self):
         """The scan path merges front and back into ONE document — counting rows would call that

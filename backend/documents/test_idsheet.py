@@ -54,8 +54,15 @@ class IdSheetTests(TestCase):
         )
 
     def test_four_card_pages_become_one_sheet(self):
-        """The reason this exists: both sides of two cards cost four near-empty pages."""
-        cards = [self._card(), self._card(), self._card(SPOUSE_ID), self._card(SPOUSE_ID)]
+        """The reason this exists: both sides of two cards cost four near-empty pages.
+
+        Filed as two documents of two pages since UC-103 — the second call to `_card` appends to
+        the first and hands back the same, now two-page, document."""
+        self._card()
+        client = self._card()
+        self._card(SPOUSE_ID)
+        spouse = self._card(SPOUSE_ID)
+        cards = [client, spouse]
 
         sheets = card_sheets(cards)
 
@@ -156,11 +163,14 @@ class PageCountTests(TestCase):
     def test_one_side_on_its_own_counts_as_one(self):
         self.assertEqual(self._file(pages=1).page_count, 1)
 
-    def test_two_separate_one_page_scans_also_total_two(self):
-        """Importing the sides as two files must reach the same number as merging them."""
-        sides = [self._file(pages=1), self._file(pages=1)]
+    def test_two_separate_one_page_imports_become_one_two_page_card(self):
+        """UC-103: importing the sides one at a time must reach the same place as scanning both
+        at once — a single document of two pages, not two documents of one."""
+        first = self._file(pages=1)
+        second = self._file(pages=1)
 
-        self.assertEqual(sum(d.page_count for d in sides), 2)
+        self.assertEqual(second.id, first.id)
+        self.assertEqual(second.page_count, 2)
 
     def test_the_card_types_are_the_ones_that_count_pages(self):
         """The flag drives the label too, so the wrong one would say "sides" about paper files."""

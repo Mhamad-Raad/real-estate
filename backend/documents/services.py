@@ -9,7 +9,7 @@ from rest_framework import status
 from docxtpl import DocxTemplate
 from rest_framework.exceptions import APIException, ValidationError
 
-from catalog.document_types import SPOUSE_ID, slot_capacity
+from catalog.document_types import IDENTITY_TYPE_CODES, SPOUSE_ID, slot_capacity
 from common.models import ActivityLog
 from common.services import record_activity
 from common.validators import SLOT_FILES_FULL, SLOT_SIDES_FULL
@@ -244,6 +244,51 @@ def supersede_generated_documents(*, process, document_type: str, actor, job_id=
     return superseded
 
 
+def _append_side(*, document, content: bytes, actor, request=None) -> Document:
+    """Join a second side onto the card already filed in this slot (UC-103).
+
+    The file is rewritten in place, so the document keeps its id, its row and its name — which is
+    the whole point: one entry in the case folder and one row on screen, holding page 1 and page 2
+    of the same card rather than two loose files a reader has to pair up.
+
+    Written **before** the row is updated and restored if the update fails, mirroring
+    `create_document`: the bytes on disk and the hash in the database must never disagree.
+    """
+    path = settings.DOCUMENTS_ROOT / document.file_path
+    previous = path.read_bytes()
+    merged = filestore.merge_pdfs([previous, content])
+    before = {"page_count": document.page_count, "size_bytes": document.size_bytes}
+    path.write_bytes(merged)
+    try:
+        with transaction.atomic():
+            document.page_count = filestore.count_pages(merged)
+            document.size_bytes = len(merged)
+            document.sha256 = filestore.sha256_hex(merged)
+            document.version += 1
+            document.save(
+                update_fields=[
+                    "page_count", "size_bytes", "sha256", "version", "updated_at",
+                ]
+            )
+            record_activity(
+                actor=actor,
+                action=ActivityLog.Action.UPDATE,
+                entity_type="Document",
+                entity_id=document.id,
+                before=before,
+                after={
+                    "page_count": document.page_count,
+                    "size_bytes": document.size_bytes,
+                    "reason": "side appended",
+                },
+                request=request,
+            )
+    except Exception:
+        path.write_bytes(previous)  # the row did not change, so the file must not either
+        raise
+    return document
+
+
 def create_document(
     *,
     process,
@@ -279,6 +324,22 @@ def create_document(
             pages=pages,
             institute_entry=institute_entry,
         )
+
+    # A card is ONE document with two sides, so a second side joins the first rather than filing
+    # beside it (UC-103). Only identity slots: they are the only ones whose parts are two halves of
+    # a single paper — merging two municipality papers into one PDF would misrepresent them.
+    if not generated and document_type in IDENTITY_TYPE_CODES:
+        existing = (
+            Document.objects.filter(
+                process=process, step_number=step_number, document_type=document_type
+            )
+            .order_by("id")
+            .first()
+        )
+        if existing is not None:
+            return _append_side(
+                document=existing, content=content, actor=actor, request=request
+            )
 
     display, rel = compose_location(
         process=process, document_type=document_type, institute_entry=institute_entry
