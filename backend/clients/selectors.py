@@ -5,6 +5,8 @@ from typing import NamedTuple
 from django.contrib.postgres.search import TrigramSimilarity
 from django.db.models import Q
 
+from common.validators import normalise_pid
+
 from .models import Client
 
 # Postgres' `%` operator defaults to 0.3, which is far too loose for Kurdish/Arabic mother
@@ -24,14 +26,21 @@ def name_or_pid(term: str, *, prefix: str = "") -> Q:
     `prefix` lets the Processes list reuse the identical rule across its `client` FK, so the two
     screens cannot drift apart again.
     """
-    return Q(**{f"{prefix}full_name__icontains": term}) | Q(**{f"{prefix}pid__icontains": term})
+    # The PID half searches the **folded** term. Stored PIDs are canonical ASCII, but the office
+    # types numbers in Arabic-Indic (§9) — and since the entry box now accepts that script, a
+    # lawyer who searches the way they type would find nobody. The name half keeps the raw term:
+    # folding it would only matter for a name containing digits, where the raw form is what is
+    # stored.
+    return Q(**{f"{prefix}full_name__icontains": term}) | Q(
+        **{f"{prefix}pid__icontains": normalise_pid(term)}
+    )
 
 
 def search_clients(*, search: str = "", pid: str = ""):
     """List/search clients: `pid` stays an exact filter; `search` is the fuzzy name-or-ID box."""
     qs = Client.objects.all()
     if pid:
-        qs = qs.filter(pid=pid)
+        qs = qs.filter(pid=normalise_pid(pid))
     if search:
         qs = qs.filter(name_or_pid(search))
     return qs.order_by("full_name")

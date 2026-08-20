@@ -13,7 +13,9 @@ from rest_framework.test import APITestCase
 
 from accounts.models import User
 from catalog.models import Category
-from clients.serializers import ClientSerializer
+from clients.models import Client
+from clients.selectors import duplicate_matches
+from clients.serializers import ClientSerializer, DuplicateCheckSerializer
 from common.validators import (
     BIRTH_FUTURE,
     BIRTH_TOO_OLD,
@@ -148,6 +150,61 @@ class ClientSerializerValidationTests(TestCase):
         accepting both without folding them would open a duplicate straight through the guard."""
         self.assertEqual(validate_pid("١٩٩٠٠١٠١١٢٣٤"), "199001011234")
         self.assertEqual(validate_pid("۱۹۹۰۰۱۰۱۱۲۳۴"), "199001011234")
+
+
+class PidCanonicalFormTests(TestCase):
+    """The PID is the "no land twice" dedup key (§5.7), which compares **strings**. Every path that
+    writes or searches one must agree on its shape, or the guard fails open."""
+
+    def _client(self):
+        return Client.objects.create(
+            full_name="P", pid="777000000777", mother_full_name="M",
+            date_of_birth=date(1990, 1, 1),
+        )
+
+    def test_an_unchanged_pid_re_sent_in_arabic_indic_is_still_stored_as_ascii(self):
+        """Found in review. The "unchanged, leave it alone" branch compared *after* folding and
+        then returned the **raw** input — so re-sending an ASCII PID in Arabic-Indic took the skip
+        and stored the unfolded form, leaving one person's ID in two shapes."""
+        client = self._client()
+
+        serializer = ClientSerializer(
+            client, data={"pid": "٧٧٧٠٠٠٠٠٠٧٧٧", "version": client.version}, partial=True
+        )
+
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+        self.assertEqual(serializer.validated_data["pid"], "777000000777")
+
+    def test_the_duplicate_check_folds_before_it_searches(self):
+        """Also found in review, and the worse of the two: this is the warning shown *before*
+        saving, and it matches by equality — so a lawyer typing `٧٧٧…` against a row stored as
+        `777…` was told there was no duplicate about someone already on file."""
+        self._client()
+
+        serializer = DuplicateCheckSerializer(data={"pid": "٧٧٧٠٠٠٠٠٠٧٧٧"})
+        serializer.is_valid()
+        report = duplicate_matches(**serializer.validated_data)
+
+        self.assertEqual(len(report.pid), 1)
+
+    def test_the_search_box_finds_a_pid_typed_in_arabic_indic(self):
+        """The third path with the same blind spot, and the one the office touches most: they
+        search by PID fragment (UC-005), and the entry box now accepts the script they type in."""
+        from clients.selectors import search_clients
+
+        self._client()
+
+        self.assertEqual(search_clients(search="٧٧٧٠٠٠").count(), 1)
+        self.assertEqual(search_clients(search="777000").count(), 1)
+        self.assertEqual(search_clients(pid="٧٧٧٠٠٠٠٠٠٧٧٧").count(), 1)
+
+    def test_the_duplicate_check_does_not_validate_length(self):
+        """It runs against half-typed input; refusing a short entry would turn the duplicate
+        warning into a form error while the lawyer is still typing."""
+        serializer = DuplicateCheckSerializer(data={"pid": "777"})
+
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+        self.assertEqual(serializer.validated_data["pid"], "777")
 
 
 class BothCreationDoorsValidateTests(APITestCase):

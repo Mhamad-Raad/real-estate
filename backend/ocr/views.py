@@ -111,11 +111,14 @@ class ConfirmSerializer(serializers.Serializer):
     # PID being set or changed, and never on one the confirmation merely carries along from the
     # record it is updating.
     def _validated_pid(self, value, field: str):
+        # Normalised on both branches, for the reason spelled out in `ClientSerializer`: returning
+        # the raw input when the value is "unchanged" stores an Arabic-Indic copy of an ASCII PID.
+        canonical = normalise_pid(value)
         existing = self.initial_data.get("client")
         if existing:
             current = Client.objects.filter(pk=existing).values_list(field, flat=True).first()
-            if current is not None and normalise_pid(value) == current:
-                return value
+            if current is not None and canonical == current:
+                return canonical
         return validate_pid(value)
 
     def validate_pid(self, value):

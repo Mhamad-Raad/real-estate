@@ -45,8 +45,13 @@ class ClientSerializer(serializers.ModelSerializer):
     # object — so validating unconditionally would refuse a phone correction on a beneficiary whose
     # PID nobody touched. See `common.validators.validate_pid`.
     def _validated_pid(self, value, field: str):
-        if self.instance is not None and normalise_pid(value) == getattr(self.instance, field):
-            return value  # unchanged; carried along by an edit to some other field
+        # **Normalised on both branches.** Returning the raw input when the value is "unchanged"
+        # looked harmless and was not: re-sending an existing ASCII PID written in Arabic-Indic
+        # compares equal *after folding*, so it took the skip — and then stored the unfolded form,
+        # leaving one person's ID in two shapes and invisible to the dedup index (§5.7).
+        canonical = normalise_pid(value)
+        if self.instance is not None and canonical == getattr(self.instance, field):
+            return canonical  # unchanged; carried along by an edit to some other field
         return validate_pid(value)
 
     def validate_pid(self, value):
@@ -97,3 +102,14 @@ class DuplicateCheckSerializer(serializers.Serializer):
     # A household may hold one allocation, so the spouse's ID is part of the check (§5.7).
     spouse_pid = serializers.CharField(required=False, allow_blank=True, default="")
     exclude_id = serializers.IntegerField(required=False)
+
+    # **Folded, exactly as a stored PID is.** This check is the warning the office sees *before*
+    # saving, and it searches by equality — so a lawyer typing `١٩٩٠…` against a row stored as
+    # `1990…` was told "no duplicate" about a person who is already on file. It must not be
+    # validated here, only normalised: the check runs against half-typed input, and refusing a
+    # 6-digit entry would turn the duplicate warning into a form error.
+    def validate_pid(self, value):
+        return normalise_pid(value)
+
+    def validate_spouse_pid(self, value):
+        return normalise_pid(value)
