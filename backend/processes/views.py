@@ -312,6 +312,12 @@ class InstituteEntryViewSet(AuditedSoftDeleteViewSet, ModelViewSet):
         process = serializer.validated_data["process"]
         if not (self.request.user.is_admin or process.assigned_lawyer_id == self.request.user.id):
             raise PermissionDenied("Only the assigned lawyer or an admin can add institute entries.")
+        # A new row starts on the lawyer the **case** was given to (2026-08-20, the office). Nearly
+        # every institute is handled by the case's own lawyer, so an empty box was a field they
+        # re-answered on every row — and one left blank recorded nobody. Still free to change: this
+        # is a record of who handled that institute, and per §7.2 it grants no permission of its own.
+        if serializer.validated_data.get("assigned_lawyer") is None:
+            serializer.validated_data["assigned_lawyer"] = process.assigned_lawyer
         try:
             super().perform_create(serializer)
         except IntegrityError:  # duplicate fixed institute for this process/step

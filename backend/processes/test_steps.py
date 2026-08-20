@@ -70,6 +70,36 @@ class WorkflowApiTests(APITestCase):
         )
         self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
 
+    def test_a_new_institute_row_starts_on_the_case_s_own_lawyer(self):
+        """2026-08-20, the office: the box opened on nobody, so the lawyer re-answered a question
+        the case had already answered — and a row left alone recorded no one at all."""
+        resp = self.client.post(
+            reverse("institute-entry-list"),
+            {"process": self.process.id, "step_number": 2, "institute_code": "INST_S2_A"},
+            format="json",
+        )
+
+        self.assertEqual(resp.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(resp.data["assigned_lawyer"], self.process.assigned_lawyer_id)
+
+    def test_an_explicit_assignee_still_wins(self):
+        """A default, not a rule — an institute handled by a colleague must still say so."""
+        other = User.objects.create_user("other_inst", password="pw12345678")
+
+        resp = self.client.post(
+            reverse("institute-entry-list"),
+            {
+                "process": self.process.id,
+                "step_number": 2,
+                "institute_code": "INST_S2_A",
+                "assigned_lawyer": other.id,
+            },
+            format="json",
+        )
+
+        self.assertEqual(resp.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(resp.data["assigned_lawyer"], other.id)
+
     def test_duplicate_fixed_institute_rejected(self):
         body = {"process": self.process.id, "step_number": 2, "institute_code": "INST_S2_A"}
         first = self.client.post(reverse("institute-entry-list"), body, format="json")
