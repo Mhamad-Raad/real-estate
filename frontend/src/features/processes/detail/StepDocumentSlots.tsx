@@ -68,12 +68,18 @@ export function StepDocumentSlots({
                   {documentTypeLabel(documentType, t(display_key))}
                   {/* Only where the office files more than one part — it says how many are
                       wanted and how many are in, without blocking the step (UC-055). */}
-                  {expected > 1 && (
+                  {/* Only while it is still actionable. A finished card said "2 of 2 sides", which
+                      is arithmetic the reader has to do to learn nothing — it now says it is
+                      complete, and says nothing at all when the slot is empty and the line below
+                      already reports that (UC-103). */}
+                  {expected > 1 && filed > 0 && (
                     <span className="ms-2 text-xs font-normal text-muted-foreground">
-                      {t(byPage ? "workflow.sidesExpected" : "workflow.filesExpected", {
-                        have: num(have),
-                        want: num(expected),
-                      })}
+                      {full
+                        ? t(byPage ? "workflow.sidesComplete" : "workflow.filesComplete")
+                        : t(byPage ? "workflow.sidesExpected" : "workflow.filesExpected", {
+                            have: num(have),
+                            want: num(expected),
+                          })}
                     </span>
                   )}
                 </Label>
@@ -83,6 +89,8 @@ export function StepDocumentSlots({
                     step={step}
                     documentType={type}
                     label={t("workflow.import")}
+                    // Both sides of a card can be picked together; one at a time still works.
+                    multiple={byPage}
                     disabled={full}
                     disabledReason={t(byPage ? "errors.slot.sidesFull" : "errors.slot.filesFull")}
                   />

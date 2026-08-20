@@ -53,17 +53,26 @@ const process = (documents: DocumentMeta[]) =>
 
 // The slot's count answers one question: is this paper complete? (UC-083, UC-084)
 describe("StepDocumentSlots count", () => {
-  it("counts both sides of a card stored as one two-page file", () => {
+  it("says a card with both sides is complete rather than making the reader do arithmetic", () => {
+    // UC-103: "2 of 2 sides" was a sum whose answer is always "done" — so it now says so.
     render(<StepDocumentSlots process={process([doc({ page_count: 2 })])} step={1} canEdit />);
 
-    expect(screen.getByText("2 of 2 sides")).toBeInTheDocument();
+    expect(screen.getByText("both sides")).toBeInTheDocument();
+    expect(screen.queryByText("2 of 2 sides")).not.toBeInTheDocument();
   });
 
   it("never reports more sides than the card has", () => {
     // A three-page scan read "3 of 2 sides", which looks like a fault rather than an answer.
     render(<StepDocumentSlots process={process([doc({ page_count: 3 })])} step={1} canEdit />);
 
-    expect(screen.getByText("2 of 2 sides")).toBeInTheDocument();
+    expect(screen.getByText("both sides")).toBeInTheDocument();
+  });
+
+  it("says nothing at all about an empty slot — the line below already reports it", () => {
+    render(<StepDocumentSlots process={process([])} step={1} canEdit />);
+
+    expect(screen.queryByText(/of 2 sides/)).not.toBeInTheDocument();
+    expect(screen.queryByText("both sides")).not.toBeInTheDocument();
   });
 
   it("still shows a half-filed card as incomplete", () => {
@@ -81,7 +90,7 @@ describe("StepDocumentSlots count", () => {
 
     render(<StepDocumentSlots process={process(papers)} step={1} canEdit />);
 
-    expect(screen.getByText("2 of 2 files")).toBeInTheDocument();
+    expect(screen.getByText("complete")).toBeInTheDocument();
   });
 });
 

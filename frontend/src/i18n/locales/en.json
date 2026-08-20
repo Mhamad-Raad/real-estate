@@ -271,6 +271,8 @@
     "noFile": "No file yet",
     "filesExpected": "{{have}} of {{want}} files",
     "sidesExpected": "{{have}} of {{want}} sides",
+    "filesComplete": "complete",
+    "sidesComplete": "both sides",
     "assignedLawyer": "Assigned lawyer",
     "approval": "Approval",
     "approvalDate": "Approval date",

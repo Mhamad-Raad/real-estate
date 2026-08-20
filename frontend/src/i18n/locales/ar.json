@@ -271,6 +271,8 @@
     "noFile": "لا يوجد ملف بعد",
     "filesExpected": "{{have}} من {{want}} ملفات",
     "sidesExpected": "{{have}} من {{want}} وجه",
+    "filesComplete": "مكتمل",
+    "sidesComplete": "كلا الوجهين",
     "assignedLawyer": "المحامي المُكلّف",
     "approval": "الموافقة",
     "approvalDate": "تاريخ الموافقة",

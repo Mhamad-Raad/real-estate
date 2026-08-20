@@ -23,6 +23,7 @@ export function DocumentUpload({
   label,
   disabled = false,
   disabledReason,
+  multiple = false,
 }: {
   process: number;
   step: number;
@@ -32,16 +33,23 @@ export function DocumentUpload({
   disabled?: boolean;
   /** Why both controls are greyed out — a full slot looks like a fault without it. */
   disabledReason?: string;
+  /** Offer picking several files at once — the two sides of a card (UC-103). Never required. */
+  multiple?: boolean;
 }) {
   const { t } = useTranslation();
   const [upload, { isLoading }] = useUploadDocumentMutation();
   const inputRef = useRef<HTMLInputElement>(null);
 
   const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files ?? []);
+    if (!files.length) return;
     try {
-      await upload({ process, step_number: step, document_type: documentType, institute_entry: instituteEntry, file }).unwrap();
+      // **One at a time, in order.** Picking both sides of a card at once is a convenience, never
+      // a requirement (UC-103) — and they must arrive sequentially, because the second is merged
+      // into the document the first created and two parallel requests would race for it.
+      for (const file of files) {
+        await upload({ process, step_number: step, document_type: documentType, institute_entry: instituteEntry, file }).unwrap();
+      }
       toast.success(t("workflow.uploaded"));
     } catch (err) {
       // `t` last: the server answers a refused upload with an i18n key, not an English sentence.
@@ -64,6 +72,7 @@ export function DocumentUpload({
         ref={inputRef}
         type="file"
         accept="application/pdf,image/jpeg,image/png,image/tiff"
+        multiple={multiple}
         className="hidden"
         onChange={onFile}
       />

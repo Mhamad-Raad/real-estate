@@ -271,6 +271,8 @@
     "noFile": "هێشتا فایل نییە",
     "filesExpected": "{{have}} لە {{want}} فایل",
     "sidesExpected": "{{have}} لە {{want}} ڕوو",
+    "filesComplete": "تەواو",
+    "sidesComplete": "هەردوو ڕوو",
     "assignedLawyer": "پارێزەری دیاریکراو",
     "approval": "پەسەندکردن",
     "approvalDate": "ڕێکەوتی پەسەندکردن",
