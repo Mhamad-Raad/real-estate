@@ -466,25 +466,69 @@ STEP M11. And last: stop anyone deleting the two folders by accident.
 
   From your own testing in the office:
 
-  - Every step now carries its own dates, taken from the paperwork of
-    that step rather than the day the step was opened.
-  - Step 3 can only be closed by an institute that has actually
-    decided. A date typed against a still-pending body no longer
-    closes it.
-  - In step 4 only the two institutes are optional. The land number
-    and the municipality form are required again.
-  - Marking a case complete now compiles the case file by itself. The
-    button comes back afterwards as Recompile.
-  - A document slot refuses a file it has no room for, and the
-    identity card is counted by its two sides, not by files.
-  - Identity cards print four to a page, cropped to the card, so they
-    come out at their real size.
-  - The intake form keeps what you have typed when you switch tabs,
-    and asks about the spouse last.
-  - The spouse identity card has its own slot.
-  - A text-size setting that scales the whole app.
-  - Passwords can be held to reveal, and a new one must be confirmed.
-  - The step-1 letter is produced to print, not filed onto the case.
+  IDENTITY CARDS
+  - A card's two sides are now ONE file, whether you scan them or import
+    them. One row on the screen, one file in the folder, front and back
+    as page 1 and page 2.
+  - Both sides can be picked at once when importing. One at a time
+    still works exactly as before.
+  - A card with both sides now says "both sides" instead of counting.
+  - Deleting a card removes the whole card, both sides together.
+
+  THE NATIONAL ID
+  - It must be exactly 12 numbers, for the beneficiary and the spouse,
+    whether typed in or read from a card. The box refuses anything else
+    as you type.
+  - Numbers written in Kurdish/Arabic digits are accepted and stored as
+    ordinary digits, so the duplicate check can still see them.
+  - ** Records already on file are not affected. ** You can still
+    correct the phone number of a beneficiary whose ID was entered
+    before this rule. Only an ID you actually change must be 12 digits.
+
+  FILES ON DISK
+  - Saved files no longer carry random letters and numbers. A file is
+    named for what it is, and a second file in the same slot is
+    numbered — the way Windows numbers a copy.
+  - Generated letters and lists are NOT kept any more. They are made,
+    you print or save them, and they are gone. Nothing generated sits
+    in your document folder or in a backup. The compiled case file from
+    step 5 is still kept, exactly as before.
+
+  DATES
+  - Step 4 now ends on the date of its LAST institute to decide, the
+    same way step 3 already did.
+  - The closing date in step 5 is accepted as you type it, including a
+    date earlier than the day you marked the case complete.
+
+  THE SCREENS
+  - A new case is assigned to whoever opens it.
+  - An institute row starts on the lawyer the case belongs to, instead
+    of nobody.
+  - The out-of-city institute name has room for the whole name.
+  - In step 4 the municipality form sits with the other file boxes.
+  - The button back to the case list is easier to see.
+
+
+------------------------------------------------------------------------
+  ONE THING TO RUN AFTER THE UPDATE
+------------------------------------------------------------------------
+
+  Institute rows filed BEFORE this version recorded no lawyer at all,
+  so the case file prints a blank where a name belongs. One command
+  fills them in from the lawyer each case belongs to.
+
+  Do it AFTER the checks above have passed, in the same PowerShell:
+
+      docker compose exec backend python manage.py backfill_entry_lawyers
+
+  It only REPORTS. It tells you how many rows are blank and changes
+  nothing. Then, to actually fill them in:
+
+      docker compose exec backend python manage.py backfill_entry_lawyers --apply
+
+  It never touches a row that already names someone, so an institute a
+  colleague handled keeps saying so. Running it twice does nothing the
+  second time.
 
 
 ------------------------------------------------------------------------
@@ -567,6 +611,7 @@ STEP M11. And last: stop anyone deleting the two folders by accident.
   [ ] 7. docker compose ls — NAME is the same
   [ ] 8. Footer reads ${APP_VERSION} (build ${APP_BUILD})
   [ ] 9. All cases still listed, one case opened and checked
+  [ ] 10. backfill_entry_lawyers run with --apply (see the section above)
 
   Only if you also did the MOVING section:
 
