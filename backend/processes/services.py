@@ -17,7 +17,13 @@ from common.models import ActivityLog
 from common.services import record_activity
 
 from . import status as step_status
-from .constants import FIRST_STEP, LAST_STEP, STEP_NUMBERS, WORKING_STEPS
+from .constants import (
+    FIRST_STEP,
+    INSTITUTE_DATED_STEPS,
+    LAST_STEP,
+    STEP_NUMBERS,
+    WORKING_STEPS,
+)
 from .models import DuplicateOverride, Process, ProcessInstituteEntry, ProcessStep
 
 
@@ -406,11 +412,15 @@ def settle_entry(entry) -> None:
     the office to fill, rather than inventing today; and an end date already on the step is left
     alone, because a date typed by hand is a correction.
 
-    **Step 3 ends on the last of its institutes to decide (UC-090).** It carries three fixed bodies
-    plus any out-of-city rows, so the step is not over until the furthest one is in — its end date
-    is the **latest** approval date across them all, and it moves as later ones arrive. Blank-only
-    would be wrong here in a way it is not for step 2: it would freeze on whichever institute
-    happened to be decided first.
+    **Steps 3 and 4 end on the last of their institutes to decide (UC-090, UC-106).** Each carries
+    several bodies — step 3 its three fixed ones plus any out-of-city rows, step 4 its two — so
+    neither is over until the furthest one is in. The end date is the **latest** approval across
+    them, and it moves as later ones arrive. Blank-only would be wrong here in a way it is not for
+    step 2: it would freeze on whichever institute happened to be decided first.
+
+    Step 4's institutes are optional (UC-088), which changes nothing here: this dates the step from
+    the bodies that **did** answer, and a step nobody answered simply keeps the date the office
+    types on it.
 
     That date only ever moves **forward**. A hand-typed date later than every approval is the
     office saying something this rule cannot see, and it survives; one earlier than an approval
@@ -420,7 +430,7 @@ def settle_entry(entry) -> None:
     if step == 2:
         if entry.approval_status != entry.ApprovalStatus.PENDING and entry.approval_date:
             _close_step_on(entry.process, step, entry.approval_date, only_when_blank=True)
-    elif step == 3:
+    elif step in INSTITUTE_DATED_STEPS:
         # **Decided institutes only**, exactly as step 2 above. The date box is editable while the
         # status is still `pending`, so a lawyer noting down when they expect an answer would
         # otherwise close the step on a body that has not answered — found in review, 2026-08-17.
@@ -428,7 +438,7 @@ def settle_entry(entry) -> None:
             (
                 e.approval_date
                 for e in entry.process.institute_entries.all()
-                if e.step_number == 3
+                if e.step_number == step
                 and e.approval_date
                 and e.approval_status != e.ApprovalStatus.PENDING
             ),

@@ -182,6 +182,52 @@ class WorkflowApiTests(APITestCase):
 
         self.assertIsNone(self._end_date(3))
 
+    def test_step_4_ends_on_the_last_of_its_institutes_to_decide(self):
+        """UC-106, the office: step 4 carries two bodies, so like step 3 it is not over until the
+        furthest one has answered. It was the only institute step still dated by hand."""
+        codes = codes_for_step(4)
+        self._approve(4, codes[0], date="2026-07-02")
+        self.assertEqual(str(self._end_date(4)), "2026-07-02")
+
+        self._approve(4, codes[1], date="2026-07-11")
+        self.assertEqual(str(self._end_date(4)), "2026-07-11")
+
+    def test_an_earlier_step_4_approval_arriving_later_does_not_drag_the_end_back(self):
+        """Same forward-only rule as step 3 — the step ended when the last body decided."""
+        codes = codes_for_step(4)
+        self._approve(4, codes[0], date="2026-07-11")
+        self._approve(4, codes[1], date="2026-07-02")
+
+        self.assertEqual(str(self._end_date(4)), "2026-07-11")
+
+    def test_a_pending_step_4_institute_carrying_a_date_does_not_close_it(self):
+        """The date box is editable while the status is pending, so a lawyer noting when they
+        expect an answer must not close the step on a body that has not answered."""
+        self.client.post(
+            reverse("institute-entry-list"),
+            {"process": self.process.id, "step_number": 4, "institute_code": codes_for_step(4)[0],
+             "assigned_lawyer": self.lawyer.id, "approval_status": "pending",
+             "approval_date": "2026-07-15"},
+            format="json",
+        )
+
+        self.assertIsNone(self._end_date(4))
+
+    def test_a_hand_typed_step_4_end_later_than_every_approval_survives(self):
+        """Step 4's institutes are optional (UC-088), so a typed date is often the only one there
+        is — it must not be overwritten by a body that answers afterwards."""
+        codes = codes_for_step(4)
+        self._approve(4, codes[0], date="2026-07-02")
+        row = ProcessStep.objects.get(process=self.process, step_number=4)
+        self.client.patch(
+            reverse("process-steps", args=[self.process.id, 4]),
+            {"end_date": "2026-08-20", "version": row.version}, format="json",
+        )
+
+        self._approve(4, codes[1], date="2026-07-11")
+
+        self.assertEqual(str(self._end_date(4)), "2026-08-20")
+
     def test_a_hand_typed_step_3_end_later_than_every_approval_survives(self):
         """The office saying something this rule cannot see — the date only moves forward."""
         codes = codes_for_step(3)

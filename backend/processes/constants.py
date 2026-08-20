@@ -34,3 +34,8 @@ WORKING_STEPS = range(FIRST_STEP, LAST_STEP)
 # that nobody did. It is the *case* that may close over it — the compiled report reads the two
 # together and prints "skipped" (§10.3).
 OPTIONAL_INSTITUTE_STEPS = frozenset({4})
+
+# The steps whose end date is the **latest** of their institutes' approvals (UC-090, UC-106).
+# Both carry several bodies, so neither is over until the furthest one has answered — unlike step 2,
+# which has exactly one institute and therefore one finishing moment.
+INSTITUTE_DATED_STEPS = frozenset({3, 4})
