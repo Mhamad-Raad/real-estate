@@ -8,6 +8,7 @@ a government letter.
 from datetime import date, timedelta
 
 from django.test import TestCase
+from django.urls import reverse
 from rest_framework import serializers
 from rest_framework.test import APITestCase
 
@@ -267,6 +268,56 @@ class BothCreationDoorsValidateTests(APITestCase):
 
         self.assertFalse(serializer.is_valid())
         self.assertIn("date_of_birth", serializer.errors)
+
+
+    def test_the_scan_confirm_door_refuses_a_short_pid(self):
+        """The scan is the door the office actually uses, and the card's number is the one the OCR
+        proposes — so the 12-digit rule has to live here too, not only on the intake form."""
+        from ocr.views import ConfirmSerializer
+
+        serializer = ConfirmSerializer(data={"full_name": "A", "pid": "12345"})
+
+        self.assertFalse(serializer.is_valid())
+        self.assertEqual(serializer.errors["pid"], [PID_FORMAT])
+
+    def test_the_scan_confirm_door_refuses_a_short_spouse_pid(self):
+        """The spouse card is confirmed through this same door (UC-080), and `spouse_pid` is the
+        household half of the dedup key (§5.7)."""
+        from ocr.views import ConfirmSerializer
+
+        serializer = ConfirmSerializer(data={"full_name": "A", "spouse_pid": "12345"})
+
+        self.assertFalse(serializer.is_valid())
+        self.assertEqual(serializer.errors["spouse_pid"], [PID_FORMAT])
+
+    def test_the_scan_confirm_door_still_takes_a_card_that_read_nothing(self):
+        """A failed reading is confirmable — the lawyer types the values in — so an empty PID is
+        the OCR's silence, not a malformed entry."""
+        from ocr.views import ConfirmSerializer
+
+        serializer = ConfirmSerializer(data={"full_name": "A", "pid": "", "spouse_pid": ""})
+
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+
+    def test_intake_refuses_a_short_spouse_pid(self):
+        """The other door, same rule — reported by the office after the first cut shipped."""
+        response = self.client.post(
+            reverse("process-list"),
+            {
+                "category": self.category.id,
+                "client_data": {
+                    "full_name": "A", "pid": "999000000991", "mother_full_name": "M",
+                    "date_of_birth": "1990-01-01", "category": self.category.id,
+                    "marital_status": "married", "spouse_name": "S",
+                    "spouse_date_of_birth": "1992-01-01", "spouse_mother_full_name": "SM",
+                    "spouse_pid": "12345",
+                },
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data["client_data"]["spouse_pid"], [PID_FORMAT])
 
 
 class StepDateTests(APITestCase):

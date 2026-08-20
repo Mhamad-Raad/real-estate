@@ -15,6 +15,8 @@ import { useFieldErrors } from "@/hooks/useFieldErrors";
 
 import { DraftFieldInput } from "./DraftFieldInput";
 import { useConfirmCardScanMutation } from "./cardScansApi";
+import { filterPid } from "@/lib/pid";
+
 import { CARD_FIELDS, type CardScan, type ConfirmPayload } from "./types";
 
 type Values = Record<(typeof CARD_FIELDS)[number], string>;
@@ -184,7 +186,10 @@ export function CardReviewPanel({
             error={errors[name]}
             onChange={(value) => {
               clear(name);
-              setValues((current) => ({ ...current, [name]: value }));
+              // The card's own number is a national ID like any other, and this is where a lawyer
+              // corrects what the OCR proposed — so it filters exactly as the intake box does.
+              const next = name === "pid" ? filterPid(value) : value;
+              setValues((current) => ({ ...current, [name]: next }));
             }}
           />
         ))}

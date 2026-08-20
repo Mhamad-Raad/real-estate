@@ -215,7 +215,13 @@ export function ClientFields({
               dir="ltr"
               className="text-start"
               value={form.spouse_pid}
-              onChange={set("spouse_pid")}
+              inputMode="numeric"
+              // Same rule and same box behaviour as the beneficiary's own ID — it is the household
+              // half of the dedup key (§5.7), so it is held to the same shape.
+              onChange={(e) => {
+                onFieldEdit?.("spouse_pid");
+                onChange({ ...form, spouse_pid: filterPid(e.target.value) });
+              }}
               {...bad("spouse_pid")}
             />
             {err("spouse_pid")}
