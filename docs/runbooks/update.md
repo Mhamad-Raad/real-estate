@@ -474,6 +474,8 @@ STEP M11. And last: stop anyone deleting the two folders by accident.
     still works exactly as before.
   - A card with both sides now says "both sides" instead of counting.
   - Deleting a card removes the whole card, both sides together.
+  - Cards already on file as two separate documents are left exactly as
+    they are. Only cards filed from now on are joined.
 
   THE NATIONAL ID
   - It must be exactly 12 numbers, for the beneficiary and the spouse,
@@ -510,8 +512,34 @@ STEP M11. And last: stop anyone deleting the two folders by accident.
 
 
 ------------------------------------------------------------------------
-  ONE THING TO RUN AFTER THE UPDATE
+  TWO THINGS TO DO AFTER THE UPDATE
 ------------------------------------------------------------------------
+
+  1. DELETE THE OLD "_generated" FOLDER
+
+  Until this version, letters and lists were written into your document
+  folder. They are not any more — but the old ones are still sitting
+  there, and they will stay in every backup you take from now on. They
+  are copies of beneficiaries' details that nothing needs.
+
+  In File Explorer, open
+
+      C:\ProgramData\LandAllocation\LandAllocationData\documents
+
+  and delete the folder named
+
+      _generated
+
+  ** This is safe. ** Nothing in the app points at anything inside it:
+  it only ever held letters and lists, each of which is produced again
+  by pressing Generate. Your case documents are in the folders beside
+  it, named for the case — do not touch those.
+
+  (If there is no `_generated` folder, nothing was left behind and
+   there is nothing to do.)
+
+
+  2. FILL IN THE INSTITUTE ROWS THAT NAME NOBODY
 
   Institute rows filed BEFORE this version recorded no lawyer at all,
   so the case file prints a blank where a name belongs. One command
@@ -611,7 +639,8 @@ STEP M11. And last: stop anyone deleting the two folders by accident.
   [ ] 7. docker compose ls — NAME is the same
   [ ] 8. Footer reads ${APP_VERSION} (build ${APP_BUILD})
   [ ] 9. All cases still listed, one case opened and checked
-  [ ] 10. backfill_entry_lawyers run with --apply (see the section above)
+  [ ] 10. the old `_generated` folder deleted from documents\
+  [ ] 11. backfill_entry_lawyers run with --apply (see the section above)
 
   Only if you also did the MOVING section:
 
