@@ -66,9 +66,16 @@ RUN DJANGO_DEBUG=1 SECRET_KEY=build-only python manage.py collectstatic --noinpu
 # read-only data mount silently became writable in testing — and it is one less step for anything
 # that escapes the container. The data root is chowned because the app writes the office's
 # documents there.
+#
+# **`/generated` must be created and chowned HERE, in the image.** Docker initialises an empty
+# named volume from whatever the image has at that path, ownership included — so a directory that
+# does not exist in the image produces a **root-owned** volume the app cannot write to, and every
+# letter and list fails with `permission denied`. That shipped in 1.3.0 (build 4) and had to be
+# repaired by hand on the office machine: it is invisible in development, where the container runs
+# as root and no `USER` line applies (§2.4, UC-107).
 RUN useradd --system --create-home --uid 10001 landalloc \
-    && mkdir -p /data/documents /data/db-backups \
-    && chown -R landalloc:landalloc /app /data
+    && mkdir -p /data/documents /data/db-backups /generated \
+    && chown -R landalloc:landalloc /app /data /generated
 USER landalloc
 
 EXPOSE 8000

@@ -464,6 +464,15 @@ STEP M11. And last: stop anyone deleting the two folders by accident.
   WHAT IS NEW IN THIS VERSION
 ------------------------------------------------------------------------
 
+  Fixing 1.3.0 (build 4): generating a letter or a list failed with
+  "permission denied". The folder those are written to was created
+  without the app being allowed to write into it. Nothing else was
+  affected, and nothing was lost.
+
+  ** If you already applied build 4 and ran the repair command, this
+     build changes nothing else for you — apply it when convenient. **
+
+
   From your own testing in the office:
 
   IDENTITY CARDS

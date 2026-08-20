@@ -24,6 +24,26 @@ BUNDLE="$DEST/landalloc-${APP_VERSION}-build${APP_BUILD}"
 echo "Building ${APP_VERSION} (build ${APP_BUILD}) for ${ARCH}"
 echo
 
+# A fresh named volume inherits its ownership from the image's directory at that path — so if
+# `/generated` is missing from the image, Docker creates it **root-owned** and the non-root app
+# cannot write a single letter. That shipped in 1.3.0 (build 4) and had to be repaired by hand on
+# the office machine, because development runs as root and never sees it (UC-107). Checked here, on
+# the image that is about to be packaged, so it can only ever be wrong once.
+assert_generated_volume_is_writable() {
+    local probe="landalloc-build-probe-$$"
+    docker volume rm -f "$probe" >/dev/null 2>&1 || true
+    if ! docker run --rm --platform "$ARCH" -v "$probe:/generated" \
+        --entrypoint sh landalloc-backend:latest \
+        -c 'mkdir -p /generated/letters && touch /generated/letters/.probe' >/dev/null 2>&1; then
+        docker volume rm -f "$probe" >/dev/null 2>&1 || true
+        echo "ERROR: the app cannot write to a fresh /generated volume — letters and lists would" >&2
+        echo "       all fail with 'permission denied'. Check the mkdir/chown in backend/Dockerfile." >&2
+        exit 1
+    fi
+    docker volume rm -f "$probe" >/dev/null 2>&1 || true
+    echo "  /generated is writable by the app on a fresh volume"
+}
+
 # The app's own two images. `--load` puts them in the local daemon so `docker save` can reach them;
 # buildx defaults to discarding the result, which produces an empty bundle and no error.
 # `${svc}` braced throughout: a multi-byte character straight after a bare `$svc` makes bash read
@@ -38,6 +58,8 @@ for svc in backend frontend; do
         --load \
         "${ROOT}/${svc}"
 done
+
+assert_generated_volume_is_writable
 
 # Postgres and Redis must be pulled FOR THE TARGET too — the copies already on this Mac are arm64,
 # and `docker save` would happily package those.
