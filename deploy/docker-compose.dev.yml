@@ -21,7 +21,12 @@ x-django: &django
     CELERY_BROKER_URL: "redis://redis:6379/0"
     # Both containers must see the same files: the worker writes the generated PDF, the API serves it.
     DOCUMENTS_ROOT: /data/documents
+    # Same rule, separate place (UC-101): generated letters and lists must NOT sit in the office's
+    # archive, but they still cross from the worker that renders them to the API that serves them —
+    # so this is a **shared named volume**, never a per-container path like `/tmp`.
+    GENERATED_ROOT: /generated
   volumes:
+    - generated_data:/generated
     - ../backend:/app
     # Mask the host .venv (macOS binaries) so the container uses its own interpreter.
     - /app/.venv
@@ -109,3 +114,4 @@ services:
 
 volumes:
   db_data:
+  generated_data:

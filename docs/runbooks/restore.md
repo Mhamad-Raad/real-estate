@@ -1,14 +1,30 @@
 # Runbook — back up and restore
 
-Two things hold all the data. Both live on the Desktop so one drag copies them:
+Two things hold all the data, and they sit side by side so one drag copies them:
 
 ```
-Desktop/LandAllocationData/
-  documents/     every scanned and generated PDF, plus the letter templates
+<data root>/LandAllocationData/
+  documents/     every filed PDF — scans, imports and the Step-5 compiled case files,
+                 plus the letter templates
   db-backups/    the nightly database dump + its manifest
 ```
 
-Nothing else holds data. Redis is a job queue and rebuilds itself.
+**Where `<data root>` is** — it moved on 2026-08-19 and the sheets on the drive assume the new one:
+
+| | path |
+|---|---|
+| Office (Windows), since 2026-08-19 | `C:\ProgramData\LandAllocation\` |
+| Office, before that | `C:\Users\<user>\Desktop\` |
+| Development (macOS) | `~/Desktop/` |
+
+The commands below are written for macOS dev. On the office machine, read
+`~/Desktop/LandAllocationData` as `C:\ProgramData\LandAllocation\LandAllocationData`, and check
+`DATA_ROOT` in `.env` if you are unsure which one this computer is using.
+
+Nothing else holds data. Redis is a job queue and rebuilds itself, and the `generated_data`
+Docker volume holds only letters and lists between generating one and downloading it — it is
+**deliberately not backed up and never needs restoring** (§6.8, UC-101). Anything lost from it is
+reproduced by pressing Generate again.
 
 ---
 

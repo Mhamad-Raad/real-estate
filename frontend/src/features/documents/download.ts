@@ -28,15 +28,14 @@ function serverFilename(res: Response): string | undefined {
 export async function downloadFile(url: string, filename: string, token: string | null) {
   const res = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
   if (!res.ok) throw new Error("download failed");
-  filename = serverFilename(res) ?? filename;
   const objectUrl = URL.createObjectURL(await res.blob());
-  const a = document.createElement("a");
-  a.href = objectUrl;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(objectUrl);
+  try {
+    saveBlobUrl(objectUrl, serverFilename(res) ?? filename);
+  } finally {
+    // This URL was created here, so it is released here. The preview's is not: it owns its own
+    // blob for as long as the iframe is showing it, and revoking that would blank the page.
+    URL.revokeObjectURL(objectUrl);
+  }
 }
 
 /**
@@ -79,7 +78,8 @@ export async function fetchBlobUrl(url: string, token: string | null) {
   return { objectUrl: URL.createObjectURL(await res.blob()), filename: serverFilename(res) };
 }
 
-/** Save an already-fetched blob under `filename` — no second request, so nothing is read twice. */
+/** Hand a blob to the browser as a download. Does **not** revoke the URL — the caller owns it,
+ * because the preview keeps showing the same blob after the save (UC-102). */
 export function saveBlobUrl(objectUrl: string, filename: string) {
   const a = document.createElement("a");
   a.href = objectUrl;

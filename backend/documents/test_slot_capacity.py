@@ -83,6 +83,37 @@ class SlotCapacityTests(APITestCase):
         self.assertEqual(filestore.count_pages(stored), 2)
         self.assertEqual(document.size_bytes, len(stored))
 
+    def test_a_scanned_side_joins_the_card_an_import_started(self):
+        """UC-103 covers **both** filing paths — the office scans some sides and imports others,
+        and a card must end as one document however its sides arrived. The scan path files from
+        staging and never touched `create_document`, so it needed the rule of its own."""
+        from documents.services import file_staged_document
+
+        self._post()
+        document_id = Document.objects.get().id
+        folder = (settings.DOCUMENTS_ROOT / Document.objects.get().file_path).parent
+        # Counted as a delta: the class shares one document root, so earlier tests have already
+        # left files in this folder.
+        before = set(folder.glob("*.pdf"))
+        staged = filestore.staging_path("probe")
+        filestore.write_pdf(staged, make_pdf(pages=1))
+
+        document = file_staged_document(
+            staged_path=str(staged),
+            process=self.process,
+            step_number=1,
+            document_type=CLIENT_ID,
+            actor=self.lawyer,
+            sha256="0" * 64,
+            size_bytes=1,
+        )
+
+        self.assertEqual(Document.objects.count(), 1)
+        self.assertEqual(document.id, document_id)
+        self.assertEqual(document.page_count, 2)
+        # No name was claimed for a side that never became a document of its own (UC-097).
+        self.assertEqual(set(folder.glob("*.pdf")) - before, set())
+
     def test_the_spouse_card_merges_on_its_own_slot(self):
         """The two cards are separate slots — a spouse's side must never join the beneficiary's."""
         self._post()

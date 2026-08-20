@@ -132,6 +132,23 @@ def compose_location(*, process, document_type: str, institute_entry=None) -> tu
     return display, filestore.reserve_stored_name(directory=directory, label=label)
 
 
+def _card_already_filed(*, process, step_number: int, document_type: str):
+    """The card already in this slot, if there is one (UC-103).
+
+    Asked by **both** filing paths — the import button and the confirmed card scan — because the
+    office files sides either way and a card must end up as one document however it arrived.
+    """
+    if document_type not in IDENTITY_TYPE_CODES:
+        return None
+    return (
+        Document.objects.filter(
+            process=process, step_number=step_number, document_type=document_type
+        )
+        .order_by("id")
+        .first()
+    )
+
+
 def file_staged_document(
     *,
     staged_path: str,
@@ -156,45 +173,75 @@ def file_staged_document(
     neither be previewed nor re-confirmed. Deferring to `on_commit` makes the failure mode
     "nothing happened" instead of "the scan is gone".
     """
+    staged = Path(settings.DOCUMENTS_ROOT) / staged_path
+    # **Before composing a name.** A scanned side that is going to join an existing card needs no
+    # name of its own, and `compose_location` would otherwise claim one on disk and never use it —
+    # an orphan file holding a number no card will ever carry (UC-097, UC-103).
+    existing = _card_already_filed(
+        process=process, step_number=step_number, document_type=document_type
+    )
+    if existing is not None:
+        document = _append_side(
+            document=existing,
+            content=staged.read_bytes(),
+            actor=actor,
+            original_filename=original_filename,
+            request=request,
+        )
+        # The staged bytes now live inside the card, so the staging copy is redundant. Deferred for
+        # the same reason the move below is: nothing touches the filesystem until the rows are safe.
+        transaction.on_commit(lambda: staged.unlink(missing_ok=True))
+        return document
+
     display, rel = compose_location(process=process, document_type=document_type)
     # Counted from the staged file, while it is still where it was written — the move below only
     # happens on commit. This is the path that produces a two-page card from two scans (UC-083).
-    staged = Path(settings.DOCUMENTS_ROOT) / staged_path
     pages = filestore.count_pages(staged.read_bytes()) if staged.is_file() else 0
     # A re-scan of a card already on file is what filled a slot past its two sides — the lawyer
     # deletes the old one first, exactly as they would to replace an imported PDF.
     assert_slot_has_room(
         process=process, step_number=step_number, document_type=document_type, pages=pages
     )
-    with transaction.atomic():
-        document = Document.objects.create(
-            process=process,
-            step_number=step_number,
-            document_type=document_type,
-            input_source=Document.InputSource.SCANNED,
-            file_path=str(rel),
-            display_filename=display,
-            sha256=sha256,
-            original_filename=original_filename[:255],
-            size_bytes=size_bytes,
-            page_count=pages,
-            uploaded_by=actor,
-            ocr_status=Document.OcrStatus.DONE,
-            # Filed only because a human confirmed the reading — that is what this row is.
-            verification_status=Document.VerificationStatus.VERIFIED,
-        )
-        record_activity(
-            actor=actor,
-            action=ActivityLog.Action.CREATE,
-            entity_type="Document",
-            entity_id=document.id,
-            after={"display_filename": display, "process_id": process.id, "step": step_number},
-            request=request,
-        )
-        # Only once every row is safely committed does the file actually move.
-        transaction.on_commit(
-            lambda: filestore.move_into_place(source=Path(staged_path), rel_path=rel)
-        )
+    try:
+        with transaction.atomic():
+            document = Document.objects.create(
+                process=process,
+                step_number=step_number,
+                document_type=document_type,
+                input_source=Document.InputSource.SCANNED,
+                file_path=str(rel),
+                display_filename=display,
+                sha256=sha256,
+                original_filename=original_filename[:255],
+                size_bytes=size_bytes,
+                page_count=pages,
+                uploaded_by=actor,
+                ocr_status=Document.OcrStatus.DONE,
+                # Filed only because a human confirmed the reading — that is what this row is.
+                verification_status=Document.VerificationStatus.VERIFIED,
+            )
+            record_activity(
+                actor=actor,
+                action=ActivityLog.Action.CREATE,
+                entity_type="Document",
+                entity_id=document.id,
+                after={
+                    "display_filename": display,
+                    "process_id": process.id,
+                    "step": step_number,
+                },
+                request=request,
+            )
+            # Only once every row is safely committed does the file actually move.
+            transaction.on_commit(
+                lambda: filestore.move_into_place(source=Path(staged_path), rel_path=rel)
+            )
+    except Exception:
+        # `compose_location` claimed the name by creating an empty file (UC-097). If the row never
+        # committed, that placeholder is an orphan holding a number no document will ever carry —
+        # the same reason `create_document` unlinks its own write on failure.
+        (settings.DOCUMENTS_ROOT / rel).unlink(missing_ok=True)
+        raise
     return document
 
 
@@ -244,7 +291,9 @@ def supersede_generated_documents(*, process, document_type: str, actor, job_id=
     return superseded
 
 
-def _append_side(*, document, content: bytes, actor, request=None) -> Document:
+def _append_side(
+    *, document, content: bytes, actor, original_filename: str = "", request=None
+) -> Document:
     """Join a second side onto the card already filed in this slot (UC-103).
 
     The file is rewritten in place, so the document keeps its id, its row and its name — which is
@@ -254,13 +303,28 @@ def _append_side(*, document, content: bytes, actor, request=None) -> Document:
     Written **before** the row is updated and restored if the update fails, mirroring
     `create_document`: the bytes on disk and the hash in the database must never disagree.
     """
-    path = settings.DOCUMENTS_ROOT / document.file_path
-    previous = path.read_bytes()
-    merged = filestore.merge_pdfs([previous, content])
-    before = {"page_count": document.page_count, "size_bytes": document.size_bytes}
-    path.write_bytes(merged)
-    try:
-        with transaction.atomic():
+    with transaction.atomic():
+        # **The row is locked before the file is read.** Read-merge-write is not atomic on its own:
+        # two lawyers adding the back of the same card at once would each merge onto the copy they
+        # read, and whichever wrote last would erase the other's side. The lock also makes the
+        # capacity re-check below meaningful — see there.
+        document = Document.objects.select_for_update().get(pk=document.pk)
+        pages = filestore.count_pages(content)
+        # Re-checked **inside the lock**. The caller's check ran against what the slot held before
+        # waiting here, so without this a card at one side could take two more concurrent sides and
+        # end up with three — exactly the over-capacity state UC-085 exists to prevent.
+        assert_slot_has_room(
+            process=document.process,
+            step_number=document.step_number,
+            document_type=document.document_type,
+            pages=pages,
+        )
+        path = settings.DOCUMENTS_ROOT / document.file_path
+        previous = path.read_bytes()
+        merged = filestore.merge_pdfs([previous, content])
+        before = {"page_count": document.page_count, "size_bytes": document.size_bytes}
+        try:
+            path.write_bytes(merged)
             document.page_count = filestore.count_pages(merged)
             document.size_bytes = len(merged)
             document.sha256 = filestore.sha256_hex(merged)
@@ -279,13 +343,16 @@ def _append_side(*, document, content: bytes, actor, request=None) -> Document:
                 after={
                     "page_count": document.page_count,
                     "size_bytes": document.size_bytes,
+                    # The appended file is not named on the row — the card keeps the first side's
+                    # filename — so the trail is the only place it is recorded (§11).
+                    "appended_filename": original_filename[:255],
                     "reason": "side appended",
                 },
                 request=request,
             )
-    except Exception:
-        path.write_bytes(previous)  # the row did not change, so the file must not either
-        raise
+        except Exception:
+            path.write_bytes(previous)  # the row did not change, so the file must not either
+            raise
     return document
 
 
@@ -328,17 +395,17 @@ def create_document(
     # A card is ONE document with two sides, so a second side joins the first rather than filing
     # beside it (UC-103). Only identity slots: they are the only ones whose parts are two halves of
     # a single paper — merging two municipality papers into one PDF would misrepresent them.
-    if not generated and document_type in IDENTITY_TYPE_CODES:
-        existing = (
-            Document.objects.filter(
-                process=process, step_number=step_number, document_type=document_type
-            )
-            .order_by("id")
-            .first()
+    if not generated:
+        existing = _card_already_filed(
+            process=process, step_number=step_number, document_type=document_type
         )
         if existing is not None:
             return _append_side(
-                document=existing, content=content, actor=actor, request=request
+                document=existing,
+                content=content,
+                actor=actor,
+                original_filename=original_filename,
+                request=request,
             )
 
     display, rel = compose_location(

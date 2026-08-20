@@ -37,12 +37,22 @@ x-django: &django
     # that is why its keys are named `APP_*` (§2.6).
     - ../VERSION
   restart: unless-stopped
+  environment:
+    # Where generated letters and lists are rendered (§6.8, UC-101) — the shared named volume
+    # below, NOT a per-container path: the worker renders and the backend serves the download.
+    GENERATED_ROOT: /generated
   volumes:
     # The office's archive, on the Desktop where they can reach it by hand (§2.5, §6.7). A named
     # volume would seal it inside the Docker VM: unreachable in Explorer, invisible to the backup
     # that copies this folder to the drive, and destroyed by a Docker factory reset.
     - ${DATA_ROOT}/documents:/data/documents
     - ${DATA_ROOT}/db-backups:/data/db-backups
+    # Generated letters and lists (§6.8, UC-101). A **named volume, shared by all three Django
+    # services** — the worker renders the file and the *backend* serves the download, so a
+    # per-container path (`/tmp`) is invisible across that boundary and every download 404s.
+    # Named rather than a bind mount on purpose: it must NOT land in the office's archive or in a
+    # backup, which is the whole point of moving it out of `DOCUMENTS_ROOT`.
+    - generated_data:/generated
   depends_on:
     db:
       condition: service_healthy
@@ -122,3 +132,4 @@ services:
 
 volumes:
   db_data:
+  generated_data:
