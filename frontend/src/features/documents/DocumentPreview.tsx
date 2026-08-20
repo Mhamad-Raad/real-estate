@@ -15,6 +15,8 @@ import { fetchBlobUrl, fileUrlFor, saveBlobUrl, type FileSource } from "./downlo
 // Takes a `source` rather than a document id: the Step-1 letter is no longer a Document (UC-075)
 // but is still previewed and printed from the case, and duplicating this component for the sake
 // of one differing URL is how two previews drift apart.
+type Fetched = { href: string; objectUrl: string; filename?: string };
+
 export function DocumentPreview({
   source,
   title,
@@ -31,28 +33,65 @@ export function DocumentPreview({
   const frame = useRef<HTMLIFrameElement>(null);
   const href = fileUrlFor(source);
 
+  // **Read once per file, and never twice.** A generated letter is deleted by the read that serves
+  // it (UC-102), so a second fetch of the same URL 404s and the screen reports a failure for a file
+  // that arrived perfectly — which is how the office saw it.
+  //
+  // Two things are shared across effect runs, and both are needed. The **in-flight request**,
+  // because StrictMode tears the effect down and re-runs it *before* the first fetch resolves, so a
+  // result cache alone would still fire a second request. And the **result**, because a later
+  // remount must not go back to a server that no longer has the file.
+  const cached = useRef<Fetched | null>(null);
+  const inflight = useRef<{ href: string; promise: Promise<Fetched> } | null>(null);
+  const notify = useRef(t);
+  notify.current = t;
+
   useEffect(() => {
-    let objectUrl: string | null = null;
     let cancelled = false;
 
-    fetchBlobUrl(href, token)
-      .then(({ objectUrl: created, filename }) => {
-        // The document may have changed (regenerated) while this was in flight.
-        if (cancelled) {
-          URL.revokeObjectURL(created);
-          return;
-        }
-        objectUrl = created;
-        setUrl(created);
-        setServerName(filename ?? null);
+    if (cached.current?.href === href) {
+      setUrl(cached.current.objectUrl);
+      setServerName(cached.current.filename ?? null);
+      return;
+    }
+    if (inflight.current?.href !== href) {
+      inflight.current = {
+        href,
+        promise: fetchBlobUrl(href, token).then(({ objectUrl, filename }) => ({
+          href,
+          objectUrl,
+          filename,
+        })),
+      };
+    }
+
+    inflight.current.promise
+      .then((result) => {
+        // Cached even when this render was torn down: the teardown is StrictMode's, the file is
+        // already spent, and discarding the bytes would strand the run that replaces us.
+        cached.current = result;
+        if (cancelled) return;
+        setUrl(result.objectUrl);
+        setServerName(result.filename ?? null);
       })
-      .catch(() => toast.error(t("workflow.previewError")));
+      // The server explains this one better than we can — it names regenerating as the fix.
+      .catch((err: Error) =>
+        toast.error(err?.message || notify.current("workflow.previewError")),
+      );
 
     return () => {
       cancelled = true;
-      if (objectUrl) URL.revokeObjectURL(objectUrl); // never leak the blob
     };
-  }, [href, token, t]);
+  }, [href, token]);
+
+  // Released when the panel closes for good — not on every effect re-run, which is what lets the
+  // blob survive StrictMode's remount.
+  useEffect(
+    () => () => {
+      if (cached.current) URL.revokeObjectURL(cached.current.objectUrl);
+    },
+    [],
+  );
 
   return (
     <div className="space-y-2">

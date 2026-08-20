@@ -74,7 +74,16 @@ export async function fetchBlobUrl(url: string, token: string | null) {
   const res = await fetch(url, {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
-  if (!res.ok) throw new Error("preview failed");
+  if (!res.ok) {
+    // Carry the server's own sentence up. A generated file is collected on its first read
+    // (UC-102), so the ordinary failure here is "it has already been downloaded — generate it
+    // again", which tells the reader what to do; "could not load the preview" does not.
+    const detail = await res
+      .json()
+      .then((body) => body?.detail as string | undefined)
+      .catch(() => undefined);
+    throw new Error(detail ?? "preview failed");
+  }
   return { objectUrl: URL.createObjectURL(await res.blob()), filename: serverFilename(res) };
 }
 
