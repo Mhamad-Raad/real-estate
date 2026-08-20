@@ -13,7 +13,7 @@ from rest_framework.viewsets import GenericViewSet
 from accounts.serializers import AssignableLawyerField
 from catalog.models import Category
 from clients.models import Client
-from common.validators import validate_birth_date, validate_phone
+from common.validators import normalise_pid, validate_birth_date, validate_phone, validate_pid
 
 from documents.services import read_upload
 
@@ -104,6 +104,27 @@ class ConfirmSerializer(serializers.Serializer):
         queryset=Client.objects.all(), required=False, allow_null=True
     )
     client_version = serializers.IntegerField(required=False)
+
+    # **The second door onto a beneficiary** (§5.7): this is a hand-rolled copy of the client
+    # fields, and the scan is the path the office actually uses — a rule added only to
+    # `ClientSerializer` would miss every card confirmation. Same rule, same reason: 12 digits on a
+    # PID being set or changed, and never on one the confirmation merely carries along from the
+    # record it is updating.
+    def _validated_pid(self, value, field: str):
+        existing = self.initial_data.get("client")
+        if existing:
+            current = Client.objects.filter(pk=existing).values_list(field, flat=True).first()
+            if current is not None and normalise_pid(value) == current:
+                return value
+        return validate_pid(value)
+
+    def validate_pid(self, value):
+        # A card that read nothing still confirms — the lawyer types the values in — so an empty
+        # PID is the OCR's silence, not a malformed entry, and the client rules below catch it.
+        return value if not (value or "").strip() else self._validated_pid(value, "pid")
+
+    def validate_spouse_pid(self, value):
+        return value if not (value or "").strip() else self._validated_pid(value, "spouse_pid")
     # Only used when creating: a new case needs an owner, and a category if one is known yet.
     # `AssignableLawyerField` rather than a queryset of its own — the one definition of who a case
     # may be handed to (§7.2 layer 6). This path had `User.objects.filter(is_active=True)`, which

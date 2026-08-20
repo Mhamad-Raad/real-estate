@@ -19,9 +19,11 @@ from common.validators import (
     BIRTH_TOO_OLD,
     PHONE_CHARS,
     PHONE_LENGTH,
+    PID_FORMAT,
     STEP_END_BEFORE_START,
     validate_birth_date,
     validate_phone,
+    validate_pid,
 )
 
 
@@ -125,10 +127,27 @@ class ClientSerializerValidationTests(TestCase):
     def test_a_valid_record_still_passes(self):
         self.assertEqual(self._errors(phone="07701234567"), {})
 
-    def test_the_pid_is_deliberately_left_alone(self):
-        """User decision 2026-08-10: it is the dedup key and the office's real rows vary, so a
-        guess here would refuse a legitimate beneficiary. Pinned so nobody 'tidies' it later."""
-        self.assertEqual(self._errors(pid="DEMO-0001"), {})
+    def test_a_new_pid_must_be_twelve_digits(self):
+        """Office rule, 2026-08-20 — this REVERSES the 2026-08-10 "leave the pid alone" decision,
+        but only for a PID being written. See the pair below for what still passes."""
+        self.assertEqual(self._errors(pid="DEMO-0001"), {"pid": [PID_FORMAT]})
+        self.assertEqual(self._errors(pid="19900101123"), {"pid": [PID_FORMAT]})   # 11
+        self.assertEqual(self._errors(pid="1990010112345"), {"pid": [PID_FORMAT]})  # 13
+        self.assertEqual(self._errors(pid="19900101 234"), {"pid": [PID_FORMAT]})
+
+    def test_twelve_digits_passes_including_leading_and_trailing_zeros(self):
+        """`pid` is a string precisely so `007…` and `…000` survive a round trip — the office
+        asked for that explicitly."""
+        self.assertEqual(self._errors(pid="199001011234"), {})
+        self.assertEqual(self._errors(pid="000000000000"), {})
+        self.assertEqual(self._errors(pid="007123456000"), {})
+
+    def test_an_arabic_indic_pid_is_accepted_and_stored_as_ascii(self):
+        """The office types numbers in their own script (§9), so refusing `١٩٩…` would refuse a
+        correctly-entered ID — but `١٩٩٠` and `1990` are different strings to the dedup index, so
+        accepting both without folding them would open a duplicate straight through the guard."""
+        self.assertEqual(validate_pid("١٩٩٠٠١٠١١٢٣٤"), "199001011234")
+        self.assertEqual(validate_pid("۱۹۹۰۰۱۰۱۱۲۳۴"), "199001011234")
 
 
 class BothCreationDoorsValidateTests(APITestCase):

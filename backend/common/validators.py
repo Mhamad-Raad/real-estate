@@ -11,9 +11,10 @@ number would demand fixing their birth date first. A **serializer** field valida
 what the request actually writes, which is the rule the user chose: validate what is being
 written, leave the rest alone.
 
-**`pid` is deliberately NOT validated** (user decision, 2026-08-10). It is the "no land twice"
-dedup key and the office's real records carry more than one length; a wrong guess here would
-refuse a legitimate beneficiary, which is worse than accepting an odd-looking one.
+**`pid` was deliberately NOT validated** (user decision, 2026-08-10) — **reversed 2026-08-20**, at
+the office's request: exactly **12 digits**. The original reasoning still holds for the records
+they already have, which is why the rule fires only on a PID being **set or changed** and never on
+one merely carried along by an edit to some other field. See `validate_pid`.
 """
 
 import re
@@ -40,6 +41,7 @@ STEP_END_BEFORE_START = "errors.stepDate.endBeforeStart"
 # registered here with the rest and covered by the same translation guard.
 SLOT_SIDES_FULL = "errors.slot.sidesFull"
 SLOT_FILES_FULL = "errors.slot.filesFull"
+PID_FORMAT = "errors.pid.format"
 
 VALIDATION_KEYS = (
     PHONE_CHARS,
@@ -49,6 +51,7 @@ VALIDATION_KEYS = (
     STEP_END_BEFORE_START,
     SLOT_SIDES_FULL,
     SLOT_FILES_FULL,
+    PID_FORMAT,
 )
 
 # Digits, plus the separators people actually type on a form. **The dash is not one of them**
@@ -116,3 +119,37 @@ def validate_birth_date(value: date | None) -> date | None:
     if value.year < EARLIEST_BIRTH_YEAR:
         raise serializers.ValidationError(BIRTH_TOO_OLD)
     return value
+
+
+# The national ID is exactly this many digits — the office's own rule (2026-08-20). Leading and
+# trailing zeros are ordinary, which is the whole reason `pid` is a string and never an integer:
+# `007…` and `…000` must survive a round trip unchanged.
+PID_DIGITS = 12
+
+# Arabic-Indic and Persian digits, mapped to ASCII. The office types numbers in their own script
+# everywhere (§9), so refusing `١٩٩٠…` would refuse a correctly-entered ID — but the PID is the
+# "no land twice" dedup key (§5.7), and `١٩٩٠` and `1990` are *different strings* to an index.
+# Accepting both without folding them would open a duplicate straight through the guard, so the
+# stored value is always ASCII.
+_DIGIT_FOLD = str.maketrans("٠١٢٣٤٥٦٧٨٩۰۱۲۳۴۵۶۷۸۹", "01234567890123456789")
+
+
+def normalise_pid(value: str) -> str:
+    """The canonical form of a PID: Arabic-Indic digits folded to ASCII, surrounding space gone."""
+    return (value or "").strip().translate(_DIGIT_FOLD)
+
+
+def validate_pid(value: str) -> str:
+    """Exactly `PID_DIGITS` digits, returned in canonical ASCII form (office rule, 2026-08-20).
+
+    **Applied to a PID being set or changed, never to one an edit merely carries along.** The
+    office's existing records hold several lengths — 15 rows of 9 digits against 6 of 12 when this
+    was measured, plus older `DEMO-` rows — so enforcing it on every write would make two-thirds of
+    their beneficiaries uneditable: the client form submits the whole record, so correcting a phone
+    number would fail on a PID nobody touched. Reversing the 2026-08-10 "leave it alone" decision
+    this far, and no further, is what the office asked for without stranding what they already have.
+    """
+    pid = normalise_pid(value)
+    if len(pid) != PID_DIGITS or not pid.isdigit() or not pid.isascii():
+        raise serializers.ValidationError(PID_FORMAT)
+    return pid

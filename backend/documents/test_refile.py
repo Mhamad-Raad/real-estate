@@ -210,15 +210,37 @@ class RefileTests(APITestCase):
         self.assertTrue((settings.DOCUMENTS_ROOT / self.document.file_path).exists())
 
     def test_correcting_a_pid_through_the_api_re_files_automatically(self):
+        """The corrected value must itself be valid — a PID being **changed** is a PID being
+        written, and the office's 12-digit rule applies to it (2026-08-20)."""
         self.client.force_authenticate(self.admin)
         with self.captureOnCommitCallbacks(execute=True):
             response = self.client.patch(
                 reverse("client-detail", args=[self.client_row.id]),
-                {"pid": "PID-VIA-API", "version": self.client_row.version},
+                {"pid": "444000000444", "version": self.client_row.version},
                 format="json",
             )
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 200, response.data)
 
         self.document.refresh_from_db()
-        self.assertIn("_PID-VIA-API/", self.document.file_path)
+        self.assertIn("_444000000444/", self.document.file_path)
         self.assertTrue((settings.DOCUMENTS_ROOT / self.document.file_path).exists())
+
+    def test_a_legacy_pid_can_still_be_edited_in_every_other_field(self):
+        """The reason the rule fires only on a *change*: this client's PID predates the rule, and
+        the form submits the whole record — so validating it unconditionally would make correcting
+        a phone number impossible for two-thirds of the office's beneficiaries."""
+        self.client.force_authenticate(self.admin)
+
+        response = self.client.patch(
+            reverse("client-detail", args=[self.client_row.id]),
+            {
+                "pid": self.client_row.pid,  # unchanged, and not 12 digits
+                "phone": "07701234567",
+                "version": self.client_row.version,
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200, response.data)
+        self.client_row.refresh_from_db()
+        self.assertEqual(self.client_row.phone, "07701234567")

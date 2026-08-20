@@ -7,6 +7,7 @@ import { Select } from "@/components/ui/select";
 import { useListCategoriesQuery } from "@/features/categories/categoriesApi";
 
 import { sanitisePhoneInput } from "@/lib/phone";
+import { filterPid } from "@/lib/pid";
 
 import type { ClientInput, MaritalStatus } from "./types";
 
@@ -64,7 +65,21 @@ export function ClientFields({
       </div>
       <div className="space-y-2">
         <Label htmlFor={id("pid")}>{t("clients.pid")}</Label>
-        <Input id={id("pid")} dir="ltr" className="text-start" value={form.pid} onChange={set("pid")} required {...bad("pid")} />
+        {/* Filters as it is typed, like the phone box: digits only, Arabic-Indic folded to ASCII,
+            capped at 12. A convenience — `validate_pid` is still the boundary (§4.1). */}
+        <Input
+          id={id("pid")}
+          dir="ltr"
+          inputMode="numeric"
+          className="text-start"
+          value={form.pid}
+          onChange={(e) => {
+            onFieldEdit?.("pid");
+            onChange({ ...form, pid: filterPid(e.target.value) });
+          }}
+          required
+          {...bad("pid")}
+        />
         {err("pid")}
       </div>
       <div className="space-y-2">

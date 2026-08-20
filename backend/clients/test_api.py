@@ -17,13 +17,13 @@ class ClientApiTests(APITestCase):
         self.category = Category.objects.create(code="A", name="A")
         self.client.force_authenticate(self.lawyer)
         self.existing = make_client(
-            full_name="Karwan", pid="111", mother_full_name="Nasrin Hassan"
+            full_name="Karwan", pid="111000000111", mother_full_name="Nasrin Hassan"
         )
 
     def test_duplicate_check_returns_pid_match(self):
         resp = self.client.post(
             reverse("client-duplicate-check"),
-            {"pid": "111", "mother_full_name": "x"},
+            {"pid": "111000000111", "mother_full_name": "x"},
             format="json",
         )
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
@@ -35,7 +35,7 @@ class ClientApiTests(APITestCase):
         The field rules live on `ClientSerializer`, which the intake payload nests, so this still
         exercises exactly the validation it always did; only the door changed.
         """
-        payload = client_data(full_name="Alan", pid="222", mother_full_name="Runak", **overrides)
+        payload = client_data(full_name="Alan", pid="222000000222", mother_full_name="Runak", **overrides)
         return self.client.post(
             reverse("process-list"),
             {"client_data": payload, "category": self.category.id},
@@ -47,14 +47,14 @@ class ClientApiTests(APITestCase):
         boundary moves, it is not merely hidden)."""
         resp = self.client.post(
             reverse("client-list"),
-            client_data(full_name="Nope", pid="999", mother_full_name="Nope"),
+            client_data(full_name="Nope", pid="999000000999", mother_full_name="Nope"),
             format="json",
         )
 
         self.assertEqual(resp.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
 
     def test_a_client_cannot_be_deleted_through_the_clients_api(self):
-        target = make_client(full_name="Keep", pid="888", mother_full_name="Keep")
+        target = make_client(full_name="Keep", pid="888000000888", mother_full_name="Keep")
 
         resp = self.client.delete(reverse("client-detail", args=[target.id]))
 
@@ -66,7 +66,7 @@ class ClientApiTests(APITestCase):
             with self.subTest(missing=field):
                 payload = client_data(
                     full_name="Alan",
-                    pid="222",
+                    pid="222000000222",
                     mother_full_name="Runak",
                     marital_status="married",
                 )
@@ -80,7 +80,7 @@ class ClientApiTests(APITestCase):
                 self.assertIn(field, str(resp.data))
 
     def test_birth_date_is_required(self):
-        payload = client_data(full_name="Alan", pid="222", mother_full_name="Runak")
+        payload = client_data(full_name="Alan", pid="222000000222", mother_full_name="Runak")
         payload.pop("date_of_birth")
 
         resp = self.client.post(
@@ -96,7 +96,7 @@ class ClientApiTests(APITestCase):
         """A divorce must not leave the former spouse printed on the next generated letter."""
         married = make_client(
             full_name="Dashne",
-            pid="333",
+            pid="333000000333",
             mother_full_name="Nian",
             marital_status="married",
             created_by=self.lawyer,  # a lawyer may only edit clients they entered (§4.2)
