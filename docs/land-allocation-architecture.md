@@ -1345,6 +1345,13 @@ Two things here: the **folder hierarchy** (category → person → documents, mi
 > - **Files stored before this keep their old names.** Only newly filed documents are numbered; an
 >   old one converts if that client is ever re-filed. Renaming the existing archive in bulk was
 >   offered and not taken — it rewrites live files.
+> - **Numbers climb across a delete, and that is deliberate.** A soft-deleted document **keeps its
+>   file** — the restore desk (UC-063) needs it — so a card deleted and filed again takes the next
+>   free number rather than reusing the one on disk. A folder can therefore hold a live
+>   `<label> (5).pdf` beside four deleted files. Reusing the name would overwrite a document the
+>   office can still restore, which is the worse outcome. The old `__<shortid>` behaved the same
+>   way; it was simply invisible, because every name looked arbitrary. Verified end to end
+>   2026-08-20.
 
 > **Revised It.7 / UC-103 (2026-08-20) — a card is one document, however its sides arrive.**
 >
