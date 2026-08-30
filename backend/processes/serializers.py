@@ -2,6 +2,7 @@ from rest_framework import serializers
 
 from accounts.serializers import AssignableLawyerField
 from catalog.institutes import INSTITUTE_CODES, STEP_FOR_CODE
+from catalog.models import Category
 from clients.serializers import ClientSerializer
 
 from .models import DuplicateOverride, Process, ProcessInstituteEntry, ProcessStep
@@ -81,6 +82,47 @@ class InstituteEntrySerializer(serializers.ModelSerializer):
         return attrs
 
 
+class FastEntrySerializer(serializers.Serializer):
+    """One finished paper allocation, as the fast-entry form sends it (UC-114).
+
+    Flat rather than nested because the PDF rides along in the same multipart request, and a
+    nested object inside multipart is a parsing problem nobody needs. The beneficiary's fields are
+    still validated by `ClientSerializer` — the office's PID and birth-date rules (§4.1) apply to
+    a case typed in from paper exactly as they do to one opened at the counter, and running them
+    through the real serializer means the two can never drift.
+    """
+
+    full_name = serializers.CharField(max_length=200)
+    pid = serializers.CharField(max_length=50)
+    mother_full_name = serializers.CharField(max_length=200)
+    date_of_birth = serializers.DateField()
+    # Required here, unlike a normal case: the category is what gives the code its letter, it is
+    # fixed for the life of the case (UC-059), and a backlog entry that arrived without one could
+    # never acquire either (§3.8).
+    category = serializers.PrimaryKeyRelatedField(queryset=Category.objects.all())
+    land_id = serializers.CharField(max_length=100, required=False, allow_blank=True, default="")
+    # The office types these in a run and knows which are finished; a case whose paperwork stops
+    # part-way stays open (the office's call, 2026-08-30).
+    mark_complete = serializers.BooleanField(default=False)
+    file = serializers.FileField()
+
+    CLIENT_FIELDS = ("full_name", "pid", "mother_full_name", "date_of_birth")
+
+    def validate(self, attrs):
+        # Errors come back under the same field names the form uses, so the box that caused one
+        # can be marked red without translating a nested path.
+        client = ClientSerializer(
+            data={
+                **{name: attrs[name] for name in self.CLIENT_FIELDS},
+                "date_of_birth": attrs["date_of_birth"].isoformat(),
+                "category": attrs["category"].id,
+            }
+        )
+        client.is_valid(raise_exception=True)
+        attrs["client_data"] = client.validated_data
+        return attrs
+
+
 class ProcessListSerializer(serializers.ModelSerializer):
     client_full_name = serializers.CharField(source="client.full_name", read_only=True)
     client_pid = serializers.CharField(source="client.pid", read_only=True)
@@ -103,6 +145,9 @@ class ProcessListSerializer(serializers.ModelSerializer):
             "current_step",
             "duplicate_flagged",
             "similar_name_flagged",
+            # Read-only: the screens badge a backlog case so its empty steps read as history
+            # rather than as work nobody finished (UC-114).
+            "fast_entry",
             "assigned_lawyer",
             "assigned_lawyer_username",
             "created_at",
@@ -111,6 +156,9 @@ class ProcessListSerializer(serializers.ModelSerializer):
             "deleted_at",
             "version",
         )
+        # These two are output only. `fast_entry` is set by the service that files the bundle, so
+        # a caller must not be able to relabel an ordinary case as backlog (UC-114).
+        read_only_fields = ("fast_entry", "unique_code")
 
 
 class ProcessDetailSerializer(ProcessListSerializer):

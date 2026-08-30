@@ -56,6 +56,12 @@ class Process(SoftDeleteModel):
     )
     current_step = models.PositiveSmallIntegerField(default=1)
     lawyer_notes = models.TextField(blank=True)
+    # Typed in through the fast-entry form rather than worked through the five steps (UC-114):
+    # the office is carrying a paper backlog of thousands of finished allocations into the app,
+    # and each arrives as the searchable fields plus ONE PDF — the case file that step 5 would
+    # otherwise have compiled. The flag exists so the empty steps read as "this case was never
+    # worked here" instead of as unfinished work.
+    fast_entry = models.BooleanField(default=False)
     # Set only by a PID collision — the same person, so it blocks Step 1 until an admin overrides.
     duplicate_flagged = models.BooleanField(default=False)
     # A similar mother name: advisory only, never blocks. Identity is the government PID; this

@@ -6,6 +6,7 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, ValidationError
+from rest_framework.parsers import MultiPartParser
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
@@ -18,12 +19,14 @@ from documents.generation import (
     start_process_list_job,
 )
 from documents.serializers import GenerationJobSerializer
+from documents.services import read_upload
 
 from .constants import FIRST_STEP, LAST_STEP
 from .models import Process, ProcessInstituteEntry
 from .permissions import IsEntryEditorOrAdmin
 from .selectors import search_processes
 from .serializers import (
+    FastEntrySerializer,
     GenerateDocumentSerializer,
     InstituteEntrySerializer,
     OverrideSerializer,
@@ -39,6 +42,7 @@ from .serializers import (
 from .services import (
     advance_step as advance_step_service,
     complete_process,
+    fast_entry_process,
     intake_process,
     override_duplicate as override_duplicate_service,
     reassign_process,
@@ -201,6 +205,35 @@ class ProcessViewSet(AuditedSoftDeleteViewSet, ModelViewSet):
             request=request,
         )
         return Response(ProcessDetailSerializer(process).data)
+
+    @action(detail=False, methods=["post"], url_path="fast-entry", parser_classes=[MultiPartParser])
+    def fast_entry(self, request):
+        """Carry one finished paper allocation in, in a single request (UC-114).
+
+        The office is bringing thousands of closed cases into the app and will not re-key five
+        steps of each: what arrives is the fields that make a case **findable** plus one PDF —
+        the case file, which is the same document step 5 compiles for a case worked here.
+
+        Open to lawyers as well as admins on purpose: the person typing becomes the assigned
+        lawyer (the office's call), and in a two-person office both of them type. The duplicate
+        rules are not relaxed for this door — see `fast_entry_process`.
+        """
+        form = FastEntrySerializer(data=request.data)
+        form.is_valid(raise_exception=True)
+        data = form.validated_data
+        upload = data["file"]
+        process = fast_entry_process(
+            client_data=data["client_data"],
+            assigned_lawyer=request.user,
+            actor=request.user,
+            category=data["category"],
+            land_id=data["land_id"],
+            bundle=read_upload(upload),
+            original_filename=getattr(upload, "name", ""),
+            mark_complete=data["mark_complete"],
+            request=request,
+        )
+        return Response(ProcessDetailSerializer(process).data, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=["post"], url_path="steps/5/complete")
     def complete(self, request, pk=None):

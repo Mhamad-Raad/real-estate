@@ -9,8 +9,11 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.exceptions import APIException, ValidationError
 
+from catalog.document_types import COMPILED_CASE
 from clients.selectors import duplicate_matches
 from clients.services import assert_pid_is_free, create_client
+from documents.models import Document
+from documents.services import create_document
 from common.locking import check_version
 from common.validators import STEP_END_BEFORE_START
 from common.models import ActivityLog
@@ -190,6 +193,70 @@ def intake_process(
         # alone cannot change its status, but it is the same asymmetry the header PATCH had.
         recompute_step(process, 1)
         recompute_step(process, 4)
+    return process
+
+
+@transaction.atomic
+def fast_entry_process(
+    *,
+    client_data,
+    assigned_lawyer,
+    actor,
+    category,
+    land_id="",
+    bundle: bytes,
+    original_filename: str = "",
+    mark_complete: bool = False,
+    request=None,
+) -> Process:
+    """Carry one finished paper allocation into the app in a single act (UC-114).
+
+    The office has thousands of closed cases on paper and no intention of re-keying five steps of
+    each. What comes in is the part that has to be **findable** — the beneficiary, their national
+    ID, the land number, the category — plus **one PDF**: the case file, which is the same artefact
+    step 5 compiles for a case worked here. So it is filed as exactly that, `CompiledCase` on step
+    5, and the case then reads like any other closed file.
+
+    Everything else stays empty on purpose. `fast_entry` is what tells the screens that the empty
+    steps are a record of history rather than work nobody finished.
+
+    **The duplicate rules are not relaxed** (the office's call): this runs through `intake_process`
+    like the intake form, so a PID already on file and a client already holding an allocation are
+    both refused here exactly as they are there. What it will not do is *close* a case whose
+    duplicate warning fired — see below.
+    """
+    process = intake_process(
+        client_data=client_data,
+        assigned_lawyer=assigned_lawyer,
+        actor=actor,
+        category=category,
+        land_id=land_id,
+        request=request,
+    )
+    process.fast_entry = True
+    process.save(update_fields=["fast_entry", "updated_at"])
+    create_document(
+        process=process,
+        step_number=LAST_STEP,
+        document_type=COMPILED_CASE,
+        input_source=Document.InputSource.IMPORTED,
+        content=bundle,
+        actor=actor,
+        original_filename=original_filename,
+        request=request,
+    )
+    # Closed **over** its empty steps, which is what `force` already means (§10.3) — a case typed
+    # in from a finished paper file has no requirements to meet, so there is no second way to
+    # close a case and no rule loosened for anyone else.
+    #
+    # Except when the duplicate warning fired. Closing then would file a possible duplicate as a
+    # finished allocation and take it off every list a person would ever look at, which is the one
+    # outcome "run the checks and block" cannot mean. It stays open for an admin.
+    if mark_complete and not process.duplicate_flagged:
+        process = complete_process(
+            process=process, actor=actor, force=True, expected_version=process.version,
+            request=request,
+        )
     return process
 
 
