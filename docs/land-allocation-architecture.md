@@ -1158,6 +1158,14 @@ Processes list) drives it.
 - **The screen is temporary by design.** When the backlog is in, delete the page, its test, its
   route, its button and its `fastEntry` translations. **The flag stays** — the cases it marks do.
 
+> **Measured, nothing to fix (2026-08-30).** This is the first thing to run `allocate_unique_code`
+> thousands of times, and it reads **every code in the category** on each call — linear per insert,
+> quadratic over a backlog run. Timed against the dev database: **4.0 ms** at 1,000 codes in the
+> category, **14.3 ms** at 5,000, **37.3 ms** at 20,000. Invisible inside a form submit that also
+> writes a PDF to disk, and the office types each case by hand. Left alone deliberately — the scan
+> is what makes the sequence "highest ever issued + 1" over `all_objects`, gaps included (§3.8),
+> and an optimisation would have to preserve that.
+
 ## 6. Document + OCR Pipeline
 
 Every document is a **PDF**, added one of three ways: **(a)** the built-in scan/capture builds the PDF in the browser, **(b)** the user imports an existing file, or **(c)** the system generates it from a template (Step-1 eligibility). The pipeline is designed around one truth: **Sorani OCR is not reliable enough to trust automatically**, so it produces a *draft* that a human must confirm.
