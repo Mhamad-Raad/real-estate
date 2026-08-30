@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { useAppSelector } from "@/app/hooks";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { DateField } from "@/components/ui/date-field";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import {
@@ -62,20 +62,18 @@ export function ReportsPage() {
         <CardContent className="grid gap-4 p-4 sm:grid-cols-3">
           <div className="space-y-1.5">
             <Label htmlFor="rp-from">{t("reports.dateFrom")}</Label>
-            <Input
+            <DateField
               id="rp-from"
-              type="date"
               value={filters.date_from ?? ""}
-              onChange={(e) => set("date_from", e.target.value)}
+              onChange={(value) => set("date_from", value)}
             />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="rp-to">{t("reports.dateTo")}</Label>
-            <Input
+            <DateField
               id="rp-to"
-              type="date"
               value={filters.date_to ?? ""}
-              onChange={(e) => set("date_to", e.target.value)}
+              onChange={(value) => set("date_to", value)}
             />
           </div>
           <div className="space-y-1.5">

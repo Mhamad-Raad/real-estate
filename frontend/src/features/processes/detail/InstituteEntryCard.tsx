@@ -2,6 +2,7 @@ import { Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
+import { DateField } from "@/components/ui/date-field";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
@@ -11,7 +12,7 @@ import { DocumentUpload } from "@/features/documents/DocumentUpload";
 import type { Lawyer } from "@/features/users/lawyersApi";
 import { apiErrorMessage } from "@/lib/apiError";
 import { labeller } from "@/lib/fieldLabels";
-import { useAutosave, isSettledDate } from "@/hooks/useAutosave";
+import { useAutosave } from "@/hooks/useAutosave";
 import { useFieldErrors } from "@/hooks/useFieldErrors";
 import { FieldError } from "@/components/ui/field-error";
 
@@ -168,22 +169,18 @@ export function InstituteEntryCard({
 
         <div className="space-y-1">
           <Label className="text-xs">{t("workflow.approvalDate")}</Label>
-          <Input
-            type="date"
+          <DateField
             value={field.value("approval_date") ?? ""}
             disabled={!canEdit}
             className="h-9"
             invalid={Boolean(errors.approval_date)}
-            onChange={(e) => {
+            onChange={(value) => {
               clear("approval_date");
-              // Held on screen until the year is plausible — see `isSettledDate`.
-              field.set("approval_date", e.target.value || null, isSettledDate(e.target.value));
+              // Nothing half-typed arrives here any more: the field reports a date only once its
+              // three boxes name a real day (UC-108, which closed UC-072 at the source).
+              field.set("approval_date", value || null);
             }}
-            onBlur={() => {
-              if (!isSettledDate(field.value("approval_date") ?? ""))
-                field.set("approval_date", entry.approval_date, false);
-              field.flush();
-            }}
+            onBlur={field.flush}
           />
           <FieldError message={errors.approval_date} />
         </div>

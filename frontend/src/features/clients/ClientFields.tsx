@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
 
 import { FieldError } from "@/components/ui/field-error";
+import { DateField } from "@/components/ui/date-field";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
@@ -41,10 +42,12 @@ export function ClientFields({
   const { t } = useTranslation();
   const { data: categories } = useListCategoriesQuery(undefined, { skip: !showCategory });
 
-  const set = (key: keyof ClientInput) => (e: { target: { value: string } }) => {
+  const setValue = (key: keyof ClientInput) => (value: string) => {
     onFieldEdit?.(key);
-    onChange({ ...form, [key]: e.target.value });
+    onChange({ ...form, [key]: value });
   };
+  const set = (key: keyof ClientInput) => (e: { target: { value: string } }) =>
+    setValue(key)(e.target.value);
   const id = (suffix: string) => `${idPrefix}-${suffix}`;
   // Everything a field needs to show itself as rejected: red border, the reason, and the link
   // between them for a screen reader.
@@ -105,11 +108,10 @@ export function ClientFields({
       </div>
       <div className="space-y-2">
         <Label htmlFor={id("dob")}>{t("clients.dateOfBirth")}</Label>
-        <Input
+        <DateField
           id={id("dob")}
-          type="date"
           value={form.date_of_birth ?? ""}
-          onChange={set("date_of_birth")}
+          onChange={setValue("date_of_birth")}
           required
           {...bad("date_of_birth")}
         />
@@ -185,11 +187,10 @@ export function ClientFields({
           </div>
           <div className="space-y-2">
             <Label htmlFor={id("spouse-dob")}>{t("clients.spouseDateOfBirth")}</Label>
-            <Input
+            <DateField
               id={id("spouse-dob")}
-              type="date"
               value={form.spouse_date_of_birth ?? ""}
-              onChange={set("spouse_date_of_birth")}
+              onChange={setValue("spouse_date_of_birth")}
               required
               {...bad("spouse_date_of_birth")}
             />

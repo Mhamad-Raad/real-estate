@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { DateField } from "@/components/ui/date-field";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import {
@@ -110,20 +110,18 @@ export function ActivitiesPage() {
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="ac-from">{t("reports.dateFrom")}</Label>
-            <Input
+            <DateField
               id="ac-from"
-              type="date"
               value={filters.created_after ?? ""}
-              onChange={(e) => set("created_after", e.target.value)}
+              onChange={(value) => set("created_after", value)}
             />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="ac-to">{t("reports.dateTo")}</Label>
-            <Input
+            <DateField
               id="ac-to"
-              type="date"
               value={filters.created_before ?? ""}
-              onChange={(e) => set("created_before", e.target.value)}
+              onChange={(value) => set("created_before", value)}
             />
           </div>
         </CardContent>
