@@ -283,7 +283,7 @@
     },
     "document": "المستند",
     "customName": "اسم الجهة",
-    "newCustom": "جهة جديدة",
+    "customNameRequired": "اسم الجهة مطلوب.",
     "addEntry": "إضافة",
     "addCustom": "إضافة صف خارج المدينة",
     "outOfCity": "تقديمات خارج المدينة",

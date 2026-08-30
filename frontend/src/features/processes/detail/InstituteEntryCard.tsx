@@ -89,15 +89,24 @@ export function InstituteEntryCard({
               disabled={!canEdit}
               placeholder={t("workflow.customName")}
               className="h-8"
-              invalid={Boolean(errors.custom_name)}
+              required
+              aria-required
+              invalid={Boolean(errors.custom_name) || !field.value("custom_name")}
               onChange={(e) => {
                 clear("custom_name");
                 field.set("custom_name", e.target.value);
               }}
               onBlur={field.flush}
             />
-            {/* A red border with no reason says only "something is wrong here". */}
-            <FieldError message={errors.custom_name} />
+            {/* A red border with no reason says only "something is wrong here". The blank case is
+                not a server rejection — the row saves fine — so it carries its own message
+                (UC-111); the step's own missing list is the other half of the same rule. */}
+            <FieldError
+              message={
+                errors.custom_name ||
+                (field.value("custom_name") ? undefined : t("workflow.customNameRequired"))
+              }
+            />
           </div>
         ) : (
           <span className="font-medium">{label}</span>

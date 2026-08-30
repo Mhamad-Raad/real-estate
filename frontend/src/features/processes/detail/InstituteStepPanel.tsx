@@ -50,13 +50,15 @@ export function InstituteStepPanel({
     }
   };
 
+  // Created **without** a name: the office asked for an empty required box with a placeholder,
+  // because a row pre-filled with "New institute" reads as a real one and shipped that way when
+  // nobody overwrote it (UC-111). Step 3 stays incomplete until the name is typed.
   const addCustom = async () => {
     try {
       await createEntry({
         process: process.id,
         step_number: 3,
         is_custom: true,
-        custom_name: t("workflow.newCustom"),
       }).unwrap();
     } catch (err) {
       toast.error(apiErrorMessage(err, t("common.saveError")));

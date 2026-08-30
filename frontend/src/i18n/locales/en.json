@@ -283,7 +283,7 @@
     },
     "document": "Document",
     "customName": "Institute name",
-    "newCustom": "New institute",
+    "customNameRequired": "An institute name is required.",
     "addEntry": "Add",
     "addCustom": "Add out of city row",
     "outOfCity": "Out of city submissions",

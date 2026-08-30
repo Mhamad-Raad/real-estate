@@ -32,7 +32,8 @@ class ProcessStepSerializer(serializers.ModelSerializer):
 
 class InstituteEntrySerializer(serializers.ModelSerializer):
     """A Step 2–4 institute submission (§3.4, §5.1). Fixed institutes validate their code
-    against the shared enum + step; custom (Step-3 out-of-city) rows require a name instead."""
+    against the shared enum + step; custom (Step-3 out-of-city) rows carry a typed name, which
+    the step's completion rule requires rather than this serializer (UC-111)."""
 
     assigned_lawyer = AssignableLawyerField(required=False, allow_null=True)
 
@@ -65,8 +66,11 @@ class InstituteEntrySerializer(serializers.ModelSerializer):
         if is_custom:
             if step != 3:
                 raise serializers.ValidationError({"is_custom": "Custom rows exist only in Step 3."})
-            if not field("custom_name"):
-                raise serializers.ValidationError({"custom_name": "A custom institute needs a name."})
+            # **The name is required, but not here.** Refusing a blank one at write time is what
+            # forced the row to be created under a placeholder name, which the office then had to
+            # notice and overwrite — and it fired mid-edit too, since select-all-and-retype passes
+            # through empty (UC-111). `missing_requirements` holds the rule instead: a step 3 with
+            # an unnamed out-of-city row is incomplete and the case cannot close over it.
         else:
             if code not in INSTITUTE_CODES:
                 raise serializers.ValidationError({"institute_code": "Unknown institute code."})
