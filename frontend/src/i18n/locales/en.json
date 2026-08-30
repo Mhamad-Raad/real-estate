@@ -72,7 +72,16 @@
     "prev": "Previous",
     "next": "Next",
     "pageOf": "Page {{page}} of {{pages}}",
-    "noData": "No data yet"
+    "noData": "No data yet",
+    "date": {
+      "day": "Day",
+      "month": "Month",
+      "year": "Year",
+      "open": "Open the calendar",
+      "clear": "Clear the date",
+      "previousMonth": "Previous month",
+      "nextMonth": "Next month"
+    }
   },
   "dashboard": {
     "title": "Dashboard",
