@@ -9,14 +9,13 @@
  * script, so refusing them here would refuse a correctly-typed ID. They are folded to ASCII on the
  * way in, because the PID is the "no land twice" dedup key (§5.7) and `١٩٩٠` and `1990` are
  * different strings to an index — accepting both unfolded would open a duplicate through the guard.
+ * The folding itself is shared with every other numeric box (`lib/digits.ts`).
  */
+
+import { asciiDigits } from "./digits";
 
 /** Mirrors `validators.PID_DIGITS`. */
 export const PID_DIGITS = 12;
-
-const FOLD: Record<string, string> = {};
-"٠١٢٣٤٥٦٧٨٩".split("").forEach((d, i) => (FOLD[d] = String(i)));
-"۰۱۲۳۴۵۶۷۸۹".split("").forEach((d, i) => (FOLD[d] = String(i)));
 
 /**
  * Digits only, folded to ASCII, capped at `PID_DIGITS`.
@@ -25,12 +24,5 @@ const FOLD: Record<string, string> = {};
  * number under the lawyer's cursor mid-type.
  */
 export function filterPid(value: string): string {
-  let out = "";
-  for (const ch of value) {
-    const digit = FOLD[ch] ?? (ch >= "0" && ch <= "9" ? ch : null);
-    if (digit === null) continue;
-    out += digit;
-    if (out.length === PID_DIGITS) break;
-  }
-  return out;
+  return asciiDigits(value).slice(0, PID_DIGITS);
 }
