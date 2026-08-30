@@ -7,6 +7,7 @@ import {
   parsePasted,
   segmentInput,
   segmentIsFinished,
+  settledSegment,
   stepSegment,
   shiftMonth,
   toIso,
@@ -103,6 +104,22 @@ describe("parsePasted", () => {
   it("refuses anything that is not a real day", () => {
     expect(parsePasted("31/02/2026")).toBeNull();
     expect(parsePasted("hello")).toBeNull();
+  });
+});
+
+describe("settledSegment", () => {
+  it("gives a lone day or month digit its zero", () => {
+    expect(settledSegment("day", "5")).toBe("05");
+    expect(settledSegment("month", "9")).toBe("09");
+  });
+
+  it("leaves a full box, and the year, as they are", () => {
+    expect(settledSegment("day", "15")).toBe("15");
+    expect(settledSegment("year", "202")).toBe("202"); // half-typed, not 0202
+  });
+
+  it("leaves a lone zero alone — it is not a day", () => {
+    expect(settledSegment("day", "0")).toBe("0");
   });
 });
 

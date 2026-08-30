@@ -9,6 +9,7 @@ import {
   parsePasted,
   segmentInput,
   segmentIsFinished,
+  settledSegment,
   stepSegment,
   toIso,
   toParts,
@@ -61,6 +62,8 @@ export function DateField({
   const [parts, setParts] = useState<DateParts>(() => toParts(value));
   const [open, setOpen] = useState(false);
   const wrapper = useRef<HTMLDivElement>(null);
+  // The newest boxes, readable from a handler that has not been re-rendered yet — see `emit`.
+  const latest = useRef(parts);
   // What the parent last showed us. Compared rather than the raw prop so a save echoing the same
   // date back does not rebuild the boxes under the cursor (the UC-072 reset, one layer up).
   const shown = useRef(value);
@@ -68,10 +71,16 @@ export function DateField({
   useEffect(() => {
     if (value === shown.current) return;
     shown.current = value;
-    setParts(toParts(value));
+    latest.current = toParts(value);
+    setParts(latest.current);
   }, [value]);
 
   const emit = (next: DateParts) => {
+    // Written before the state, because a handler can run **before** the re-render that would
+    // carry it: auto-advance focuses the next box inside the same keystroke, and that box's blur
+    // handler still closes over the parts as they were. Reading them from here rather than from
+    // the render's own `parts` is what stops a settled box wiping the digit that settled it.
+    latest.current = next;
     setParts(next);
     const iso = isBlank(next) ? "" : toIso(next);
     if (iso === null) return; // still being typed — the parent keeps what it has
@@ -113,9 +122,11 @@ export function DateField({
       size === 4 ? "w-10" : "w-6",
     ),
     onChange: (event: React.ChangeEvent<HTMLInputElement>) => {
-      const text = segmentInput(event.target.value, size);
-      emit({ ...parts, [kind]: text });
-      if (next && segmentIsFinished(kind, text)) focusSegment(next);
+      const typed = segmentInput(event.target.value, size);
+      // A box the cursor is leaving is finished, so a lone digit takes its zero on the way out.
+      const done = segmentIsFinished(kind, typed);
+      emit({ ...parts, [kind]: done ? settledSegment(kind, typed) : typed });
+      if (done && next) focusSegment(next);
     },
     // A whole date pasted into any of the boxes fills all three — a native date input took one,
     // and without this "05/08/2026" would land in the day box as "05".
@@ -124,6 +135,13 @@ export function DateField({
       if (!pasted) return;
       event.preventDefault();
       emit(pasted);
+    },
+    // Leaving by hand — Tab, an arrow, a click elsewhere — settles the box the same way the
+    // auto-advance does, so `9` never sits on screen as a day.
+    onBlur: () => {
+      const current = latest.current;
+      const settled = settledSegment(kind, current[kind]);
+      if (settled !== current[kind]) emit({ ...current, [kind]: settled });
     },
     // Focus lands on the whole value, however it was reached — clicking, tabbing, or an arrow
     // from the box beside it.
@@ -175,7 +193,10 @@ export function DateField({
         // reason: rendered as a sibling, every click in it closed the popover it was clicking.
         if (event.currentTarget.contains(event.relatedTarget)) return;
         // A half-typed date on screen would claim to be stored. Put back what actually is.
-        if (!isBlank(parts) && toIso(parts) === null) setParts(toParts(value));
+        if (!isBlank(latest.current) && toIso(latest.current) === null) {
+          latest.current = toParts(value);
+          setParts(latest.current);
+        }
         setOpen(false);
         onBlur?.();
       }}

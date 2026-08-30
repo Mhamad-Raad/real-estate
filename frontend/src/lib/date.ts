@@ -81,6 +81,17 @@ export function segmentIsFinished(kind: "day" | "month" | "year", text: string):
   return text.length === 1 && first > (kind === "month" ? 1 : 3);
 }
 
+/** How a box reads once the cursor has left it: a lone day or month digit gains its zero, so the
+ *  office sees `05` and `09` rather than `5` and `9` — the shape a date is written in.
+ *
+ *  Only on the way **out**. Padding a `1` in the month box the moment it is typed would make `12`
+ *  unreachable. A lone `0` is left alone: it is not a day, and the field's own revert deals with
+ *  it like any other half-typed value.
+ */
+export function settledSegment(kind: keyof DateParts, text: string): string {
+  return kind !== "year" && text.length === 1 && Number(text) > 0 ? pad(Number(text)) : text;
+}
+
 /** One box a step up or down, the way the arrow keys move a native date input.
  *
  * Day and month **wrap** — 12 up is January, not a dead end — while the year clamps at the window

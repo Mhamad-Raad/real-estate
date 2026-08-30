@@ -81,6 +81,46 @@ describe("DateField", () => {
     expect(onChange).toHaveBeenCalledWith("2026-08-05");
   });
 
+  it("writes a lone day or month digit with its zero", async () => {
+    const onChange = vi.fn();
+    render(<Controlled onChange={onChange} />);
+
+    await userEvent.type(boxes().day, "5");
+
+    expect(boxes().day).toHaveValue("05");
+  });
+
+  it("waits for the cursor to leave before adding the zero", async () => {
+    // Padding a 1 in the month box the moment it is typed would put 12 out of reach.
+    render(<Controlled />);
+
+    await userEvent.type(boxes().month, "1");
+    expect(boxes().month).toHaveValue("1");
+
+    // Typed on, not clicked into again — clicking selects the box, which is what makes typing
+    // over a stored value work.
+    await userEvent.keyboard("2");
+    expect(boxes().month).toHaveValue("12");
+  });
+
+  it("adds the zero when the box is left by hand", async () => {
+    render(<Controlled />);
+
+    await userEvent.type(boxes().month, "1");
+    await userEvent.tab();
+
+    expect(boxes().month).toHaveValue("01");
+  });
+
+  it("leaves the year alone — 202 is half-typed, not 0202", async () => {
+    render(<Controlled />);
+
+    await userEvent.type(boxes().year, "202");
+    await userEvent.tab();
+
+    expect(boxes().year).not.toHaveValue("0202");
+  });
+
   it("moves to the next box on its own", async () => {
     render(<Controlled />);
 
