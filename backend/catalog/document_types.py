@@ -27,7 +27,9 @@ class DocumentType(NamedTuple):
     # Some papers only exist when there is a spouse; the condition belongs to the type itself so
     # the backend requirement and the frontend upload slot can never disagree.
     only_when_married: bool = False
-    # Produced by the system (§6.6) — shown as output, never offered as an upload slot.
+    # Produced by the system (§6.6) — shown as output, never offered as an **upload slot**. Not
+    # the same as "never uploaded": the backlog door files a `CompiledCase` from a scan of a paper
+    # case file (§5.9, UC-114). What this guarantees is that no step screen invites one.
     generated: bool = False
     # How many parts the office files here — the slot's **capacity**, enforced on upload (UC-085).
     # It is not a *completion* rule in the other direction: a slot short of its second part still

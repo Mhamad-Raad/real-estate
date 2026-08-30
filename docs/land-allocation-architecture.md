@@ -610,7 +610,7 @@ erDiagram
 | **User** | Login account, assignment, audit attribution | `role` (admin/lawyer) — *`language`/`theme` removed, see §0* | 1→N Process (process-wide), 1→N ProcessInstituteEntry (per-institute), 1→N ActivityLog |
 | **Category** | A/B/C/G institute grouping, admin-managed | `code`, `name` | 1→N Client, 1→N Process |
 | **Client** | Land beneficiary; all gov-ID fields | `full_name`, `pid`, `mother_full_name`, `marital_status`, `spouse_name`, `spouse_pid` *(§5.7 household dedup)*, `created_by` *(§0)* | N→1 Category; 1→N Document; 1→N Process |
-| **Process** | Central allocation case | `overall_status`, `current_step`, `assigned_lawyer`, `lawyer_notes`, `land_id`, `land_address` *(§0 — replaced LandParcel)* | N→1 Client/Category/Lawyer; 1→N Step/InstituteEntry/Document |
+| **Process** | Central allocation case | `overall_status`, `current_step`, `assigned_lawyer`, `lawyer_notes`, `land_id`, `land_address` *(§0 — replaced LandParcel)*, `unique_code` (§3.8), `duplicate_flagged` / `similar_name_flagged` (§5.7), `fast_entry` (§5.9) | N→1 Client/Category/Lawyer; 1→N Step/InstituteEntry/Document |
 | **ProcessStep** | Per-step status + step-level dates/approval | `step_number`, `status`, `start_date`, `end_date`, `approval_status`, `out_of_city_flag` | N→1 Process |
 | **ProcessInstituteEntry** | One institute's upload + assigned lawyer in steps 2–4 | `institute_code` OR `custom_name`, `is_custom`, `assigned_lawyer` | N→1 Process; 1→1 Document (single owning FK: `Document.institute_entry_id`) |
 | **Document** | A PDF (scanned/imported/generated) | `file_path`, `input_source`, `ocr_status`, `verification_status`, `sha256` | N→1 Client/Process/InstituteEntry |
@@ -680,8 +680,9 @@ Each type carries `(code, i18n key, step, required)` plus four fields the build 
 | Field | What it decides |
 |-------|-----------------|
 | `only_when_married` | the slot exists only for a married beneficiary (the spouse ID) |
-| `generated` | system output — shown as a result, never offered as an upload slot |
+| `generated` | system output — shown as a result, and **never offered as an upload slot**. Not the same as "never uploaded": the backlog door files a `CompiledCase` from a scan (§5.9, UC-114). What the flag guarantees is that no step screen invites one |
 | `expected_parts` | **how much the slot holds, refused past** — see the capacity note below |
+| size | `documents.services.size_limit_for` — `MAX_UPLOAD_BYTES` for a paper a person files, `MAX_GENERATED_BYTES` for anything system-generated **and for a `CompiledCase` whichever way it was made**: a scan of a whole case file does not fit the single-paper limit (UC-114). Declared once because two places ask it — `read_upload` refuses an oversized upload before reading it into memory, and `create_document` re-checks the bytes |
 | `part` | **what a "part" is** — `file`, `side` or `page`. `side` and `page` are both counted in **pages** and differ only in the word the screen prints: an identity card stores both sides as one document (UC-083), and the municipality form and its letter may arrive as two one-page scans or one two-page PDF (UC-109). One field rather than a flag beside a noun, so how a slot counts and what it calls a part cannot disagree |
 
 > **Deviation (2026-08-17, the office — UC-085). `expected_parts` is a capacity, not a hint.** It
@@ -837,11 +838,15 @@ coexist.
 
 ### 3.7 Search & indexing strategy
 
-Processes are searched/filtered **only** by structured fields — **date, client PID, client name** — plus list filters (category, status, assigned lawyer). No document/OCR full-text search. Mother's full name is a **duplicate-detection key only**, never a search field.
+Processes are searched/filtered **only** by structured fields — **date, client PID, client name, case code, land number** — plus list filters (category, status, assigned lawyer). No document/OCR full-text search. Mother's full name is a **duplicate-detection key only**, never a search field.
 
 | Index | Table.column(s) | Type | Serves |
 |-------|-----------------|------|--------|
 | `ix_client_pid_active` | `client (pid) WHERE NOT is_deleted` | **partial unique** btree | PID lookup **and** dedups client *identities* (one active client row per PID) |
+| `ix_client_pid_trgm` | `client (pid)` | GIN trigram | finding a case by a **fragment** of a PID — `ix_client_pid_active` is a btree and serves equality only (UC-005) |
+| `ix_process_unique_code` | `process (unique_code) WHERE unique_code <> ''` | **partial unique** btree | a case number is issued once and **never reissued** — unscoped to live rows on purpose, so a soft-deleted case keeps its number (§3.8) |
+| `ix_process_code_trgm` | `process (unique_code)` | GIN trigram | the search box matching a fragment of a case code — same btree gap as above |
+| `ix_process_land_trgm` | `process (land_id)` | GIN trigram | finding a case by its land number (UC-113). `land_id` is deliberately **not** unique: a plot can be split and allocated more than once |
 | `ix_process_active_alloc` | `process (client_id) WHERE NOT is_deleted AND overall_status <> 'rejected'` | **partial unique** btree | enforces **one active allocation per client** — the actual "no land twice" guarantee (rejected/soft-deleted attempts still allowed) |
 | `ix_client_name_trgm` | `client (full_name)` | GIN **trigram** (`pg_trgm`) | fast partial/fuzzy name search |
 | `ix_client_mother_trgm` | `client (mother_full_name)` | GIN trigram | duplicate detection (fuzzy) — not user search |
@@ -903,6 +908,7 @@ A **REST** API (explicitly not GraphQL) under `/api/`, versioned `/api/v1/`, JSO
 | | `GET/PATCH /api/v1/clients/{id}/` | Retrieve / update — **no `DELETE`** (405); a beneficiary is released by deleting their case (UC-061) | Admin or process assignee |
 | **Processes** | `GET /api/v1/processes/` | **Search/filter list** (see 4.3) | All (read all) |
 | | `POST /api/v1/processes/` | Create case (sets process-wide lawyer) | All |
+| | `POST /api/v1/processes/fast-entry/` | **Carry one finished paper allocation in** (§5.9, UC-114) — multipart: the beneficiary's four fields, category, land number, `mark_complete`, and **one PDF** filed as the step-5 `CompiledCase`. Creates person + case + file or none of them. The person posting becomes the assigned lawyer. **Temporary — remove with the backlog** | All |
 | | `GET /api/v1/processes/{id}/` | Full case with steps, entries, documents | All |
 | | `PATCH /api/v1/processes/{id}/` | Update case header / lawyer_notes | Assignee or Admin |
 | | `DELETE /api/v1/processes/{id}/` | Soft-delete case | Assignee or Admin |
@@ -952,7 +958,7 @@ GET /api/v1/processes/?search=<name>&pid=<exact>&date_from=2026-01-01&date_to=20
 ```
 
 - `pid` → exact match on the partial-unique PID index (fast). Kept for API callers and the dedup path.
-- `search` → **`ILIKE '%…%'` on `client.full_name` OR `client.pid` OR `process.unique_code` OR `process.land_id`** — one box that finds a case however the lawyer describes it: the person's name, their national ID, the office's own code, or the land number (It.7, UC-004/UC-005; the code joined 2026-08-05, the land number 2026-08-30 — UC-113). **Several cases may share a land number and that is not a fault** — a plot can be split and allocated more than once — so the box deliberately returns them all; `land_id` carries no unique constraint and `ix_process_land_trgm` gives it the index it had none of. The Processes screen shows exactly **one** search field for all three — it carried two, both searching an ID. `unique_code` is trigram-GIN-backed by `ix_process_code_trgm`, because `ix_process_unique_code` is a btree and serves equality only — the same gap `ix_client_pid_trgm` was added to close. Both sides are trigram-GIN-backed (`ix_client_name_trgm`, `ix_client_pid_trgm`), so a substring query is an index scan, not a table scan.
+- `search` → **`ILIKE '%…%'` on `client.full_name` OR `client.pid` OR `process.unique_code` OR `process.land_id`** — one box that finds a case however the lawyer describes it: the person's name, their national ID, the office's own code, or the land number (It.7, UC-004/UC-005; the code joined 2026-08-05, the land number 2026-08-30 — UC-113). **Several cases may share a land number and that is not a fault** — a plot can be split and allocated more than once — so the box deliberately returns them all; `land_id` carries no unique constraint and `ix_process_land_trgm` gives it the index it had none of. The Processes screen shows exactly **one** search field for all four — it carried two, both searching an ID. `unique_code` is trigram-GIN-backed by `ix_process_code_trgm`, because `ix_process_unique_code` is a btree and serves equality only — the same gap `ix_client_pid_trgm` was added to close. Both sides are trigram-GIN-backed (`ix_client_name_trgm`, `ix_client_pid_trgm`), so a substring query is an index scan, not a table scan.
   - It is **`ILIKE`, not the pg_trgm `%` similarity operator.** Similarity divides shared trigrams by the union of *both* strings, so it penalises a short fragment against a long name: `similarity('pers','Married Smoke Person') = 0.182`, below the 0.3 threshold, so a partial name matched **nothing**. Worse for Kurdish/Arabic names of 3–4 parts — a person's own first name scored 0.333 and dropped *below* threshold as their full name got longer, so search silently degraded exactly where it mattered.
   - **Similarity is still the right operator for the mother-name duplicate check** (§5.7) — "is this the same person, misspelled" is a genuine fuzzy-match question. Substring lookup and fuzzy matching are two different jobs; they no longer share one operator.
 - `date_from/date_to` → range on `process.created_at` index.
