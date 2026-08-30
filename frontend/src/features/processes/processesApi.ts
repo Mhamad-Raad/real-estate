@@ -3,6 +3,7 @@ import { cleanParams } from "@/services/params";
 import type { Paginated } from "@/services/types";
 
 import type {
+  FastEntryInput,
   InstituteEntry,
   MatchReason,
   ProcessCreateInput,
@@ -36,6 +37,20 @@ export const processesApi = baseApi.injectEndpoints({
     }),
     createProcess: builder.mutation<ProcessListItem, ProcessCreateInput>({
       query: (body) => ({ url: "processes/", method: "POST", body }),
+      invalidatesTags: [PROCESS_LIST_TAG],
+    }),
+    /** One finished paper allocation, in a single multipart request (UC-114).
+     *
+     * The office is carrying thousands of closed cases into the app and will not re-key five
+     * steps of each: this sends the fields that make a case findable plus ONE PDF — the case
+     * file, which is the same document step 5 compiles for a case worked here. */
+    fastEntryProcess: builder.mutation<ProcessDetail, FastEntryInput>({
+      query: ({ file, ...fields }) => {
+        const form = new FormData();
+        for (const [name, value] of Object.entries(fields)) form.append(name, String(value));
+        form.append("file", file);
+        return { url: "processes/fast-entry/", method: "POST", body: form };
+      },
       invalidatesTags: [PROCESS_LIST_TAG],
     }),
     deleteProcess: builder.mutation<void, number>({
@@ -137,6 +152,7 @@ export const {
   useListProcessesQuery,
   useGetProcessQuery,
   useCreateProcessMutation,
+  useFastEntryProcessMutation,
   useDeleteProcessMutation,
   useUpdateProcessMutation,
   useOverrideDuplicateMutation,

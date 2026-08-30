@@ -10,6 +10,7 @@ import { ProtectedRoute } from "@/features/auth/ProtectedRoute";
 import { CategoriesPage } from "@/features/categories/CategoriesPage";
 import { TemplatesPage } from "@/features/templates/TemplatesPage";
 import { ClientsPage } from "@/features/clients/ClientsPage";
+import { FastEntryPage } from "@/features/processes/FastEntryPage";
 import { ProcessCreatePage } from "@/features/processes/ProcessCreatePage";
 import { ProcessesPage } from "@/features/processes/ProcessesPage";
 import { ReportsPage } from "@/features/reports/ReportsPage";
@@ -32,6 +33,8 @@ export default function App() {
             <Route path="processes" element={<ProcessesPage />} />
             {/* Before `:id`, or "new" would be parsed as a process id. */}
             <Route path="processes/new" element={<ProcessCreatePage />} />
+            {/* Temporary by design — remove with the page when the paper backlog is in (UC-114). */}
+            <Route path="processes/fast-entry" element={<FastEntryPage />} />
             <Route path="processes/:id" element={<ProcessDetailPage />} />
             {/* Read-only, and open to lawyers: they print the blank Request form from here before
                 Step 1 (UC-039). The API was never admin-gated. */}

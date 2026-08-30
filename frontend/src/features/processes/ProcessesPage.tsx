@@ -1,4 +1,4 @@
-import { AlertTriangle, Plus, ShieldCheck, Trash2 } from "lucide-react";
+import { AlertTriangle, FileStack, Plus, ShieldCheck, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
@@ -111,10 +111,18 @@ export function ProcessesPage() {
         title={t("processes.title")}
         description={t("processes.subtitle")}
         action={
-          <Button onClick={() => navigate("/processes/new")}>
-            <Plus className="size-4" />
-            {t("processes.add")}
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            {/* Beside the ordinary button, not in the nav: it belongs to the backlog run and
+                leaves with it (UC-114). */}
+            <Button variant="outline" onClick={() => navigate("/processes/fast-entry")}>
+              <FileStack className="size-4" />
+              {t("fastEntry.title")}
+            </Button>
+            <Button onClick={() => navigate("/processes/new")}>
+              <Plus className="size-4" />
+              {t("processes.add")}
+            </Button>
+          </div>
         }
       />
 

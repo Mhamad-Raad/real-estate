@@ -643,5 +643,20 @@
     "pid": {
       "format": "A national ID must be exactly 12 digits."
     }
+  },
+  "fastEntry": {
+    "title": "Fast entry — old cases",
+    "subtitle": "For the paper backlog: the details that make a case findable, plus the case file as one PDF. The steps are left empty and the case is marked as fast entry.",
+    "beneficiary": "Beneficiary",
+    "theCase": "The case",
+    "theFile": "The case file",
+    "caseFile": "Case file (one PDF)",
+    "caseFileHint": "The whole file as a single document — the same thing step 5 compiles for a case worked here.",
+    "markComplete": "This case is finished",
+    "submit": "Save and start the next",
+    "fileRequired": "Choose the case file first.",
+    "created": "Saved as {{code}}",
+    "badge": "Fast entry",
+    "stepNote": "This case was typed in from paper through fast entry. Its steps were never worked here — the whole file is on step 5."
   }
 }

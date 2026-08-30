@@ -124,6 +124,9 @@ export function ProcessDetailPage() {
         description={`${process.client_full_name} · ${t("clients.pid")}: ${process.client_pid}`}
         action={
           <div className="flex items-center gap-2">
+            {/* Beside the status, because it changes what the status *means*: a complete case
+                that was typed in from paper was never worked here (UC-114). */}
+            {process.fast_entry && <Badge variant="neutral">{t("fastEntry.badge")}</Badge>}
             <Badge variant={OVERALL_VARIANT[process.overall_status]}>
               {t(`processes.status.${process.overall_status}`)}
             </Badge>
@@ -145,6 +148,14 @@ export function ProcessDetailPage() {
             {t("workflow.reapply")}
           </Button>
         </div>
+      )}
+
+      {/* Said once, above the steps, rather than repeated inside each of the five: every one of
+          them is empty and the reason is the same (UC-114). */}
+      {process.fast_entry && (
+        <p className="rounded-md border border-border bg-muted/40 px-3 py-2.5 text-sm text-muted-foreground">
+          {t("fastEntry.stepNote")}
+        </p>
       )}
 
       <CaseAssignee process={process} isAdmin={isAdmin} />

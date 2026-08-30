@@ -26,6 +26,9 @@ export interface ProcessListItem {
   current_step: number;
   duplicate_flagged: boolean;
   similar_name_flagged: boolean;
+  // Typed in through the fast-entry form rather than worked through the five steps (UC-114). The
+  // screens badge it so the empty steps read as history, not as work nobody finished.
+  fast_entry: boolean;
   assigned_lawyer: number;
   assigned_lawyer_username: string;
   created_at: string;
@@ -105,3 +108,16 @@ export interface ProcessDetail extends ProcessListItem {
   client_detail: import("@/features/clients/types").Client;
 }
 
+
+/** What the fast-entry form sends (UC-114): the fields that make a case findable, plus the one
+ *  PDF that stands in for the whole file. Everything else on the case stays empty on purpose. */
+export interface FastEntryInput {
+  full_name: string;
+  pid: string;
+  mother_full_name: string;
+  date_of_birth: string;
+  category: number | string;
+  land_id: string;
+  mark_complete: boolean;
+  file: File;
+}
