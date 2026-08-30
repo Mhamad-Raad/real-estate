@@ -2,10 +2,11 @@
 
 Two independent ways to run the app locally:
 
-- **[Method A — Docker](#method-a--docker-recommended)** — Postgres + Django in containers, pinned to
-  Python 3.12 so behaviour matches the Windows production host. Recommended.
+- **[Method A — Docker](#method-a--docker-recommended)** — Postgres, Redis, Django and the Celery
+  worker in containers, pinned to Python 3.12 so behaviour matches the Windows production host.
+  Recommended, and the only method that renders documents out of the box.
 - **[Method B — Native](#method-b--native-fastest-inner-loop)** — Homebrew Postgres + a local Python
-  venv. Fastest reload, no containers.
+  venv. Fastest reload, no containers; needs extra setup for document generation.
 
 In **both** methods the **frontend runs natively** with Vite (`npm run dev`) — only the
 backend/DB differ. The two methods are isolated (different databases and ports), so you can
@@ -26,9 +27,11 @@ switch between them freely without them clashing.
 | Docker | Desktop **or** colima | Method A only |
 | Python | 3.12–3.14 | Method B only (via Homebrew) |
 | PostgreSQL | 16/17 | Method B only (`brew install postgresql@17`) |
+| Redis | 7 | Method B only, for background jobs (`brew install redis`) |
+| LibreOffice | 7+ | Method B only, to render letters (`brew install --cask libreoffice`) |
 
 Ports used: **5173** (frontend), **8000** (backend), **5432** (native Postgres),
-**5433** (Docker Postgres, published to the host).
+**5433** (Docker Postgres, published to the host), **6379** (Redis).
 
 > Inside Docker the backend reaches the database as **`db:5432`** (the compose service name on
 > the internal network) — the host-published **5433** is only for connecting from your machine
@@ -90,8 +93,52 @@ From the repo root (`~/Desktop/Land-Allocation-System`):
 docker compose -f deploy/docker-compose.dev.yml up -d --build
 ```
 
-This builds the Django image (Python 3.12), starts Postgres 16, waits until the DB is healthy,
-runs migrations automatically, and serves the API on **http://localhost:8000**.
+This builds the Django image (Python 3.12, with headless LibreOffice and the Noto fonts inside),
+starts Postgres 16 and Redis 7, waits until both are healthy, runs migrations automatically, and
+serves the API on **http://localhost:8000**. Four services come up:
+
+| Service | Role |
+|---------|------|
+| `db` | Postgres 16 (published on host **5433**) |
+| `redis` | Celery broker — queue only, no persistence |
+| `backend` | migrations + the API on **8000** |
+| `worker` | Celery worker: renders `.docx` letters to PDF via headless LibreOffice, and reads ID cards with Tesseract |
+
+`backend` and `worker` are the same image with different commands, and share the
+`documents_data` volume so the API can serve what the worker writes.
+
+> **Celery does not hot-reload.** Editing task code needs
+> `docker compose -f deploy/docker-compose.dev.yml restart worker` — unlike the API, which
+> reloads from the bind mount.
+
+> **A dependency change needs a rebuild, not a restart:** `... up -d --build worker`. A plain
+> `restart` re-runs the *old* image, so a task importing a newly added package fails with
+> `ModuleNotFoundError` while `requirements.txt` looks correct.
+
+### OCR toolchain (in the image, nothing to install)
+
+Card reading needs Tesseract and Poppler, both installed by `backend/Dockerfile.dev`:
+`tesseract-ocr`, `tesseract-ocr-eng`, and — **the one that matters** — **`tesseract-ocr-script-arab`**,
+which provides `Arabic.traineddata`. Sorani is read with that *script* model; **`tesseract-ocr-ckb`
+does not exist**, so do not go looking for it (§6.2). Verify inside the container:
+
+```bash
+docker compose -f deploy/docker-compose.dev.yml exec worker tesseract --list-langs
+# expect: Arabic  ara  eng  osd
+```
+
+### Housekeeping command
+
+Staged card scans need a periodic sweep (§6.3) — in production this runs from the host scheduler
+beside the backup job; run it by hand in dev:
+
+```bash
+docker compose -f deploy/docker-compose.dev.yml exec backend python manage.py sweep_card_scans --dry-run
+docker compose -f deploy/docker-compose.dev.yml exec backend python manage.py sweep_card_scans
+```
+
+It re-enqueues readings whose Celery task was lost (e.g. the host rebooted mid-job) and deletes
+the staged file of any scan left unconfirmed for 14 days, keeping the row for the audit trail.
 
 > **Editing code vs. changing models.** Your `backend/` folder is bind-mounted, so ordinary code
 > edits hot-reload with no rebuild — `--build` is only needed when `requirements.txt` changes.
@@ -108,6 +155,12 @@ Create the dev login accounts (first run only):
 
 ```bash
 docker compose -f deploy/docker-compose.dev.yml exec backend python manage.py seed_dev
+```
+
+Optionally, load demo cases to click around in (see **Demo data** below):
+
+```bash
+docker compose -f deploy/docker-compose.dev.yml exec backend python manage.py seed_demo_data
 ```
 
 ### 3. Start the frontend (separate terminal)
@@ -166,7 +219,27 @@ python3.14 -m venv .venv          # first run only (any Python 3.12–3.14)
 .venv/bin/python manage.py runserver                  # -> http://localhost:8000
 ```
 
-### 3. Frontend (separate terminal)
+### 3. Background jobs (only if you need document generation or card reading)
+
+Generating letters natively needs a broker and LibreOffice; **card reading also needs Tesseract
+with the Arabic script model plus Poppler** (`brew install tesseract tesseract-lang poppler`).
+The rest of the app runs without any of them.
+
+```bash
+brew services start redis                             # broker on 6379
+cd backend && .venv/bin/celery -A config worker --loglevel=info
+```
+
+Point `LIBREOFFICE_BIN` in `backend/.env` at the macOS binary — it is not on `PATH`:
+
+```
+LIBREOFFICE_BIN=/Applications/LibreOffice.app/Contents/MacOS/soffice
+```
+
+> macOS ships no Sorani-capable font that matches the container's, so a natively rendered letter
+> can differ from production output. Verify generated documents under **Method A**.
+
+### 4. Frontend (separate terminal)
 
 ```bash
 cd frontend
@@ -185,17 +258,47 @@ Dev-only seed accounts (created by `seed_dev` — not for production):
 | `admin` | `admin12345` | Administrator — sees all nav (reports, activities, users) |
 | `lawyer` | `lawyer12345` | Lawyer — sees dashboard, clients, processes, settings |
 
-`admin` is also a Django superuser: **http://localhost:8000/admin/**.
+There is **no Django admin site** — `/admin/` is a 404. It was removed in It.8: a staff account
+could hard-delete rows through it and edit cases outside the service layer, so nothing was
+soft-deleted and nothing was audited (§11.1, §11.2). Everything it offered lives in the app: the
+Users screen, the restore desk for soft-deleted rows, and the Activities audit trail.
 
-> The app currently ships the authenticated **shell** only (login, language/RTL switch,
-> light/dark). Business data — clients, processes, land parcels — arrives in Iteration 1.
+---
+
+## Demo data
+
+`seed_demo_data` creates seven demo allocations covering the whole workflow, so every screen has
+something in it without anyone typing a case in by hand:
+
+| Case | State | What it is there to exercise |
+|------|-------|------------------------------|
+| `DEMO-0001` | Step 1, nothing filed | The missing-requirement badges and warnings |
+| `DEMO-0002` | Step 1 complete | Generating the eligibility letter |
+| `DEMO-0003` | Step 2 done, married | Spouse fields, spouse ID, institute entries |
+| `DEMO-0004` | Step 3 done | The Step-3 out-of-city row |
+| `DEMO-0005` | Steps 1–4 done | The Step-5 compiled export |
+| `DEMO-0006` | Completed | Completed-case screens, dashboard and report figures |
+| `DEMO-0007` | Rejected | A rejected case (which a client may re-apply after) |
+
+```bash
+manage.py seed_demo_data           # seed; refuses if demo data already exists
+manage.py seed_demo_data --reset   # purge, then seed again
+manage.py seed_demo_data --purge   # remove it all
+```
+
+Every demo beneficiary's national ID starts with **`DEMO-`**. A real government ID is 12 digits,
+so the two can never collide: demo records are obvious on screen, and their documents sit in their
+own `<CATEGORY>/DEMO-xxxx/` folders on disk. That is what makes `--purge` safe to run, and what
+keeps demo data from ever being mistaken for a real record during acceptance testing (Iteration 7).
+
+Nothing is hard-deleted — `--purge` soft-deletes, like everything else in this system (§11).
 
 ---
 
 ## Running the tests
 
 ```bash
-# Backend (Docker):
+# Backend (Docker) — the full suite:
 docker compose -f deploy/docker-compose.dev.yml exec backend python manage.py test
 # Backend (native):
 cd backend && .venv/bin/python manage.py test
@@ -203,6 +306,11 @@ cd backend && .venv/bin/python manage.py test
 # Frontend:
 cd frontend && npm test
 ```
+
+> **Run the backend suite in Docker.** The document-rendering tests skip themselves when
+> LibreOffice is absent, so a native run reports OK on a smaller suite rather than failing —
+> compare the test count (`Ran N tests`) if you are unsure. Celery tasks run inline under
+> `manage.py test`, so no broker is needed either way.
 
 ---
 
@@ -217,3 +325,10 @@ cd frontend && npm test
 | `permission denied to create database` (native tests) | The `landalloc` role needs `CREATEDB`: `psql -d postgres -c "ALTER ROLE landalloc CREATEDB;"`. |
 | Frontend loads but API calls fail | Backend not up on `:8000`, or you started the frontend before the backend finished migrating. |
 | Changed backend code isn't reflected | Docker: source is bind-mounted and auto-reloads; if stuck, `... restart backend`. |
+| Changed **task** code isn't reflected | Celery has no autoreload: `... restart worker`. |
+| Task fails with `ModuleNotFoundError` after adding a dependency | A `restart` reuses the old image — rebuild: `... up -d --build worker`. |
+| A generated document never appears | Check the worker: `... logs -f worker`. If it is down or cannot reach Redis, jobs queue forever. |
+| A card scan sits on `pending` forever | The worker is down, or its task was lost (host reboot). Check `... logs -f worker`, then `... exec backend python manage.py sweep_card_scans` to re-enqueue it. |
+| Card reading fails with a language error | The Arabic *script* model is missing — rebuild the image (`... up -d --build worker`) and confirm `tesseract --list-langs` shows `Arabic`. `ckb` does not exist and is never the fix. |
+| `LibreOffice binary not found` | Native run without LibreOffice — set `LIBREOFFICE_BIN` in `backend/.env`, or use Method A. |
+| Backend container exits on boot | A settings/import error kills it (the dev server does not retry). Read the cause: `... logs backend`. |

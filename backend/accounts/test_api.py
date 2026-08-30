@@ -18,6 +18,16 @@ class UsersApiTests(APITestCase):
         self.client.force_authenticate(self.lawyer)
         self.assertEqual(self.client.get(reverse("user-list")).status_code, 403)
 
+    def test_assignable_lawyers_list_is_open_to_any_authed_user(self):
+        # Non-admins need this for per-institute assignment dropdowns (§5.1).
+        self.client.force_authenticate(self.lawyer)
+        resp = self.client.get(reverse("lawyers"))
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        usernames = [u["username"] for u in resp.data]
+        self.assertIn("admin_u", usernames)
+        self.assertIn("lawyer_u", usernames)
+        self.assertEqual(set(resp.data[0].keys()), {"id", "username"})  # minimal shape only
+
     def test_admin_creates_user_with_hashed_password(self):
         self.client.force_authenticate(self.admin)
         resp = self.client.post(

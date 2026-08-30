@@ -12,7 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { toast } from "@/components/ui/toaster";
+import { toast } from "@/lib/toast";
 import { useLogoutMutation } from "@/features/auth/authApi";
 import { logOut } from "@/features/auth/authSlice";
 

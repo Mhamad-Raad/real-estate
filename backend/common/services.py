@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import Any
 
 from .models import ActivityLog
+from .version import BUILD_NUMBER
 
 
 def client_ip(request) -> str | None:
@@ -42,4 +43,7 @@ def record_activity(
         before=before,
         after=after,
         ip_address=ip_address or client_ip(request),
+        # Stamped here rather than at each call site: this is the single funnel every domain
+        # service goes through, so one line covers the whole trail.
+        app_build=BUILD_NUMBER,
     )

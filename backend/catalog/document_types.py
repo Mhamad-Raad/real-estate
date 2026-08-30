@@ -1,0 +1,179 @@
+"""The ONE definition of the controlled document types (§6.7).
+
+`Document.document_type` stores these machine codes; `processes.status` derives which ones a step
+still needs; the frontend fetches them read-only via GET /api/v1/document-types/ to lay out its
+upload slots. Keeping the list here means a step can never require a document the UI offers no
+slot for. Display names are i18n keys, so the code stays stable in the DB while ckb/ar/en labels
+come from the translation files.
+
+The vocabulary is deliberately partial — steps 2–4 use the generic `InstituteDoc`, and the
+generated type (the eligibility letter) is produced by the system, never uploaded.
+"""
+
+from typing import NamedTuple
+
+# The three kinds of part a slot can hold. `side` and `page` are both counted in pages; they are
+# two words because a form has no sides and a card has no pages.
+PART_FILE = "file"
+PART_SIDE = "side"
+PART_PAGE = "page"
+
+
+class DocumentType(NamedTuple):
+    code: str
+    display_key: str
+    step: int | None
+    required: bool
+    # Some papers only exist when there is a spouse; the condition belongs to the type itself so
+    # the backend requirement and the frontend upload slot can never disagree.
+    only_when_married: bool = False
+    # Produced by the system (§6.6) — shown as output, never offered as an **upload slot**. Not
+    # the same as "never uploaded": the backlog door files a `CompiledCase` from a scan of a paper
+    # case file (§5.9, UC-114). What this guarantees is that no step screen invites one.
+    generated: bool = False
+    # How many parts the office files here — the slot's **capacity**, enforced on upload (UC-085).
+    # It is not a *completion* rule in the other direction: a slot short of its second part still
+    # counts as present, so a step is never blocked on it (UC-055).
+    expected_parts: int = 1
+    # **What a "part" is** — and therefore how the slot counts. `file` counts rows; `side` and
+    # `page` both count pages and differ only in the word the screen uses. Counting rows told the
+    # office that a card scanned front-and-back was "1 of 2 files" (UC-083), and that the
+    # municipality form and its letter filed as one two-page PDF was "1 of 2" as well (UC-109).
+    # One field rather than a flag beside a noun: the two can then never disagree.
+    part: str = PART_FILE
+
+
+# The two identity papers. Named because OCR reads these into client fields and files the rest
+# (§6.5) — the codes belong here with the rest of the vocabulary, not as literals in the ocr app.
+CLIENT_ID = "ClientID"
+SPOUSE_ID = "SpouseID"
+IDENTITY_TYPE_CODES = (CLIENT_ID, SPOUSE_ID)
+
+# Named for the same reason: the blank `request_form` template the office prints is the blank of
+# *this* paper, and it takes its download name from here rather than inventing a second one (§6.6).
+REQUEST = "Request"
+
+# The two system outputs. Named here with the rest of the vocabulary because both are *excluded*
+# from the compiled export and the exclusion has to name them: the previous compilation, or each
+# run would nest the last inside the next, and the eligibility letter, which the office does not
+# want in the compilation (UC-075). Nothing files a letter any more — cases opened before that
+# change still carry one, which is exactly why the code must stay declared.
+ELIGIBILITY_LETTER = "EligibilityLetter"
+COMPILED_CASE = "CompiledCase"
+
+# An identity card has two sides, and a case typed in by hand arrives with them as two separate
+# scans (UC-080). The scan-capture path merges the pair into one PDF, so plenty of existing cases
+# hold a single file here — the count is a hint and never blocks a step (UC-055), so both shapes
+# are fine. Declared once because both cards are filed the same way.
+ID_CARD_SIDES = 2
+
+DOCUMENT_TYPES: list[DocumentType] = [
+    DocumentType(
+        CLIENT_ID, "workflow.docType.ClientID", 1, True,
+        expected_parts=ID_CARD_SIDES, part=PART_SIDE,
+    ),
+    DocumentType(
+        SPOUSE_ID, "workflow.docType.SpouseID", 1, True,
+        only_when_married=True, expected_parts=ID_CARD_SIDES, part=PART_SIDE,
+    ),
+    # The municipality form and its covering letter — the case's own Step-4 paperwork, filed as
+    # two papers (UC-055). It cannot be demanded when a case opens (UC-037), and unlike the two
+    # Step-4 institutes it is **not** optional: a case may not close without it (UC-088).
+    # Counted in **pages**, not files: the office files these either as two one-page scans or as
+    # one two-page PDF, and both are the same complete pair (UC-109). Counting rows called the
+    # merged shape half-done.
+    DocumentType(
+        "RealEstate", "workflow.docType.RealEstate", 4, True, expected_parts=2, part=PART_PAGE
+    ),
+    DocumentType("SignedAgreement", "workflow.docType.SignedAgreement", 1, True),
+    # The citizen's own request. Optional on purpose — not every case arrives with one, so it must
+    # never hold Step 1 back. The office prints the blank form, has it signed, and scans it back,
+    # which is why it is an upload slot and not a `generated` output like the letter below.
+    DocumentType(REQUEST, "workflow.docType.Request", 1, False),
+    DocumentType(
+        ELIGIBILITY_LETTER, "workflow.docType.EligibilityLetter", 1, False, generated=True
+    ),
+    # Steps 2–4 attach one generic document per institute entry, not a fixed named set.
+    DocumentType("InstituteDoc", "workflow.docType.InstituteDoc", None, False),
+    # The Step-5 compiled export: system output, never an upload slot (§10.3).
+    DocumentType(COMPILED_CASE, "workflow.docType.CompiledCase", 5, False, generated=True),
+]
+
+DOCUMENT_TYPE_CODES = frozenset(dt.code for dt in DOCUMENT_TYPES)
+_BY_CODE: dict[str, DocumentType] = {dt.code: dt for dt in DOCUMENT_TYPES}
+
+
+def slot_capacity(code: str) -> tuple[int, str]:
+    """How much one slot may hold, and what it holds it in — `file`, `side` or `page` (§6.7).
+
+    A card holds two sides in one document and the municipality papers two pages (UC-109), so
+    both are measured in pages; every other slot counts the papers filed under it. The noun comes
+    back with the limit because the refusal has to say which it means. An unknown code gets the
+    conservative single-file answer — the upload serializer refuses those anyway, so this only
+    keeps the rule closed if that ever changes.
+    """
+    dt = _BY_CODE.get(code)
+    return (dt.expected_parts, dt.part) if dt else (1, PART_FILE)
+
+
+# The Sorani names, for the **filenames** — the same reason `INSTITUTE_NAMES_CKB` exists. The
+# office browses the document store by hand when the app is not in front of them, and it looks
+# for these papers by the names it uses for them, not by `RealEstate` (UC-060).
+DOCUMENT_TYPE_NAMES_CKB: dict[str, str] = {
+    CLIENT_ID: "ناسنامەی کڕیار",
+    SPOUSE_ID: "ناسنامەی هاوسەر",
+    # The office's own name for this paper (UC-088) — the generic "خانووبەرە" it carried before
+    # named the *institutes* that issue it rather than the form the lawyer is holding. Renaming
+    # affects **new** files only: a stored name is written once, and the ones already on disk keep
+    # theirs, which is correct — the file the office filed last week is still called what it is.
+    "RealEstate": "فۆرم و نووسراوی شارەوانی",
+    "SignedAgreement": "ڕێککەوتنی واژۆکراو",
+    REQUEST: "داواکاری",
+    "EligibilityLetter": "نامەی سۆراغکردنی سوودمەندی",
+    "InstituteDoc": "بەڵگەنامەی دامەزراوە",
+    "CompiledCase": "دۆسیەی کۆکراوەی کەیس",
+}
+
+
+# The office's English name, for the papers it knows by **both** — the same need the institutes
+# already carry (UC-054): a name on the form in one language and in the ministry's correspondence
+# in the other, so the screen prints the pair rather than picking a side.
+#
+# Deliberately sparse. A type in here is a type whose slot shows both names; everything else keeps
+# its single translated label, because "Client ID" and "ناسنامەی کڕیار" say the same thing and
+# printing both would be noise (UC-088).
+DOCUMENT_TYPE_NAMES_EN: dict[str, str] = {
+    "RealEstate": "Municipality form and letter",
+}
+
+
+def name_ckb(code: str) -> str:
+    """The Sorani name for a type, falling back to the code so a file is never named blank."""
+    return DOCUMENT_TYPE_NAMES_CKB.get(code, code or "")
+
+
+def name_en(code: str) -> str:
+    """The office's English name, or blank — blank means "this slot shows one label"."""
+    return DOCUMENT_TYPE_NAMES_EN.get(code, "")
+
+
+def required_codes_for_step(step: int, *, married: bool = False) -> tuple[str, ...]:
+    """Codes a step must have on file to count as complete (§3.6). Ordered — it is rendered."""
+    return tuple(
+        dt.code
+        for dt in DOCUMENT_TYPES
+        if dt.step == step and dt.required and (married or not dt.only_when_married)
+    )
+
+
+def document_types_as_dicts() -> list[dict]:
+    """The vocabulary as the frontend reads it, with the office's own names alongside.
+
+    The names ride here rather than in the translation files for the reason `institutes_as_dicts`
+    gives: a bilingual pair is the same in every interface language, so translating it would mean
+    the identical string three times.
+    """
+    return [
+        {**dt._asdict(), "name_ckb": name_ckb(dt.code), "name_en": name_en(dt.code)}
+        for dt in DOCUMENT_TYPES
+    ]

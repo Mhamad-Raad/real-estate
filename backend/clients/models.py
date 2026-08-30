@@ -7,12 +7,17 @@ from django.db import models
 from common.models import SoftDeleteModel
 
 
+class MaritalStatus(models.TextChoices):
+    SINGLE = "single", "Single"
+    MARRIED = "married", "Married"
+    DIVORCED = "divorced", "Divorced"
+    WIDOWED = "widowed", "Widowed"
+
+
 class Client(SoftDeleteModel):
-    class MaritalStatus(models.TextChoices):
-        SINGLE = "single", "Single"
-        MARRIED = "married", "Married"
-        DIVORCED = "divorced", "Divorced"
-        WIDOWED = "widowed", "Widowed"
+    # Module-level enum aliased here: `Meta` is a separate scope and cannot see the class body,
+    # but every caller keeps using `Client.MaritalStatus.*`.
+    MaritalStatus = MaritalStatus
 
     full_name = models.CharField(max_length=200)
     pid = models.CharField(max_length=50)  # national ID — unique per living person
@@ -21,8 +26,17 @@ class Client(SoftDeleteModel):
         max_length=10, choices=MaritalStatus.choices, default=MaritalStatus.SINGLE
     )
     spouse_name = models.CharField(max_length=200, blank=True)
+    # The generated letter prints a spouse row beside the client's, so it needs the same three
+    # fields for the spouse; they stay empty unless the client is married (§6.6).
+    spouse_date_of_birth = models.DateField(null=True, blank=True)
+    spouse_mother_full_name = models.CharField(max_length=200, blank=True)
+    # The spouse's own government ID. Not needed by the letter — this is a **dedup key**: a
+    # household may not be allocated land twice, so a spouse who later applies in their own name
+    # has to be recognisable as someone already covered by an allocation (§3.7, §5.7).
+    spouse_pid = models.CharField(max_length=50, blank=True, db_index=True)
 
-    date_of_birth = models.DateField(null=True, blank=True)
+    # Required: the letter prints a birth year, and a blank one would go out to a ministry.
+    date_of_birth = models.DateField()
     place_of_birth = models.CharField(max_length=120, blank=True)
     address = models.CharField(max_length=300, blank=True)
     phone = models.CharField(max_length=30, blank=True)
@@ -51,7 +65,20 @@ class Client(SoftDeleteModel):
                 fields=["pid"],
                 condition=models.Q(is_deleted=False),
                 name="ix_client_pid_active",
-            )
+            ),
+            # "A married client carries full spouse details" held at the DB layer, like the dedup
+            # rules — so the letter can never be generated with half a spouse row (§6.6).
+            models.CheckConstraint(
+                condition=(
+                    ~models.Q(marital_status=MaritalStatus.MARRIED)
+                    | (
+                        ~models.Q(spouse_name="")
+                        & models.Q(spouse_date_of_birth__isnull=False)
+                        & ~models.Q(spouse_mother_full_name="")
+                    )
+                ),
+                name="ck_client_married_has_spouse_details",
+            ),
         ]
         indexes = [
             # Trigram GIN for fast fuzzy name search and mother-name dedup matching (§3.7).
@@ -61,6 +88,10 @@ class Client(SoftDeleteModel):
                 fields=["mother_full_name"],
                 opclasses=["gin_trgm_ops"],
             ),
+            # The one search box matches a PID fragment too (§4.3, UC-005). `ix_client_pid_active`
+            # is a btree and cannot serve `ILIKE '%…%'`, so without this the ID half of every
+            # search is a sequential scan over the whole archive.
+            GinIndex(name="ix_client_pid_trgm", fields=["pid"], opclasses=["gin_trgm_ops"]),
         ]
 
     @property

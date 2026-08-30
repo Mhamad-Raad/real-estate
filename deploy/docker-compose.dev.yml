@@ -1,7 +1,57 @@
-# Dev-only stack: Postgres + Django with hot reload. NOT the offline production
-# packaging (Nginx/image save-load/LAN/backups) — that stays at Iteration 7.
+# Dev-only stack: Postgres + Redis + Django + Celery worker, with hot reload. NOT the offline
+# production packaging (Nginx/image save-load/LAN/backups) — that stays at Iteration 7.
 # Run from anywhere:  docker compose -f deploy/docker-compose.dev.yml up
 name: land-allocation-dev
+
+# The API and the worker are the same image with the same environment — only the command differs.
+x-django: &django
+  build:
+    context: ../backend
+    dockerfile: Dockerfile.dev
+  env_file:
+    - ../backend/.env
+    # The repo-root VERSION file doubles as an env file: the image is built from `backend/` and
+    # can never see a repo-root path, so the build identity has to arrive as environment.
+    - ../VERSION
+  environment:
+    # Override the native-dev values from .env for the compose network.
+    DB_HOST: db
+    DB_PORT: "5432"
+    DJANGO_ALLOWED_HOSTS: "localhost,127.0.0.1,0.0.0.0,backend"
+    CELERY_BROKER_URL: "redis://redis:6379/0"
+    # Both containers must see the same files: the worker writes the generated PDF, the API serves it.
+    DOCUMENTS_ROOT: /data/documents
+    # Same rule, separate place (UC-101): generated letters and lists must NOT sit in the office's
+    # archive, but they still cross from the worker that renders them to the API that serves them —
+    # so this is a **shared named volume**, never a per-container path like `/tmp`.
+    GENERATED_ROOT: /generated
+  volumes:
+    - generated_data:/generated
+    - ../backend:/app
+    # Mask the host .venv (macOS binaries) so the container uses its own interpreter.
+    - /app/.venv
+    # Read-only: a test asserts every `missing` code the API can emit has a translation.
+    - ../frontend/src/i18n/locales:/frontend_locales:ro
+    # **Bind-mounted to the Desktop, not a named volume** (§2.5, D12). A named volume lives inside
+    # the Docker VM's disk, which meant three things: the office could not reach its own archive
+    # without the app — the whole point of the Sorani filenames (§6.7, UC-060) — the It.9 backup,
+    # which copies this Desktop folder to the external drive, would have copied nothing, and a
+    # `docker system prune --volumes` or a Docker Desktop factory reset would have destroyed every
+    # scanned document with no warning naming the data.
+    #
+    # Live Postgres stays a NAMED volume on purpose (see `db_data`): a database on a bind mount is
+    # slow and unsafe on Windows. Documents are ordinary files and are safe here.
+    - ${DATA_ROOT:-~/Desktop/LandAllocationData}/documents:/data/documents
+    # The nightly `pg_dump` lands here (§13.2). Mounted for the same reason as `documents/`: the
+    # office copies this folder to the external drive by hand, and a backup written only inside
+    # the container is destroyed by the next `up --force-recreate` — while still reporting
+    # success, which is the worst way for a backup to fail.
+    - ${DATA_ROOT:-~/Desktop/LandAllocationData}/db-backups:/data/db-backups
+  depends_on:
+    db:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
 
 services:
   db:
@@ -21,28 +71,47 @@ services:
       timeout: 3s
       retries: 10
 
+  redis:
+    image: redis:7-alpine
+    # Celery job queue only — nothing here needs to survive a restart, so no persistence.
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   backend:
-    build:
-      context: ../backend
-      dockerfile: Dockerfile.dev
-    # Migrate on boot, then serve; source hot-reloads via the bind mount below.
+    <<: *django
+    # Migrate on boot, then serve; source hot-reloads via the bind mount.
     command: sh -c "python manage.py migrate && python manage.py runserver 0.0.0.0:8000"
-    env_file:
-      - ../backend/.env
-    environment:
-      # Override the native-dev values from .env for the compose network.
-      DB_HOST: db
-      DB_PORT: "5432"
-      DJANGO_ALLOWED_HOSTS: "localhost,127.0.0.1,0.0.0.0,backend"
-    volumes:
-      - ../backend:/app
-      # Mask the host .venv (macOS binaries) so the container uses its own interpreter.
-      - /app/.venv
     ports:
       - "8000:8000"
-    depends_on:
-      db:
-        condition: service_healthy
+
+    # Now that `/health/` checks its dependencies for real (§4.2), Compose can gate on it —
+    # `service_started` only means the process launched, which says nothing about whether the
+    # database is reachable or the document store is mounted.
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health/', timeout=5).status==200 else 1)\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  worker:
+    <<: *django
+    # Celery has no autoreload — restart this service after changing task code.
+    command: celery -A config worker --loglevel=info --concurrency=2
+
+  # The clock. **A worker on its own runs nothing on a schedule** — without this service the
+  # nightly backup and both card-scan sweeps never fire, silently (§13.2, §6.3). That is exactly
+  # how `ocr/sweep.py` sat unused from It.5 until It.9.
+  #
+  # One replica only: two beats would double-fire every schedule, so this must not be scaled.
+  beat:
+    <<: *django
+    command: celery -A config beat --loglevel=info
 
 volumes:
   db_data:
+  generated_data:

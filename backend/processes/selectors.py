@@ -1,11 +1,16 @@
 """Read/query logic for processes — the search & filter contract (§3.7, §4.3)."""
 
+from django.db.models import Q
+
+from clients.selectors import name_or_pid
+
 from .models import Process
 
 
 def search_processes(params) -> "list[Process]":
-    """Filter by structured fields only: date, client PID, client name, category, status, lawyer."""
-    qs = Process.objects.select_related("client", "category", "assigned_lawyer", "parcel")
+    """Filter by structured fields only: date, client PID, client name, category, status, lawyer,
+    current step."""
+    qs = Process.objects.select_related("client", "category", "assigned_lawyer")
 
     pid = params.get("pid")
     if pid:
@@ -13,9 +18,25 @@ def search_processes(params) -> "list[Process]":
 
     search = params.get("search")
     if search:
-        qs = qs.filter(client__full_name__trigram_similar=search)
+        # ONE box for the four things a lawyer actually knows about a case: the person's name,
+        # their national ID, the office's own case code, and the land number (§4.3). The name/PID
+        # half is the same rule as the Clients page — the two screens searched differently once
+        # and this one had the identical partial-match defect (UC-004). `unique_code` joined them
+        # when the office started quoting codes, `land_id` when they started looking a case up by
+        # the land itself (UC-113); `ix_process_code_trgm` and `ix_process_land_trgm` keep both an
+        # index scan, because a btree cannot serve `ILIKE '%…%'` (the same trap as
+        # `ix_client_pid_trgm`, UC-005).
+        #
+        # **Several cases may share a land number and that is not a fault** — the office splits and
+        # re-allocates plots — so this deliberately matches them all rather than assuming one.
+        qs = qs.filter(
+            name_or_pid(search, prefix="client__")
+            | Q(unique_code__icontains=search)
+            | Q(land_id__icontains=search)
+        )
 
-    for field in ("category", "overall_status", "assigned_lawyer"):
+    # Exact-match list filters, incl. current_step so the list can be narrowed to a workflow step.
+    for field in ("category", "overall_status", "assigned_lawyer", "current_step"):
         value = params.get(field)
         if value:
             qs = qs.filter(**{field: value})

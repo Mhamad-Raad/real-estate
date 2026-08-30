@@ -22,8 +22,11 @@ export function DuplicateWarningDialog({
 }) {
   const { t } = useTranslation();
   const pid = result?.pid_matches ?? [];
+  const household = result?.household_matches ?? [];
   const mother = result?.mother_name_matches ?? [];
-  const hardBlock = pid.length > 0;
+  // Both are hard duplicates, but they are shown apart: telling a lawyer "same National ID"
+  // about their applicant's spouse would simply be untrue (§5.7).
+  const hardBlock = pid.length > 0 || household.length > 0;
 
   const line = (c: Client) => (
     <li key={c.id} className="flex items-center justify-between gap-2 rounded-md bg-muted/60 px-3 py-2">
@@ -40,7 +43,7 @@ export function DuplicateWarningDialog({
       description={t("clients.duplicate.subtitle")}
     >
       <div className="space-y-4">
-        {hardBlock && (
+        {pid.length > 0 && (
           <div className="space-y-2">
             <div className="flex items-center gap-2 text-sm font-medium text-destructive">
               <AlertTriangle className="size-4" />
@@ -48,6 +51,19 @@ export function DuplicateWarningDialog({
               <Badge variant="danger">{t("clients.duplicate.hard")}</Badge>
             </div>
             <ul className="space-y-1 text-sm">{pid.map(line)}</ul>
+          </div>
+        )}
+        {household.length > 0 && (
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 text-sm font-medium text-destructive">
+              <AlertTriangle className="size-4" />
+              {t("clients.duplicate.householdHeading")}
+              <Badge variant="danger">{t("clients.duplicate.hard")}</Badge>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {t("clients.duplicate.householdNote")}
+            </p>
+            <ul className="space-y-1 text-sm">{household.map(line)}</ul>
           </div>
         )}
         {mother.length > 0 && (

@@ -14,7 +14,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { toast } from "@/components/ui/toaster";
+import { toast } from "@/lib/toast";
 import { ConfirmDialog } from "@/features/common/ConfirmDialog";
 import { PageHeader } from "@/features/common/PageHeader";
 import { Pagination } from "@/features/common/Pagination";

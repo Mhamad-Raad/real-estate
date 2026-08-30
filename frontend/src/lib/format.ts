@@ -5,9 +5,11 @@
 const FSI = "⁨"; // First Strong Isolate
 const PDI = "⁩"; // Pop Directional Isolate
 
-// Kurdish Sorani has no dedicated Intl data; fall back to Arabic's for correct digits/calendar.
-function intlLocale(lang: string): string {
-  return lang === "ckb" ? "ar" : lang;
+// Kurdish Sorani has no dedicated Intl date data, so both RTL languages use Arabic's month names.
+// The numbering system is pinned explicitly: modern CLDR resolves plain `ar` to LATIN digits, so
+// the fallback alone would print 1234 on screen while the generated letters print ١٢٣٤ (§6.6).
+export function intlLocale(lang: string): string {
+  return lang === "en" ? "en" : "ar-u-nu-arab";
 }
 
 export function bidiIsolate(text: string): string {

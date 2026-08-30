@@ -11,6 +11,19 @@ class ActiveManager(models.Manager):
         return super().get_queryset().filter(is_deleted=False)
 
 
+class JobStatus(models.TextChoices):
+    """Shared lifecycle for every background job (OCR reads, PDF generation).
+
+    Status lives in the database rather than Celery's result backend: it survives a broker
+    restart, it is what the UI polls, and a failure keeps its reason instead of vanishing.
+    """
+
+    PENDING = "pending", "Pending"
+    RUNNING = "running", "Running"
+    DONE = "done", "Done"
+    FAILED = "failed", "Failed"
+
+
 class TimeStampedModel(models.Model):
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -67,6 +80,10 @@ class ActivityLog(TimeStampedModel):
     before = models.JSONField(null=True, blank=True)
     after = models.JSONField(null=True, blank=True)
     ip_address = models.GenericIPAddressField(null=True, blank=True)
+    # The build that wrote this row, so a bad record can be traced to the version that produced
+    # it. Null on every row written before build stamping existed — absence means "before", not
+    # "unknown", and the column stays nullable so the append-only trail is never back-filled.
+    app_build = models.PositiveIntegerField(null=True, blank=True)
 
     class Meta:
         db_table = "activity_log"

@@ -20,5 +20,11 @@ def check_version(instance, expected_version, *, required: bool = False) -> None
         if required:
             raise ValidationError({"version": "This field is required to edit an existing record."})
         return
-    if int(expected_version) != instance.version:
+    # A version that isn't a number is bad input, not a server fault: `int("abc")` used to raise
+    # ValueError, which DRF does not translate, so a malformed field came back as a 500 (It.8).
+    try:
+        expected = int(expected_version)
+    except (TypeError, ValueError):
+        raise ValidationError({"version": "Must be a number."}) from None
+    if expected != instance.version:
         raise StaleVersion()

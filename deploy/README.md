@@ -1,5 +1,32 @@
 # deploy/
 
+| file | what it is |
+|---|---|
+| `docker-compose.dev.yml` | development: source bind-mounted, Django dev server, Vite run separately |
+| `docker-compose.yml` | **production**: images only, Gunicorn, Nginx in front, no exposed DB port |
+| `.env.example` | every setting the office install needs. Copy to `.env` — **that exact name** |
+| `nginx/` | the site config + the security headers (included per-location; see the file) |
+| `scripts/save-images.sh` | package images + config + runbook onto the drive for an offline install |
+
+## Production, from nothing
+
+    cd deploy
+    cp .env.example .env      # fill in DJANGO_SECRET_KEY, DB_PASSWORD, DATA_ROOT, ALLOWED_HOSTS
+    docker compose up -d
+    docker compose exec backend python manage.py migrate
+    docker compose exec backend python manage.py create_admin --username <name>
+
+Then open the app and check the footer shows the build you expect.
+
+## Building for the office
+
+Always through `scripts/save-images.sh` — it sources `VERSION`, so the build stamp is baked into
+the images. A bare `docker compose build` yields `0.0.0 (build 0)`.
+
+---
+
+# deploy/
+
 Deployment and local-runtime config for the Land-Allocation System.
 
 > **Scope note:** only the **dev** compose lives here so far. The full **offline production

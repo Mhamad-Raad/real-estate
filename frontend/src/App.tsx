@@ -2,16 +2,23 @@ import { Navigate, Route, Routes } from "react-router-dom";
 
 import { Toaster } from "@/components/ui/toaster";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { ActivitiesPage } from "@/features/activities/ActivitiesPage";
 import { AdminRoute } from "@/features/auth/AdminRoute";
+import { DeletedPage } from "@/features/deleted/DeletedPage";
 import { LoginPage } from "@/features/auth/LoginPage";
 import { ProtectedRoute } from "@/features/auth/ProtectedRoute";
 import { CategoriesPage } from "@/features/categories/CategoriesPage";
+import { TemplatesPage } from "@/features/templates/TemplatesPage";
 import { ClientsPage } from "@/features/clients/ClientsPage";
+import { FastEntryPage } from "@/features/processes/FastEntryPage";
+import { ProcessCreatePage } from "@/features/processes/ProcessCreatePage";
 import { ProcessesPage } from "@/features/processes/ProcessesPage";
+import { ReportsPage } from "@/features/reports/ReportsPage";
+import { ProcessDetailPage } from "@/features/processes/detail/ProcessDetailPage";
 import { UsersPage } from "@/features/users/UsersPage";
-import { DashboardPage } from "@/pages/DashboardPage";
+import { DashboardPage } from "@/features/dashboard/DashboardPage";
+import { SettingsPage } from "@/features/settings/SettingsPage";
 import { NotFoundPage } from "@/pages/NotFoundPage";
-import { PlaceholderPage } from "@/pages/PlaceholderPage";
 
 export default function App() {
   return (
@@ -24,14 +31,23 @@ export default function App() {
             <Route index element={<DashboardPage />} />
             <Route path="clients" element={<ClientsPage />} />
             <Route path="processes" element={<ProcessesPage />} />
-            <Route path="reports" element={<PlaceholderPage titleKey="nav.reports" />} />
-            <Route path="activities" element={<PlaceholderPage titleKey="nav.activities" />} />
+            {/* Before `:id`, or "new" would be parsed as a process id. */}
+            <Route path="processes/new" element={<ProcessCreatePage />} />
+            {/* Temporary by design — remove with the page when the paper backlog is in (UC-114). */}
+            <Route path="processes/fast-entry" element={<FastEntryPage />} />
+            <Route path="processes/:id" element={<ProcessDetailPage />} />
+            {/* Read-only, and open to lawyers: they print the blank Request form from here before
+                Step 1 (UC-039). The API was never admin-gated. */}
+            <Route path="templates" element={<TemplatesPage />} />
             {/* Admin-only management screens (server enforces RBAC too). */}
             <Route element={<AdminRoute />}>
+              <Route path="reports" element={<ReportsPage />} />
+              <Route path="activities" element={<ActivitiesPage />} />
               <Route path="categories" element={<CategoriesPage />} />
               <Route path="users" element={<UsersPage />} />
+              <Route path="deleted" element={<DeletedPage />} />
             </Route>
-            <Route path="settings" element={<PlaceholderPage titleKey="nav.settings" />} />
+            <Route path="settings" element={<SettingsPage />} />
           </Route>
           <Route path="*" element={<NotFoundPage />} />
         </Route>

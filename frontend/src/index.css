@@ -8,28 +8,52 @@
   over warm-neutral surfaces. Deliberately not the default shadcn look (§0 top priority).
   Colors in oklch for perceptually even light/dark pairs.
 */
+/* ---- Palette knobs -----------------------------------------------------------------------
+   A theme is four numbers. **Every** token below derives from them — the surfaces and borders
+   as well as the accent — so switching palette moves the whole screen, not just the buttons
+   (UC-032). `--neutral-tint` scales how much colour the greys carry: 1 keeps the tint, 0 makes
+   them true neutrals.
+
+   Deriving rather than redeclaring is what keeps this safe. `:root[data-accent="x"]` has
+   specificity (0,2,0) and `.dark` has (0,1,0), so a preset that declared `--primary` itself
+   would out-specify dark mode and silently break it. Presets set only these four; the light and
+   dark ramps below each read them and stay in charge of their own values.
+
+   These live on `:root` alone, **never** on the preview scopes — a preview card overrides the
+   hue on its own subtree, and a ramp that re-declared the knobs would undo that. */
 :root {
   --radius: 0.65rem;
 
-  --background: oklch(0.99 0.004 120);
-  --foreground: oklch(0.22 0.02 160);
+  --accent-hue: 178;
+  --accent-chroma: 0.1;
+  --neutral-hue: 160;
+  --neutral-tint: 1;
+}
+
+/* The light ramp. `.preview-light` shares it so a card can render a whole screen in a palette or
+   mode that is not the active one: every Tailwind colour utility is `@theme inline`, i.e. it
+   reads the token at the element, so re-declaring the tokens on a subtree is enough (UC-033). */
+:root,
+.preview-light {
+  --background: oklch(0.99 calc(0.004 * var(--neutral-tint)) var(--neutral-hue));
+  --foreground: oklch(0.22 calc(0.02 * var(--neutral-tint)) var(--neutral-hue));
 
   --card: oklch(1 0 0);
   --card-foreground: var(--foreground);
   --popover: oklch(1 0 0);
   --popover-foreground: var(--foreground);
 
-  --primary: oklch(0.58 0.1 178);
-  --primary-foreground: oklch(0.99 0.01 180);
+  --primary: oklch(0.58 var(--accent-chroma) var(--accent-hue));
+  --primary-foreground: oklch(0.99 0.01 var(--accent-hue));
 
-  --secondary: oklch(0.96 0.01 160);
-  --secondary-foreground: oklch(0.3 0.03 165);
+  --secondary: oklch(0.96 calc(0.01 * var(--neutral-tint)) var(--neutral-hue));
+  --secondary-foreground: oklch(0.3 calc(0.03 * var(--neutral-tint)) var(--neutral-hue));
 
-  --muted: oklch(0.96 0.008 150);
-  --muted-foreground: oklch(0.52 0.02 160);
+  --muted: oklch(0.96 calc(0.008 * var(--neutral-tint)) var(--neutral-hue));
+  --muted-foreground: oklch(0.52 calc(0.02 * var(--neutral-tint)) var(--neutral-hue));
 
-  --accent: oklch(0.93 0.04 180);
-  --accent-foreground: oklch(0.3 0.05 180);
+  --accent: oklch(0.93 0.04 var(--accent-hue));
+  --accent-foreground: oklch(0.3 0.05 var(--accent-hue));
 
   --destructive: oklch(0.58 0.2 25);
   --destructive-foreground: oklch(0.99 0.01 25);
@@ -37,35 +61,38 @@
   --success: oklch(0.62 0.14 150);
   --warning: oklch(0.75 0.15 75);
 
-  --border: oklch(0.9 0.01 160);
-  --input: oklch(0.9 0.01 160);
-  --ring: oklch(0.58 0.1 178);
+  --border: oklch(0.9 calc(0.01 * var(--neutral-tint)) var(--neutral-hue));
+  --input: oklch(0.9 calc(0.01 * var(--neutral-tint)) var(--neutral-hue));
+  --ring: oklch(0.58 var(--accent-chroma) var(--accent-hue));
 
-  --sidebar: oklch(0.985 0.006 160);
+  --sidebar: oklch(0.985 calc(0.006 * var(--neutral-tint)) var(--neutral-hue));
   --sidebar-foreground: var(--foreground);
-  --sidebar-border: oklch(0.9 0.01 160);
+  --sidebar-border: oklch(0.9 calc(0.01 * var(--neutral-tint)) var(--neutral-hue));
 }
 
-.dark {
-  --background: oklch(0.2 0.02 175);
-  --foreground: oklch(0.95 0.01 160);
+/* The dark ramp. Must stay **after** the light one: `.dark` and `:root` are both (0,1,0), so on
+   `<html class="dark">` it is source order that decides. */
+.dark,
+.preview-dark {
+  --background: oklch(0.2 calc(0.02 * var(--neutral-tint)) var(--neutral-hue));
+  --foreground: oklch(0.95 calc(0.01 * var(--neutral-tint)) var(--neutral-hue));
 
-  --card: oklch(0.24 0.02 175);
+  --card: oklch(0.24 calc(0.02 * var(--neutral-tint)) var(--neutral-hue));
   --card-foreground: var(--foreground);
-  --popover: oklch(0.24 0.02 175);
+  --popover: oklch(0.24 calc(0.02 * var(--neutral-tint)) var(--neutral-hue));
   --popover-foreground: var(--foreground);
 
-  --primary: oklch(0.7 0.11 178);
-  --primary-foreground: oklch(0.2 0.03 178);
+  --primary: oklch(0.7 calc(var(--accent-chroma) + 0.01) var(--accent-hue));
+  --primary-foreground: oklch(0.2 0.03 var(--accent-hue));
 
-  --secondary: oklch(0.3 0.02 172);
-  --secondary-foreground: oklch(0.92 0.01 160);
+  --secondary: oklch(0.3 calc(0.02 * var(--neutral-tint)) var(--neutral-hue));
+  --secondary-foreground: oklch(0.92 calc(0.01 * var(--neutral-tint)) var(--neutral-hue));
 
-  --muted: oklch(0.3 0.02 172);
-  --muted-foreground: oklch(0.7 0.02 160);
+  --muted: oklch(0.3 calc(0.02 * var(--neutral-tint)) var(--neutral-hue));
+  --muted-foreground: oklch(0.7 calc(0.02 * var(--neutral-tint)) var(--neutral-hue));
 
-  --accent: oklch(0.34 0.04 178);
-  --accent-foreground: oklch(0.92 0.02 178);
+  --accent: oklch(0.34 0.04 var(--accent-hue));
+  --accent-foreground: oklch(0.92 0.02 var(--accent-hue));
 
   --destructive: oklch(0.62 0.2 25);
   --destructive-foreground: oklch(0.98 0.01 25);
@@ -73,13 +100,13 @@
   --success: oklch(0.68 0.14 150);
   --warning: oklch(0.78 0.15 75);
 
-  --border: oklch(0.32 0.02 172);
-  --input: oklch(0.35 0.02 172);
-  --ring: oklch(0.7 0.11 178);
+  --border: oklch(0.32 calc(0.02 * var(--neutral-tint)) var(--neutral-hue));
+  --input: oklch(0.35 calc(0.02 * var(--neutral-tint)) var(--neutral-hue));
+  --ring: oklch(0.7 calc(var(--accent-chroma) + 0.01) var(--accent-hue));
 
-  --sidebar: oklch(0.23 0.02 175);
+  --sidebar: oklch(0.23 calc(0.02 * var(--neutral-tint)) var(--neutral-hue));
   --sidebar-foreground: var(--foreground);
-  --sidebar-border: oklch(0.32 0.02 172);
+  --sidebar-border: oklch(0.32 calc(0.02 * var(--neutral-tint)) var(--neutral-hue));
 }
 
 /* Map design tokens to Tailwind utilities (bg-background, text-primary, rounded-lg…). */
@@ -118,6 +145,166 @@
   --font-arabic: "Vazirmatn Variable", "Inter Variable", system-ui, sans-serif;
 }
 
+
+/* ---- Accent presets (UC-015, widened UC-033) ----------------------------------------------
+   Four numbers each: every themed token derives from the hue/chroma pair, and both light and dark
+   follow automatically. Purely CSS, so nine palettes cost a few hundred bytes and carry none of
+   the glyph risk that adding fonts does. Each is the full screen — surfaces, borders and sidebar
+   move with the accent (UC-032). Ordered around the hue wheel, warm to cool, so the settings grid
+   reads as a spectrum. */
+[data-accent="teal"] {
+  --accent-hue: 178;
+  --accent-chroma: 0.1;
+  --neutral-hue: 160;
+  --neutral-tint: 1;
+}
+[data-accent="emerald"] {
+  --accent-hue: 152;
+  --accent-chroma: 0.12;
+  --neutral-hue: 150;
+  --neutral-tint: 1;
+}
+[data-accent="sky"] {
+  --accent-hue: 232;
+  --accent-chroma: 0.12;
+  --neutral-hue: 235;
+  --neutral-tint: 1;
+}
+[data-accent="indigo"] {
+  --accent-hue: 275;
+  --accent-chroma: 0.13;
+  --neutral-hue: 285;
+  --neutral-tint: 1;
+}
+[data-accent="violet"] {
+  --accent-hue: 305;
+  --accent-chroma: 0.12;
+  --neutral-hue: 310;
+  --neutral-tint: 0.9;
+}
+[data-accent="rose"] {
+  --accent-hue: 12;
+  --accent-chroma: 0.14;
+  --neutral-hue: 15;
+  --neutral-tint: 0.9;
+}
+[data-accent="copper"] {
+  --accent-hue: 45;
+  --accent-chroma: 0.13;
+  --neutral-hue: 50;
+  --neutral-tint: 1.1;
+}
+[data-accent="amber"] {
+  --accent-hue: 68;
+  --accent-chroma: 0.13;
+  --neutral-hue: 75;
+  --neutral-tint: 1.2;
+}
+/* True greys: the tint is dialled out entirely, so only the accent carries colour. */
+[data-accent="slate"] {
+  --accent-hue: 250;
+  --accent-chroma: 0.1;
+  --neutral-hue: 250;
+  --neutral-tint: 0.25;
+}
+
+/* ---- Font presets (UC-015, widened UC-033) ------------------------------------------------
+   **Every face here was verified glyph-by-glyph against the Sorani alphabet** (ە ڕ ۆ ێ ڵ ڤ پ چ ژ گ)
+   by reading the cmap of the shipped woff2 files, not by trusting the family name. Cairo was a
+   candidate and was REJECTED — it is missing ە ڕ ۆ ێ ڵ — and so were Almarai, Changa, Alexandria,
+   El Messiri, Markazi Text, Tajawal, Readex Pro, Rubik, Gulzar and Baloo Bhaijaan 2, for the same
+   reason. A missing glyph renders as tofu on a government document. The list is exactly the set
+   that passed, and every family is bundled into `dist` — there is no CDN (§12).
+
+   Each preset sets **both** variables, so the choice is system-wide. Setting only `--font-arabic`
+   (what this did before) left the English UI on Inter and the setting looked dead — it is Latin
+   text that renders from `--font-sans` (UC-031). Every family below ships a Latin subset, so each
+   is its own pairing; Inter stays as the fallback for anything a family does not cover. */
+[data-font="vazirmatn"] {
+  --font-sans: "Vazirmatn Variable", "Inter Variable", system-ui, sans-serif;
+  --font-arabic: "Vazirmatn Variable", "Inter Variable", system-ui, sans-serif;
+}
+[data-font="noto"] {
+  --font-sans: "Noto Sans Arabic Variable", "Inter Variable", system-ui, sans-serif;
+  --font-arabic: "Noto Sans Arabic Variable", "Inter Variable", system-ui, sans-serif;
+}
+[data-font="plex"] {
+  --font-sans: "IBM Plex Sans Arabic", "Inter Variable", system-ui, sans-serif;
+  --font-arabic: "IBM Plex Sans Arabic", "Inter Variable", system-ui, sans-serif;
+}
+[data-font="naskh"] {
+  --font-sans: "Noto Naskh Arabic Variable", "Inter Variable", system-ui, serif;
+  --font-arabic: "Noto Naskh Arabic Variable", "Inter Variable", system-ui, serif;
+}
+[data-font="amiri"] {
+  --font-sans: "Amiri", "Inter Variable", system-ui, serif;
+  --font-arabic: "Amiri", "Inter Variable", system-ui, serif;
+}
+[data-font="scheherazade"] {
+  --font-sans: "Scheherazade New", "Inter Variable", system-ui, serif;
+  --font-arabic: "Scheherazade New", "Inter Variable", system-ui, serif;
+}
+[data-font="notokufi"] {
+  --font-sans: "Noto Kufi Arabic Variable", "Inter Variable", system-ui, sans-serif;
+  --font-arabic: "Noto Kufi Arabic Variable", "Inter Variable", system-ui, sans-serif;
+}
+[data-font="reemkufi"] {
+  --font-sans: "Reem Kufi Variable", "Inter Variable", system-ui, sans-serif;
+  --font-arabic: "Reem Kufi Variable", "Inter Variable", system-ui, sans-serif;
+}
+[data-font="lateef"] {
+  --font-sans: "Lateef", "Inter Variable", system-ui, serif;
+  --font-arabic: "Lateef", "Inter Variable", system-ui, serif;
+}
+
+/* ---- Text size (UC-076) --------------------------------------------------------------------
+   The office's larger monitors made the default read small. Every size in this app is expressed in
+   `rem`, so moving the **root** font size scales the whole interface — text, inputs, buttons, icons
+   and the spacing between them — instead of enlarging type inside rows that stay the same height.
+   16px is the browser default and therefore what every existing screen was designed against.
+
+   Each level publishes its size as a variable as well as applying it, so the settings preview can
+   read the real number instead of keeping a second copy of this scale in TypeScript — a preview
+   drawn from a duplicated table stops telling the truth the moment one of them is edited. */
+[data-text="small"] {
+  --text-scale: 14px;
+  font-size: var(--text-scale);
+}
+[data-text="default"] {
+  --text-scale: 16px;
+  font-size: var(--text-scale);
+}
+[data-text="large"] {
+  --text-scale: 18px;
+  font-size: var(--text-scale);
+}
+[data-text="xlarge"] {
+  --text-scale: 20px;
+  font-size: var(--text-scale);
+}
+
+/* ---- Date fields (UC-082) -------------------------------------------------------------------
+   Chrome lays a date input out as [ value ][ calendar icon ] and lets neither part grow, so on a
+   full-width field the icon ends up glued to the date with the rest of the box empty. Letting the
+   value region take the free space pushes the icon out to the edge, where a picker belongs and
+   where it is a target in its own right rather than something to hit beside the text.
+
+   Chrome renders date controls `direction: ltr` whatever the page does, so "the edge" is the right
+   one in Sorani and Arabic too — the same place the office already reaches for.
+
+   Positioned, not pushed: Chrome ignores `flex`, `margin` and `width` on these pseudo-elements —
+   all three were tried and left the icon exactly where it was — so pinning it is the only thing
+   that moves it. `0.75rem` is the input's own `px-3`, so the icon lines up with the padding
+   everything else in the field respects. */
+input[type="date"] {
+  position: relative;
+}
+input[type="date"]::-webkit-calendar-picker-indicator {
+  position: absolute;
+  inset-inline-end: 0.75rem;
+  cursor: pointer;
+}
+
 @layer base {
   * {
     border-color: var(--color-border);
@@ -132,5 +319,33 @@
   :lang(ckb),
   :lang(ar) {
     font-family: var(--font-arabic);
+  }
+
+  /* A pointer on anything clickable.
+   *
+   * Tailwind v4's preflight sets `cursor: default` on buttons — a deliberate upstream change that
+   * matches the native platform, but it left this app with no hover affordance anywhere, on
+   * screens the office drives entirely by mouse. Restored **here, once**, rather than as a class
+   * on each primitive: half the clickable things in the app are plain `<button>`s inside feature
+   * components (accordion headers, the sidebar collapse, dialog close, table sort headers), and a
+   * per-primitive fix reaches none of those.
+   *
+   * `:not(:disabled)` matters — a disabled control keeps the `cursor-not-allowed` its primitive
+   * already sets, so "you cannot press this" still reads differently from "press me". */
+  button:not(:disabled),
+  summary,
+  [role="button"]:not([aria-disabled="true"]),
+  [role="tab"]:not([aria-disabled="true"]),
+  select:not(:disabled),
+  input[type="checkbox"]:not(:disabled),
+  input[type="radio"]:not(:disabled),
+  input[type="file"]:not(:disabled),
+  /* A label wrapping a tick-box is itself the click target — the office clicks the sentence, not
+     the 16px square. Descendant, not `>`: `Checkbox` wraps its input in a positioning span, so the
+     input is a grandchild. Deliberately NOT every `label[for]`: a label for a text field focuses
+     it rather than actuating it, and a pointer there would promise a button that is not one. */
+  label:has(input[type="checkbox"]:not(:disabled)),
+  label:has(input[type="radio"]:not(:disabled)) {
+    cursor: pointer;
   }
 }

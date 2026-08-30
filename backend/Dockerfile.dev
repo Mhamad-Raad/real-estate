@@ -7,6 +7,48 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
+# Headless LibreOffice renders the generated letters (§6.6). The Noto fonts must be installed
+# system-wide: if the .docx names a face the image lacks, LibreOffice silently substitutes one
+# and the Sorani letterforms come out wrong on a document that goes to a ministry.
+#
+# `postgresql-client-16` supplies `pg_dump`/`pg_restore` for the nightly backup (§13.2). Two
+# things had to be got right here, and the restore drill found both:
+#   1. Without the client binary the backup fails at the first schedule with a bare
+#      "No such file or directory".
+#   2. **The major version must MATCH the server.** Debian's default client is 17, and although a
+#      newer client may dump an older server, its output carries `SET transaction_timeout`, which
+#      PostgreSQL 16 does not recognise — so the restore ran with "errors ignored". A backup that
+#      only *mostly* restores is not a backup. Hence the pinned `-16` from PGDG below.
+#
+# OCR (§6.5): Tesseract plus poppler, which rasterises a PDF page for the engine to read.
+# NOTE ON KURDISH: Tesseract ships **no Central Kurdish (Sorani, `ckb`) model** — upstream
+# tessdata has only `kmr` (Kurmanji), which is the wrong language in the wrong script. Sorani is
+# written in Arabic script, so `ara` and the wider `script/Arabic` model are the closest
+# available starting point and what the accuracy spike measures. libgl1/libglib are OpenCV's
+# runtime deps (the headless wheel still links them).
+# PGDG, for a client that matches the PostgreSQL 16 server exactly (see above).
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl gnupg \
+    && install -d /usr/share/postgresql-common/pgdg \
+    && curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+         -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+    && echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] \
+https://apt.postgresql.org/pub/repos/apt $(. /etc/os-release && echo $VERSION_CODENAME)-pgdg main" \
+         > /etc/apt/sources.list.d/pgdg.list \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libreoffice-writer-nogui \
+        fonts-noto-core \
+        tesseract-ocr \
+        tesseract-ocr-ara \
+        tesseract-ocr-eng \
+        tesseract-ocr-script-arab \
+        poppler-utils \
+        libgl1 \
+        libglib2.0-0 \
+        postgresql-client-16 \
+    && rm -rf /var/lib/apt/lists/*
+
 # psycopg[binary] ships wheels, so no build toolchain is needed here.
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt

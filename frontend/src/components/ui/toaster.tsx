@@ -18,6 +18,3 @@ export function Toaster() {
     />
   );
 }
-
-// Re-export the imperative API so features call `toast.success(...)` from one place.
-export { toast } from "sonner";
