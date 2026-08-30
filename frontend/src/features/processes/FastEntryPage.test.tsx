@@ -17,6 +17,11 @@ vi.mock("@/features/categories/categoriesApi", () => ({
 vi.mock("./processesApi", () => ({
   useFastEntryProcessMutation: () => [fastEntry, { isLoading: false }],
 }));
+const clean = { pid_matches: [], household_matches: [], mother_name_matches: [] };
+const checkUnwrap = vi.fn().mockResolvedValue(clean);
+vi.mock("@/features/clients/clientsApi", () => ({
+  useCheckDuplicateMutation: () => [() => ({ unwrap: checkUnwrap }), { isLoading: false }],
+}));
 
 const pdf = () => new File(["%PDF-1.4"], "case.pdf", { type: "application/pdf" });
 
@@ -34,13 +39,14 @@ async function fill({ withFile = true } = {}) {
   if (withFile) await userEvent.upload(screen.getByLabelText(/Case file/), pdf());
 }
 
-const submit = () => userEvent.click(screen.getByRole("button", { name: /Save and start the next/ }));
+const submit = () => userEvent.click(screen.getByRole("button", { name: "Save" }));
 
 beforeEach(() => {
   fastEntry.mockClear();
   unwrap.mockClear();
   toastError.mockClear();
   navigate.mockClear();
+  checkUnwrap.mockResolvedValue(clean);
 });
 
 describe("FastEntryPage", () => {
@@ -90,6 +96,41 @@ describe("FastEntryPage", () => {
 
     expect(fastEntry).not.toHaveBeenCalled();
     expect(toastError).toHaveBeenCalled();
+  });
+
+  it("warns about a similar mother's name, and files it when the lawyer continues", async () => {
+    // The office asked for the same warning the intake form gives (2026-08-30). It is advisory —
+    // almost always a sibling — so it must not block; and on a backlog case it would otherwise
+    // surface only inside Step 1, which nobody opens.
+    checkUnwrap.mockResolvedValueOnce({
+      ...clean,
+      mother_name_matches: [{ id: 9, full_name: "Sibling Person", pid: "197712120001" }],
+    });
+    render(<FastEntryPage />);
+    await fill();
+
+    await submit();
+    expect(await screen.findByText("Sibling Person")).toBeInTheDocument();
+    expect(fastEntry).not.toHaveBeenCalled();
+
+    await userEvent.click(screen.getByRole("button", { name: /Save anyway|Continue|Proceed/i }));
+
+    expect(fastEntry).toHaveBeenCalled();
+  });
+
+  it("does not file when the lawyer cancels the warning", async () => {
+    checkUnwrap.mockResolvedValueOnce({
+      ...clean,
+      mother_name_matches: [{ id: 9, full_name: "Sibling Person", pid: "197712120001" }],
+    });
+    render(<FastEntryPage />);
+    await fill();
+
+    await submit();
+    // The dialog's × carries the same label as its footer button; the footer one is last.
+    await userEvent.click(screen.getAllByRole("button", { name: "Cancel" }).at(-1)!);
+
+    expect(fastEntry).not.toHaveBeenCalled();
   });
 
   it("goes back to the list, where the case it just made is now visible", async () => {

@@ -85,6 +85,10 @@ export function Dialog({
         )}
       >
         <Button
+          // `type="button"` is not decoration: `Button` sets no default, so an untyped button
+          // inside a `<form>` is a **submit** button. A dialog can be rendered anywhere, including
+          // inside a form, and closing one must never submit it.
+          type="button"
           variant="ghost"
           size="icon"
           className="absolute end-3 top-3 size-8"
