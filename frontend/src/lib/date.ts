@@ -8,7 +8,7 @@
 import { asciiDigits, foldDigits } from "./digits";
 
 /** The bounds a typed year must land in to be a date somebody meant rather than one still being
- *  typed. Deliberately the same window `isSettledDate` uses (UC-072). */
+ *  typed — the window that replaced `useAutosave`'s old half-typed guard (UC-072, UC-108). */
 export const MIN_YEAR = 1900;
 export const MAX_YEAR = 2200;
 

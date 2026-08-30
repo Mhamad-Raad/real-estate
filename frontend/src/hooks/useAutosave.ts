@@ -5,12 +5,15 @@ import { useCallback, useEffect, useRef, useState } from "react";
  *
  * Two problems solved together (UC-072). A field that PATCHed on every change put one request on
  * the wire per keystroke; worse, the refetch that followed wrote the *server's* value back into a
- * control the user was still editing. On a `<input type="date">` that is not cosmetic: typing the
- * year 2026 produces four **valid** dates — 0002, 0020, 0202, 2026 — so the field visibly reset to
- * year 2 while the lawyer was typing it.
+ * control the user was still editing.
  *
  * So while a field is dirty the draft wins, one request goes out per pause carrying **every**
  * pending field, and the draft is dropped only once the server echoes the same value back.
+ *
+ * It used to carry a second guard — a `persist: false` that showed an edit without queueing it —
+ * because a native date input reported the year 2026 as four *valid* dates on its way through
+ * 0002, 0020 and 0202. `DateField` settled that at the source (UC-108): a date reaches here only
+ * once it names a real day, so nothing half-typed ever arrives and the guard is gone.
  */
 export function useAutosave<T extends Record<string, unknown>>({
   saved,
@@ -54,11 +57,10 @@ export function useAutosave<T extends Record<string, unknown>>({
     if (Object.keys(patch).length > 0) saveRef.current(patch);
   }, []);
 
-  /** Records an edit; `persist: false` shows it but holds it back (a half-typed date). */
+  /** Records an edit and queues it for the next pause. */
   const set = useCallback(
-    <K extends keyof T>(key: K, value: T[K], persist = true) => {
+    <K extends keyof T>(key: K, value: T[K]) => {
       setDraft((current) => ({ ...current, [key]: value }));
-      if (!persist) return;
       pending.current = { ...pending.current, [key]: value };
       clearTimeout(timer.current);
       timer.current = setTimeout(flush, delay);
@@ -84,14 +86,4 @@ export function useAutosave<T extends Record<string, unknown>>({
     key in draft ? (draft[key] as T[K]) : saved[key];
 
   return { value, set, commit, flush };
-}
-
-/**
- * Whether a date is worth sending yet. A date input reports a valid value the moment its year has
- * one digit, so a year under 1900 means "still being typed", not a date anyone means (§5.2).
- */
-export function isSettledDate(value: string): boolean {
-  if (!value) return true; // clearing the field is a real edit
-  const year = Number(value.slice(0, 4));
-  return year >= 1900 && year <= 2200;
 }

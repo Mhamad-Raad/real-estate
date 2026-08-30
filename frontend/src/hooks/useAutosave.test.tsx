@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
-import { isSettledDate, useAutosave } from "./useAutosave";
+import { useAutosave } from "./useAutosave";
 
 // A stand-in for one autosaving panel: `saved` is what the server holds, and the harness only
 // applies a patch when told to, so a slow round trip can be simulated.
@@ -79,14 +79,5 @@ describe("useAutosave", () => {
     rerender(<div />);
 
     expect(onSave).toHaveBeenCalledWith({ start_date: "20" });
-  });
-});
-
-describe("isSettledDate", () => {
-  it("holds back a year that is still being typed and accepts a real one", () => {
-    expect(isSettledDate("0002-08-16")).toBe(false);
-    expect(isSettledDate("0202-08-16")).toBe(false);
-    expect(isSettledDate("2026-08-16")).toBe(true);
-    expect(isSettledDate("")).toBe(true); // clearing the field is a real edit
   });
 });
