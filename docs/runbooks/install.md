@@ -111,6 +111,12 @@ STEP 10. Open the new ".env" file in Notepad:
          Find these four lines and fill them in. Everything after the
          "=" sign is what you change. Do not add spaces around the "=".
 
+         ** There is a fifth line, COMPOSE_PROJECT_NAME, already filled
+            in for you. LEAVE IT EXACTLY AS IT IS. It is the name the
+            database is stored under. If it is changed or removed, the
+            next update will bring the app up with NO CASES in it, and
+            the real database will still be there under the old name. **
+
          DJANGO_SECRET_KEY=
              Type 30 or more random letters and numbers. Mash the
              keyboard. Nobody needs to remember this one.
@@ -386,7 +392,7 @@ STEP 21. Copy the ".env" file from this folder onto the external drive
   [ ]  6. LandAllocationData folder created on the Desktop
   [ ]  7. PowerShell open in this folder
   [ ]  8. docker load -i images.tar.gz
-  [ ]  9. copy .env.example .env
+  [ ]  9. copy .env.example .env   (leave COMPOSE_PROJECT_NAME alone)
   [ ] 10. .env filled in (4 lines) — DB password written down
   [ ] 11. docker compose up -d
   [ ] 12. migrate
