@@ -24,6 +24,14 @@ ARABIC_MODEL = "Arabic"
 LATIN_MODEL = "eng"
 
 # The card number is 12 digits and begins with the holder's birth year.
+#
+# **Still exactly 12 here, even though `validate_pid` now accepts fewer** (UC-115). The two answer
+# different questions: the validator asks "may a person type this?", and the office's older records
+# hold 9-digit IDs; this asks "which run of digits on a **modern card** is the number?" — and the
+# front of that card also carries a **family number of the same shape** (§6.2). Loosening this to
+# `\d{9,12}` would not read old cards better; it would start proposing the family number, other
+# short runs, and fragments, on the door where a wrong PID creates a false duplicate or a false new
+# person. An old card simply falls through to manual entry, which is always open (§6.5).
 PID_PATTERN = r"\b(\d{12})\b"
 
 # Front-side field order. The card carries TWO grandfather lines and position decides whose each
