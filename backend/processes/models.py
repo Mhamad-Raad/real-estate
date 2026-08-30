@@ -159,6 +159,12 @@ class ProcessInstituteEntry(SoftDeleteModel):
 
     class Meta:
         db_table = "process_institute_entry"
+        # **Filing order, and it is not cosmetic.** Without it Postgres returns these rows in
+        # whatever order the heap holds them, and an UPDATE rewrites a row to the end — so saving
+        # a name swapped two out-of-city rows on screen while the lawyer was still typing in one
+        # of them (UC-110). `id` is the order they were added in, which is the order the office
+        # entered them.
+        ordering = ("id",)
         indexes = [
             models.Index(fields=["process", "step_number"], name="ix_entry_process"),
         ]
