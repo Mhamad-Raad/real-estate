@@ -464,13 +464,48 @@ STEP M11. And last: stop anyone deleting the two folders by accident.
   WHAT IS NEW IN THIS VERSION
 ------------------------------------------------------------------------
 
-  Fixing 1.3.0 (build 4): generating a letter or a list failed with
-  "permission denied". The folder those are written to was created
-  without the app being allowed to write into it. Nothing else was
-  affected, and nothing was lost.
+  From the notes you sent after using 1.3.0:
 
-  ** If you already applied build 4 and ran the repair command, this
-     build changes nothing else for you — apply it when convenient. **
+  DATES
+  - Every date box now reads DAY / MONTH / YEAR on every computer.
+    Before, the order came from a Windows setting, not from the app, so
+    it could differ from machine to machine. It cannot any more.
+  - Click a box and the whole of it is selected, so typing replaces it.
+    Left and right arrows move between day, month and year; up and down
+    change the value; a single digit gains its zero (5 becomes 05).
+  - A calendar button sits at the end of every date box.
+
+  MUNICIPALITY FORM AND LETTER
+  - The slot now counts PAGES, not files. Two one-page scans and one
+    two-page scan both read as complete. Before, filing the pair as one
+    file said "1 of 2" and sent you looking for a paper already in.
+
+  OUT-OF-CITY ROWS (STEP 3)
+  - The rows no longer swap places while you type in one of them.
+  - A new row starts EMPTY with a placeholder instead of being filled in
+    with "New institute". The step will not complete until you name it.
+
+  SEARCHING
+  - The search box on Processes now also finds a case by its LAND
+    NUMBER, as well as by name, national ID and case code.
+
+  NATIONAL ID
+  - Up to 12 digits, rather than exactly 12. Shorter IDs are accepted.
+
+  OLD CASES — A NEW BUTTON
+  - "Old allocation", beside "New allocation" on the Processes screen.
+    It takes a name, national ID, mother's name, date of birth,
+    category, land number, and ONE PDF: the whole case file.
+  - The case gets the next case number, exactly as a new one does.
+    Nothing is typed for the number.
+  - Its five steps stay empty on purpose, and the case is marked
+    "Entered from paper" so nobody mistakes it for unfinished work.
+  - The duplicate checks still run. A national ID already on file is
+    refused here just as it is on the ordinary form.
+
+  ** This build also carries the fix from build 5 (letters and lists
+     failing with "permission denied"). If you already ran the repair
+     command by hand, nothing changes for you there. **
 
 
   From your own testing in the office:
