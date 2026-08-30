@@ -69,7 +69,9 @@ export function StepDocumentSlots({
         )
         .map((documentType) => {
           const { code: type, display_key, expected_parts: expected, part } = documentType;
-          const words = PART_WORDS[part];
+          // Falls back rather than crashing the step: this comes off the API, and a slot that
+          // says "files" about a card is a wrong label, where `undefined.complete` is a blank page.
+          const words = PART_WORDS[part] ?? PART_WORDS.file;
           const forType = docs.filter((d) => d.document_type === type);
           // A card is ONE document holding both sides, and the municipality form and its letter
           // may arrive as one two-page PDF — both are counted in pages, because counting rows

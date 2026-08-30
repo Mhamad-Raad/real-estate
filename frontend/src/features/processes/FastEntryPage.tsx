@@ -78,7 +78,8 @@ export function FastEntryPage() {
       clearAll();
       toast.success(t("fastEntry.created", { code: created.unique_code }));
       // Straight back to an empty form: the office types these in a run of hundreds, and landing
-      // on the case it just made would mean navigating back for every single one.
+      // on the case it just made would mean navigating back for every single one. The category
+      // and the finished tick survive, because a run of backlog cases shares both.
       setForm({ ...EMPTY, category: form.category });
       setFile(null);
       if (fileInput.current) fileInput.current.value = "";
