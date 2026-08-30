@@ -26,10 +26,13 @@ export function ConfirmDialog({
   return (
     <Dialog open={open} onClose={onClose} title={title} description={description} className="max-w-md">
       <DialogFooter>
-        <Button variant="outline" onClick={onClose} disabled={loading}>
+        {/* Typed for the same reason every other dialog here is: `Button` sets no default, so an
+            untyped one inside a `<form>` submits it. No caller nests this in a form today — the
+            duplicate dialog did, and cancelling saved the record (2026-08-30). */}
+        <Button type="button" variant="outline" onClick={onClose} disabled={loading}>
           {t("common.cancel")}
         </Button>
-        <Button variant="destructive" onClick={onConfirm} disabled={loading}>
+        <Button type="button" variant="destructive" onClick={onConfirm} disabled={loading}>
           {loading && <Spinner />}
           {confirmLabel ?? t("common.delete")}
         </Button>
