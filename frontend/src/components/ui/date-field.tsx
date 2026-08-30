@@ -109,6 +109,9 @@ export function DateField({
     // On every box, not only the wrapper: the labelled one is what a test and a screen reader
     // both reach for when asking whether this field is the rejected one.
     "aria-invalid": invalid || undefined,
+    // On the boxes, not only the wrapper: a description attached to a `<div>` nobody can focus is
+    // never read out, so the reason a field is red would be announced to no one.
+    "aria-describedby": describedBy,
     value: parts[kind],
     disabled,
     required,
@@ -125,7 +128,7 @@ export function DateField({
       const typed = segmentInput(event.target.value, size);
       // A box the cursor is leaving is finished, so a lone digit takes its zero on the way out.
       const done = segmentIsFinished(kind, typed);
-      emit({ ...parts, [kind]: done ? settledSegment(kind, typed) : typed });
+      emit({ ...latest.current, [kind]: done ? settledSegment(kind, typed) : typed });
       if (done && next) focusSegment(next);
     },
     // A whole date pasted into any of the boxes fills all three — a native date input took one,
@@ -159,7 +162,10 @@ export function DateField({
       // language, so right is always the year. Tab and Shift+Tab walk them too, for free.
       if (event.key === "ArrowUp" || event.key === "ArrowDown") {
         event.preventDefault();
-        emit({ ...parts, [kind]: stepSegment(kind, parts, event.key === "ArrowUp" ? 1 : -1) });
+        // `latest.current`, not `parts`: a held-down arrow repeats faster than React re-renders,
+        // and reading the render's own snapshot would make every repeat step from the same value.
+        const current = latest.current;
+        emit({ ...current, [kind]: stepSegment(kind, current, event.key === "ArrowUp" ? 1 : -1) });
         // After the re-render — setting `value` puts the caret at the end, and the box should
         // stay selected so the next press steps again rather than typing beside it.
         requestAnimationFrame(() => selectAll(box));
@@ -209,7 +215,6 @@ export function DateField({
     >
       <div
         role="group"
-        aria-describedby={describedBy}
         aria-invalid={invalid || undefined}
         className={cn(
           "flex h-10 w-full items-center gap-2 rounded-md border border-input bg-background px-3 text-sm shadow-sm transition-colors focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-1 focus-within:ring-offset-background",

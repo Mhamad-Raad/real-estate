@@ -282,6 +282,31 @@ describe("DateField", () => {
     expect(screen.getByLabelText("Date of birth")).toHaveAttribute("aria-invalid", "true");
   });
 
+  it("keeps stepping, one press after another", async () => {
+    // The handler reads the live copy rather than the render's snapshot, because a **held-down**
+    // arrow repeats faster than React re-renders and every repeat would otherwise start from the
+    // same value. That batching cannot be reproduced here — `userEvent` re-renders between
+    // presses — so this pins the ordinary case and the comment carries the rest.
+    render(<Controlled initial="2026-08-05" />);
+    boxes().day.focus();
+
+    await userEvent.keyboard("{ArrowUp>3/}");
+
+    expect(boxes().day).toHaveValue("08");
+  });
+
+  it("describes the error on the boxes, not on a div nobody can focus", () => {
+    render(
+      <>
+        <label htmlFor="dob">Date of birth</label>
+        <DateField id="dob" value="" onChange={() => {}} aria-describedby="dob-error" invalid />
+        <p id="dob-error">Enter a real date.</p>
+      </>,
+    );
+
+    expect(screen.getByLabelText("Date of birth")).toHaveAccessibleDescription("Enter a real date.");
+  });
+
   it("takes nothing while disabled", async () => {
     const onChange = vi.fn();
     render(<DateField value="" onChange={onChange} disabled />);

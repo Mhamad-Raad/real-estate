@@ -54,6 +54,9 @@ export function Calendar({
   const step = (by: number) => {
     const shifted = shiftMonth(view.year, view.month, by);
     if (shifted.year < MIN_YEAR || shifted.year > MAX_YEAR) return;
+    // Cleared, or the effect below would pull focus off the chevron and into the grid — so a
+    // second click on "previous month" would have nothing under the pointer to press.
+    moved.current = false;
     setView(shifted);
   };
 
