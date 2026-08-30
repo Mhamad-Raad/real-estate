@@ -13,6 +13,7 @@ import { Select } from "@/components/ui/select";
 import { FormSection } from "@/components/ui/separator";
 import { Spinner } from "@/components/ui/spinner";
 import { useListCategoriesQuery } from "@/features/categories/categoriesApi";
+import { useDuplicateGate } from "@/features/clients/useDuplicateGate";
 import { useFieldErrors } from "@/hooks/useFieldErrors";
 import { apiErrorMessage } from "@/lib/apiError";
 import { labeller } from "@/lib/fieldLabels";
@@ -54,6 +55,10 @@ export function FastEntryPage() {
 
   const { data: categories } = useListCategoriesQuery();
   const [fastEntry, { isLoading }] = useFastEntryProcessMutation();
+  // The **same** gate the intake form uses (§5.7). The server refuses a hard duplicate at this
+  // door either way, but a similar mother's name is advisory and never reaches an error — and on
+  // a backlog case it would otherwise surface only inside Step 1, which nobody will ever open.
+  const { guard, dialog: duplicateDialog } = useDuplicateGate();
 
   const set = (key: keyof typeof form) => (value: string) => {
     clear(key);
@@ -68,6 +73,7 @@ export function FastEntryPage() {
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!file) return toast.error(t("fastEntry.fileRequired"));
+    if (!(await guard({ pid: form.pid, mother_full_name: form.mother_full_name }))) return;
     try {
       const created = await fastEntry({
         ...form,
@@ -213,8 +219,9 @@ export function FastEntryPage() {
 
       <Button type="submit" disabled={isLoading} className="w-full sm:w-auto">
         {isLoading && <Spinner className="size-4" />}
-        {t("fastEntry.submit")}
+        {t("common.save")}
       </Button>
+      {duplicateDialog}
     </form>
   );
 }

@@ -1161,6 +1161,12 @@ Processes list) drives it.
   do it *here* without being an admin, because a backlog case has no requirements to force past.
 - **`Process.fast_entry`** badges the case and prints one line above the steps, so five empty steps
   read as history rather than as work nobody finished.
+- **The duplicate warning is the intake form's own** (the office, 2026-08-30). Both screens that
+  create a beneficiary now share one gate, `clients/useDuplicateGate` — a PID or household match
+  can only be cancelled, a similar mother's name is advisory and the lawyer may continue. It
+  matters more here than on the intake form: `similar_name_flagged` is surfaced inside **Step 1's
+  panel**, and on a backlog case that step is empty and nobody will ever open it, so without the
+  dialog the warning was recorded and unreachable.
 - **A save returns to the Processes list** (the office's call, 2026-08-30), where the case that was
   just typed is visible with its code. It was built the other way first — an emptied form, on the
   reasoning that a run of thousands should not cost a click per case — and the office preferred

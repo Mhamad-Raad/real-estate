@@ -1,5 +1,5 @@
 import { ArrowLeft, PenLine, ScanLine } from "lucide-react";
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
@@ -14,10 +14,8 @@ import { toast } from "@/lib/toast";
 import { ScanIntakePanel } from "@/features/cardScans/ScanIntakePanel";
 import { useListCategoriesQuery } from "@/features/categories/categoriesApi";
 import { ClientFields } from "@/features/clients/ClientFields";
-import { DuplicateWarningDialog } from "@/features/clients/DuplicateWarningDialog";
 import { EMPTY_CLIENT, type ClientDraft } from "@/features/clients/clientForm";
-import { useCheckDuplicateMutation } from "@/features/clients/clientsApi";
-import type { DuplicateCheckResult } from "@/features/clients/types";
+import { useDuplicateGate } from "@/features/clients/useDuplicateGate";
 import { useListLawyersQuery } from "@/features/users/lawyersApi";
 import { apiErrorMessage, apiErrorStatus } from "@/lib/apiError";
 import { labeller } from "@/lib/fieldLabels";
@@ -53,14 +51,10 @@ export function ProcessCreatePage() {
   // `/lawyers/`, not the paginated `/users/`: that one stops at 25 and lists people who have left.
   const { data: lawyers } = useListLawyersQuery(undefined, { skip: !isAdmin });
   const [create, { isLoading }] = useCreateProcessMutation();
-  const [checkDuplicate] = useCheckDuplicateMutation();
 
-  // §5.7's pre-save duplicate check. It lives here because this is now the only screen that can
-  // create a beneficiary (UC-026), and it serves BOTH branches that do so — typed and scanned.
-  const [warning, setWarning] = useState<DuplicateCheckResult | null>(null);
-  // The dialog is the answer to an async question, so the guard parks on a promise the buttons
-  // resolve. Held in a ref: a re-render must not lose the pending decision.
-  const decision = useRef<((proceed: boolean) => void) | null>(null);
+  // §5.7's pre-save duplicate check, shared with the backlog form (§5.9) so the two doors cannot
+  // ask different questions — see `useDuplicateGate`.
+  const { guard, dialog: duplicateDialog } = useDuplicateGate();
 
   /** `true` when it is safe to create. A hard match can only ever be cancelled (§5.7).
    *
@@ -80,28 +74,7 @@ export function ProcessCreatePage() {
       toast.error(t("processes.pickCategory"));
       return false;
     }
-    try {
-      const result = await checkDuplicate(candidate).unwrap();
-      const hit =
-        result.pid_matches.length ||
-        result.household_matches.length ||
-        result.mother_name_matches.length;
-      if (!hit) return true;
-      setWarning(result);
-      return await new Promise<boolean>((resolve) => {
-        decision.current = resolve;
-      });
-    } catch {
-      // A failed check must not silently wave a possible duplicate through.
-      toast.error(t("common.loadError"));
-      return false;
-    }
-  };
-
-  const settle = (proceed: boolean) => {
-    decision.current?.(proceed);
-    decision.current = null;
-    setWarning(null);
+    return guard(candidate);
   };
 
   // A lawyer always takes their own case; an admin says whose it is (mirrored server-side, §7.2).
@@ -322,12 +295,7 @@ export function ProcessCreatePage() {
         </form>
       )}
 
-      <DuplicateWarningDialog
-        open={Boolean(warning)}
-        result={warning}
-        onProceed={() => settle(true)}
-        onClose={() => settle(false)}
-      />
+      {duplicateDialog}
     </div>
   );
 }

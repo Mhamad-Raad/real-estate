@@ -78,11 +78,18 @@ export function DuplicateWarningDialog({
         )}
       </div>
       <DialogFooter>
-        <Button variant="outline" onClick={onClose}>
+        {/* Both `type="button"`: this dialog is rendered inside a `<form>` on the backlog screen,
+            and an untyped button there submits it — cancelling would have saved the case. */}
+        <Button type="button" variant="outline" onClick={onClose}>
           {t("common.cancel")}
         </Button>
         {/* PID-exact matches are blocked outright; only soft (sibling) matches may proceed. */}
-        <Button variant={hardBlock ? "outline" : "default"} onClick={onProceed} disabled={hardBlock}>
+        <Button
+          type="button"
+          variant={hardBlock ? "outline" : "default"}
+          onClick={onProceed}
+          disabled={hardBlock}
+        >
           {t("clients.duplicate.proceed")}
         </Button>
       </DialogFooter>
