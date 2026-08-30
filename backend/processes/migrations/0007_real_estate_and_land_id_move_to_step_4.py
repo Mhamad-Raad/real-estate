@@ -1,10 +1,7 @@
 from django.db import migrations
 
-# Columns added by LATER migrations. This file deliberately uses the LIVE model (the status rules
-# live in services and a historical model carries none of them), but the live class declares every
-# field the model will ever have — including ones whose column does not exist yet when this runs on
-# a fresh database. **Add every new `Process` field here.**
-LATER_COLUMNS = ("unique_code", "completed_by")
+# Columns added by LATER migrations — see `_later_columns` for why and where to add one.
+from ._later_columns import LATER_COLUMNS  # noqa: F401
 
 
 def move_requirements_to_step_4(apps, schema_editor):
