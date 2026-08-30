@@ -645,8 +645,9 @@
     }
   },
   "fastEntry": {
-    "title": "Fast entry — old cases",
-    "subtitle": "For the paper backlog: the details that make a case findable, plus the case file as one PDF. The steps are left empty and the case is marked as fast entry.",
+    "title": "Old allocation",
+    "heading": "Add an old allocation",
+    "subtitle": "For the paper backlog: the details that make a case findable, plus the case file as one PDF. The steps are left empty and the case is marked as entered from paper.",
     "beneficiary": "Beneficiary",
     "theCase": "The case",
     "theFile": "The case file",
@@ -656,7 +657,7 @@
     "submit": "Save and start the next",
     "fileRequired": "Choose the case file first.",
     "created": "Saved as {{code}}",
-    "badge": "Fast entry",
-    "stepNote": "This case was typed in from paper through fast entry. Its steps were never worked here — the whole file is on step 5."
+    "badge": "Entered from paper",
+    "stepNote": "This case was typed in from its paper file. Its steps were never worked here — the whole file is on step 5."
   }
 }

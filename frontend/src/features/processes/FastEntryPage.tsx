@@ -95,7 +95,7 @@ export function FastEntryPage() {
           <ArrowLeft className="size-4 rtl:rotate-180" />
           {t("workflow.backToList")}
         </Button>
-        <h1 className="text-2xl font-semibold">{t("fastEntry.title")}</h1>
+        <h1 className="text-2xl font-semibold">{t("fastEntry.heading")}</h1>
         <p className="text-sm text-muted-foreground">{t("fastEntry.subtitle")}</p>
       </div>
 
@@ -186,6 +186,13 @@ export function FastEntryPage() {
             {err("land_id")}
           </div>
         </div>
+        {/* A row of its own rather than a stray line: it is a decision about the case, and it sits
+            with the rest of the case. `items-center` keeps the box on the text's centre line in
+            all three languages, where the label is one line in each. */}
+        <label className="flex cursor-pointer items-center gap-2.5 rounded-md border border-border bg-muted/40 px-3 py-2.5 text-sm">
+          <Checkbox checked={markComplete} onChange={(e) => setMarkComplete(e.target.checked)} />
+          <span>{t("fastEntry.markComplete")}</span>
+        </label>
       </FormSection>
 
       <FormSection title={t("fastEntry.theFile")}>
@@ -205,10 +212,6 @@ export function FastEntryPage() {
           <p className="text-xs text-muted-foreground">{t("fastEntry.caseFileHint")}</p>
           {err("file")}
         </div>
-        <label className="mt-4 flex items-center gap-2 text-sm">
-          <Checkbox checked={markComplete} onChange={(e) => setMarkComplete(e.target.checked)} />
-          {t("fastEntry.markComplete")}
-        </label>
       </FormSection>
 
       <Button type="submit" disabled={isLoading} className="w-full sm:w-auto">
