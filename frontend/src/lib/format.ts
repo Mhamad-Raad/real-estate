@@ -8,7 +8,7 @@ const PDI = "⁩"; // Pop Directional Isolate
 // Kurdish Sorani has no dedicated Intl date data, so both RTL languages use Arabic's month names.
 // The numbering system is pinned explicitly: modern CLDR resolves plain `ar` to LATIN digits, so
 // the fallback alone would print 1234 on screen while the generated letters print ١٢٣٤ (§6.6).
-function intlLocale(lang: string): string {
+export function intlLocale(lang: string): string {
   return lang === "en" ? "en" : "ar-u-nu-arab";
 }
 
