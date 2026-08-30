@@ -170,6 +170,28 @@ class FastEntryTests(APITestCase):
         self.assertFalse(Process.objects.exists())
         self.assertFalse(Client.objects.exists())
 
+    def test_a_whole_case_file_is_not_refused_for_being_bigger_than_one_paper(self):
+        """A scan of a twenty-page file is a compiled case, not a single paper (UC-114). The size
+        rule has to be the same one on the way **in** as on the way down — `read_upload` refuses
+        an upload before reading it, and capping that at the single-paper limit made the larger
+        bound below it unreachable."""
+        from django.conf import settings
+
+        from documents.services import size_limit_for
+
+        self.assertEqual(
+            size_limit_for(
+                document_type=COMPILED_CASE, input_source=Document.InputSource.IMPORTED
+            ),
+            settings.MAX_GENERATED_BYTES,
+        )
+        self.assertEqual(
+            size_limit_for(
+                document_type="SignedAgreement", input_source=Document.InputSource.IMPORTED
+            ),
+            settings.MAX_UPLOAD_BYTES,
+        )
+
     def test_the_whole_act_is_audited(self):
         resp = self._post()
 

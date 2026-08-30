@@ -10,6 +10,7 @@ from rest_framework.parsers import MultiPartParser
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
+from catalog.document_types import COMPILED_CASE
 from common.permissions import IsAdmin, IsProcessAssigneeOrAdmin
 from common.viewsets import AuditedSoftDeleteViewSet
 from documents.compile import start_compile_case_job
@@ -19,7 +20,8 @@ from documents.generation import (
     start_process_list_job,
 )
 from documents.serializers import GenerationJobSerializer
-from documents.services import read_upload
+from documents.models import Document
+from documents.services import read_upload, size_limit_for
 
 from .constants import FIRST_STEP, LAST_STEP
 from .models import Process, ProcessInstituteEntry
@@ -228,7 +230,14 @@ class ProcessViewSet(AuditedSoftDeleteViewSet, ModelViewSet):
             actor=request.user,
             category=data["category"],
             land_id=data["land_id"],
-            bundle=read_upload(upload),
+            # The shared rule, not `read_upload`'s default: a case file is a compiled case and
+            # gets that bound, or a twenty-page scan is refused at 25 MB before anything sees it.
+            bundle=read_upload(
+                upload,
+                limit=size_limit_for(
+                    document_type=COMPILED_CASE, input_source=Document.InputSource.IMPORTED
+                ),
+            ),
             original_filename=getattr(upload, "name", ""),
             mark_complete=data["mark_complete"],
             request=request,

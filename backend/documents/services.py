@@ -64,6 +64,24 @@ def assert_slot_has_room(
         raise ValidationError({"file": [full]})
 
 
+def size_limit_for(*, document_type: str, input_source: str) -> int:
+    """The byte ceiling for one document (§6.7).
+
+    The upload cap bounds what a *user* may send. A **compiled case** gets a far larger one
+    whichever way it was made: the app's own export merges documents that were each already
+    accepted, and the office's paper backlog arrives as one scan of a whole file (UC-114) — a
+    twenty-page scan does not fit the single-paper limit.
+
+    Asked in two places and therefore declared once: `read_upload` refuses an oversized upload
+    *before* reading it into memory, and `create_document` re-checks the bytes it was handed.
+    Splitting the rule between them left the reader capping a legitimate case file at the
+    single-paper limit while the writer would have allowed it.
+    """
+    if input_source == Document.InputSource.SYSTEM_GENERATED or document_type == COMPILED_CASE:
+        return settings.MAX_GENERATED_BYTES
+    return settings.MAX_UPLOAD_BYTES
+
+
 def read_upload(upload, *, limit: int | None = None) -> bytes:
     """Read an uploaded file into memory, refusing an oversized one **before** the read.
 
@@ -382,20 +400,8 @@ def create_document(
     """Validate the upload (size, then a real parse — converting an image to PDF first), write it
     under the deterministic path, and create the audited row. The file is written first; if the DB
     row fails, the orphan file is removed."""
-    # The upload cap bounds what a *user* may send. A system-generated file (the compiled case,
-    # §10.3) merges documents that were each already accepted, so holding it to the same limit
-    # would reject a legitimate export of a large case; it gets the runaway-merge bound instead.
     generated = input_source == Document.InputSource.SYSTEM_GENERATED
-    # A **compiled case** gets that bound however it was made. The office's paper backlog arrives
-    # as one scan of the whole file (UC-114) — the same artefact this app compiles itself, and a
-    # twenty-page scan does not fit the single-paper limit. `input_source` still says `imported`,
-    # because a person did import it and the audit trail must not claim otherwise.
-    limit = (
-        settings.MAX_GENERATED_BYTES
-        if generated or document_type == COMPILED_CASE
-        else settings.MAX_UPLOAD_BYTES
-    )
-    if len(content) > limit:
+    if len(content) > size_limit_for(document_type=document_type, input_source=input_source):
         raise PayloadTooLarge()
 
     content = normalise_to_pdf(content)
