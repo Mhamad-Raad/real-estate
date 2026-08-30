@@ -1,5 +1,5 @@
 import { ArrowLeft } from "lucide-react";
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
@@ -50,7 +50,6 @@ export function FastEntryPage() {
   const [form, setForm] = useState(EMPTY);
   const [markComplete, setMarkComplete] = useState(true);
   const [file, setFile] = useState<File | null>(null);
-  const fileInput = useRef<HTMLInputElement>(null);
   const { errors, setFromError, clear, clearAll } = useFieldErrors();
 
   const { data: categories } = useListCategoriesQuery();
@@ -77,12 +76,10 @@ export function FastEntryPage() {
       }).unwrap();
       clearAll();
       toast.success(t("fastEntry.created", { code: created.unique_code }));
-      // Straight back to an empty form: the office types these in a run of hundreds, and landing
-      // on the case it just made would mean navigating back for every single one. The category
-      // and the finished tick survive, because a run of backlog cases shares both.
-      setForm({ ...EMPTY, category: form.category });
-      setFile(null);
-      if (fileInput.current) fileInput.current.value = "";
+      // Back to the list (the office's call, 2026-08-30). It costs a click per case against
+      // staying on an emptied form, and buys the thing the office wanted instead: the case they
+      // just typed, visible in the list with its code, before they start the next one.
+      navigate("/processes");
     } catch (error) {
       setFromError(error);
       toast.error(apiErrorMessage(error, t("common.saveError"), labeller(t), t));
@@ -201,7 +198,6 @@ export function FastEntryPage() {
           <Label htmlFor="fe-file">{t("fastEntry.caseFile")}</Label>
           <Input
             id="fe-file"
-            ref={fileInput}
             type="file"
             accept="application/pdf,image/*"
             onChange={(e) => setFile(e.target.files?.[0] ?? null)}

@@ -8,7 +8,8 @@ const unwrap = vi.fn().mockResolvedValue({ id: 42, unique_code: "A34" });
 const fastEntry = vi.fn(() => ({ unwrap }));
 const toastError = vi.fn();
 
-vi.mock("react-router-dom", () => ({ useNavigate: () => vi.fn() }));
+const navigate = vi.fn();
+vi.mock("react-router-dom", () => ({ useNavigate: () => navigate }));
 vi.mock("@/lib/toast", () => ({ toast: { success: vi.fn(), error: (m: string) => toastError(m) } }));
 vi.mock("@/features/categories/categoriesApi", () => ({
   useListCategoriesQuery: () => ({ data: [{ id: 7, code: "A", name: "A" }] }),
@@ -39,6 +40,7 @@ beforeEach(() => {
   fastEntry.mockClear();
   unwrap.mockClear();
   toastError.mockClear();
+  navigate.mockClear();
 });
 
 describe("FastEntryPage", () => {
@@ -90,25 +92,26 @@ describe("FastEntryPage", () => {
     expect(toastError).toHaveBeenCalled();
   });
 
-  it("empties itself for the next one rather than navigating away", async () => {
-    // The office types these in runs of hundreds; landing on the case just created would mean
-    // navigating back for every single one.
+  it("goes back to the list, where the case it just made is now visible", async () => {
+    // The office's call (2026-08-30): they wanted to see the case land, with its code, before
+    // starting the next one.
     render(<FastEntryPage />);
     await fill();
 
     await submit();
 
-    expect(screen.getByLabelText("Full name")).toHaveValue("");
-    expect(screen.getByLabelText("National ID")).toHaveValue("");
+    expect(navigate).toHaveBeenCalledWith("/processes");
   });
 
-  it("keeps the category, which is the one thing a run of cases shares", async () => {
+  it("stays put when the save failed, so nothing typed is lost", async () => {
+    unwrap.mockRejectedValueOnce({ status: 400, data: { pid: ["Must be digits."] } });
     render(<FastEntryPage />);
     await fill();
 
     await submit();
 
-    expect(screen.getByLabelText("Category")).toHaveValue("7");
+    expect(navigate).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("Full name")).toHaveValue("Karwan Ahmed");
   });
 
   it("filters the national ID as it is typed, like every other ID box", async () => {

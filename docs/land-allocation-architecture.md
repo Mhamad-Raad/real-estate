@@ -1157,6 +1157,10 @@ Processes list) drives it.
   do it *here* without being an admin, because a backlog case has no requirements to force past.
 - **`Process.fast_entry`** badges the case and prints one line above the steps, so five empty steps
   read as history rather than as work nobody finished.
+- **A save returns to the Processes list** (the office's call, 2026-08-30), where the case that was
+  just typed is visible with its code. It was built the other way first — an emptied form, on the
+  reasoning that a run of thousands should not cost a click per case — and the office preferred
+  seeing each one land.
 - **The screen is temporary by design.** When the backlog is in, delete the page, its test, its
   route, its button and its `fastEntry` translations. **The flag stays** — the cases it marks do.
 
