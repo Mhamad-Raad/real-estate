@@ -126,7 +126,9 @@ def validate_birth_date(value: date | None) -> date | None:
 # The national ID is exactly this many digits — the office's own rule (2026-08-20). Leading and
 # trailing zeros are ordinary, which is the whole reason `pid` is a string and never an integer:
 # `007…` and `…000` must survive a round trip unchanged.
-PID_DIGITS = 12
+# A **maximum**, not a length (the office, 2026-08-30). It was exactly 12 for ten days — see
+# `validate_pid` for why that had to give.
+PID_MAX_DIGITS = 12
 
 # Arabic-Indic and Persian digits, mapped to ASCII. The office types numbers in their own script
 # everywhere (§9), so refusing `١٩٩٠…` would refuse a correctly-entered ID — but the PID is the
@@ -142,16 +144,20 @@ def normalise_pid(value: str) -> str:
 
 
 def validate_pid(value: str) -> str:
-    """Exactly `PID_DIGITS` digits, returned in canonical ASCII form (office rule, 2026-08-20).
+    """Digits only, **at most** `PID_MAX_DIGITS` of them, in canonical ASCII form.
+
+    **A maximum since 2026-08-30**, where the office's 2026-08-20 rule said *exactly* twelve. Their
+    own records were always the argument against exactness — 15 rows of 9 digits against 6 of 12
+    when it was measured — and the paper backlog (§5.9) is thousands more of the same: a rule that
+    refuses a 9-digit ID refuses the card the lawyer is holding. What the rule still buys is the
+    part that was always the point: **digits, folded to ASCII, and no more than twelve** — so a
+    letter, a `DEMO-` string or a mistyped run of fifteen is still caught.
 
     **Applied to a PID being set or changed, never to one an edit merely carries along.** The
-    office's existing records hold several lengths — 15 rows of 9 digits against 6 of 12 when this
-    was measured, plus older `DEMO-` rows — so enforcing it on every write would make two-thirds of
-    their beneficiaries uneditable: the client form submits the whole record, so correcting a phone
-    number would fail on a PID nobody touched. Reversing the 2026-08-10 "leave it alone" decision
-    this far, and no further, is what the office asked for without stranding what they already have.
+    client form submits the whole record, so validating unconditionally would fail a phone
+    correction on a PID nobody touched.
     """
     pid = normalise_pid(value)
-    if len(pid) != PID_DIGITS or not pid.isdigit() or not pid.isascii():
+    if not pid or len(pid) > PID_MAX_DIGITS or not pid.isdigit() or not pid.isascii():
         raise serializers.ValidationError(PID_FORMAT)
     return pid

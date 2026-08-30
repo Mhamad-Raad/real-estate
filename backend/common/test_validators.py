@@ -130,15 +130,21 @@ class ClientSerializerValidationTests(TestCase):
     def test_a_valid_record_still_passes(self):
         self.assertEqual(self._errors(phone="07701234567"), {})
 
-    def test_a_new_pid_must_be_twelve_digits(self):
-        """Office rule, 2026-08-20 — this REVERSES the 2026-08-10 "leave the pid alone" decision,
-        but only for a PID being written. See the pair below for what still passes."""
+    def test_a_new_pid_is_still_refused_when_it_is_not_digits_or_is_too_long(self):
+        """What the rule still buys after 2026-08-30 loosened it to a ceiling: a letter, a `DEMO-`
+        string, an embedded space, or a run longer than the card can carry."""
         self.assertEqual(self._errors(pid="DEMO-0001"), {"pid": [PID_FORMAT]})
-        self.assertEqual(self._errors(pid="19900101123"), {"pid": [PID_FORMAT]})   # 11
         self.assertEqual(self._errors(pid="1990010112345"), {"pid": [PID_FORMAT]})  # 13
         self.assertEqual(self._errors(pid="19900101 234"), {"pid": [PID_FORMAT]})
 
-    def test_twelve_digits_passes_including_leading_and_trailing_zeros(self):
+    def test_a_shorter_pid_passes_because_the_office_holds_thousands(self):
+        """The office's own records run 9 digits as often as 12, and the paper backlog (§5.9) is
+        thousands more of the same — a rule that refuses a 9-digit ID refuses the card in the
+        lawyer's hand (the office, 2026-08-30)."""
+        self.assertEqual(self._errors(pid="199001011"), {})     # 9
+        self.assertEqual(self._errors(pid="1"), {})
+
+    def test_the_longest_pid_passes_including_leading_and_trailing_zeros(self):
         """`pid` is a string precisely so `007…` and `…000` survive a round trip — the office
         asked for that explicitly."""
         self.assertEqual(self._errors(pid="199001011234"), {})
@@ -270,22 +276,25 @@ class BothCreationDoorsValidateTests(APITestCase):
         self.assertIn("date_of_birth", serializer.errors)
 
 
-    def test_the_scan_confirm_door_refuses_a_short_pid(self):
+    def test_the_scan_confirm_door_refuses_a_malformed_pid(self):
         """The scan is the door the office actually uses, and the card's number is the one the OCR
-        proposes — so the 12-digit rule has to live here too, not only on the intake form."""
+        proposes — so the rule has to live here too, not only on the intake form. **A short one is
+        no longer malformed** (2026-08-30); a misread that ran long, or picked up a letter, is."""
         from ocr.views import ConfirmSerializer
 
-        serializer = ConfirmSerializer(data={"full_name": "A", "pid": "12345"})
+        long_read = ConfirmSerializer(data={"full_name": "A", "pid": "1234567890123"})
+        short_read = ConfirmSerializer(data={"full_name": "A", "pid": "12345"})
 
-        self.assertFalse(serializer.is_valid())
-        self.assertEqual(serializer.errors["pid"], [PID_FORMAT])
+        self.assertFalse(long_read.is_valid())
+        self.assertEqual(long_read.errors["pid"], [PID_FORMAT])
+        self.assertTrue(short_read.is_valid(), short_read.errors)
 
-    def test_the_scan_confirm_door_refuses_a_short_spouse_pid(self):
+    def test_the_scan_confirm_door_refuses_a_malformed_spouse_pid(self):
         """The spouse card is confirmed through this same door (UC-080), and `spouse_pid` is the
         household half of the dedup key (§5.7)."""
         from ocr.views import ConfirmSerializer
 
-        serializer = ConfirmSerializer(data={"full_name": "A", "spouse_pid": "12345"})
+        serializer = ConfirmSerializer(data={"full_name": "A", "spouse_pid": "1234567890123"})
 
         self.assertFalse(serializer.is_valid())
         self.assertEqual(serializer.errors["spouse_pid"], [PID_FORMAT])
@@ -299,7 +308,7 @@ class BothCreationDoorsValidateTests(APITestCase):
 
         self.assertTrue(serializer.is_valid(), serializer.errors)
 
-    def test_intake_refuses_a_short_spouse_pid(self):
+    def test_intake_refuses_a_malformed_spouse_pid(self):
         """The other door, same rule — reported by the office after the first cut shipped."""
         response = self.client.post(
             reverse("process-list"),
@@ -310,7 +319,7 @@ class BothCreationDoorsValidateTests(APITestCase):
                     "date_of_birth": "1990-01-01", "category": self.category.id,
                     "marital_status": "married", "spouse_name": "S",
                     "spouse_date_of_birth": "1992-01-01", "spouse_mother_full_name": "SM",
-                    "spouse_pid": "12345",
+                    "spouse_pid": "1234567890123",
                 },
             },
             format="json",

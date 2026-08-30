@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { PID_DIGITS, filterPid } from "./pid";
+import { PID_MAX_DIGITS, filterPid } from "./pid";
 
 // The box mirrors `common/validators.validate_pid`; if the two drift, the field and the API
 // disagree about one value (the same rule the phone box follows).
@@ -19,7 +19,7 @@ describe("filterPid", () => {
   it("caps at twelve, dropping from the end", () => {
     // Truncating the start would rewrite a number under the cursor mid-type.
     expect(filterPid("1990010112349999")).toBe("199001011234");
-    expect(filterPid("1990010112349999")).toHaveLength(PID_DIGITS);
+    expect(filterPid("1990010112349999")).toHaveLength(PID_MAX_DIGITS);
   });
 
   it("keeps leading and trailing zeros, which are ordinary in an ID", () => {

@@ -14,15 +14,15 @@
 
 import { asciiDigits } from "./digits";
 
-/** Mirrors `validators.PID_DIGITS`. */
-export const PID_DIGITS = 12;
+/** Mirrors `validators.PID_MAX_DIGITS` — a ceiling, not a length (the office, 2026-08-30). */
+export const PID_MAX_DIGITS = 12;
 
 /**
- * Digits only, folded to ASCII, capped at `PID_DIGITS`.
+ * Digits only, folded to ASCII, capped at `PID_MAX_DIGITS`.
  *
  * **Overflow drops from the END**, as the phone box does: truncating the start would rewrite a
  * number under the lawyer's cursor mid-type.
  */
 export function filterPid(value: string): string {
-  return asciiDigits(value).slice(0, PID_DIGITS);
+  return asciiDigits(value).slice(0, PID_MAX_DIGITS);
 }

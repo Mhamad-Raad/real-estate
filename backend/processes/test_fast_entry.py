@@ -147,8 +147,9 @@ class FastEntryTests(APITestCase):
 
     def test_the_form_still_obeys_the_offices_field_rules(self):
         """Validated through `ClientSerializer`, so the PID rule (§4.1) cannot drift from the
-        Clients API just because this is a different door."""
-        resp = self._post(pid="123")
+        Clients API just because this is a different door. A **short** ID is legitimate here —
+        the backlog is full of them (2026-08-30) — so the proof is a run that is too long."""
+        resp = self._post(pid="1234567890123")  # one longer than a card can carry
 
         self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("pid", resp.data)
