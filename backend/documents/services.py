@@ -10,6 +10,7 @@ from docxtpl import DocxTemplate
 from rest_framework.exceptions import APIException, ValidationError
 
 from catalog.document_types import (
+    COMPILED_CASE,
     IDENTITY_TYPE_CODES,
     PART_FILE,
     PART_SIDE,
@@ -385,7 +386,15 @@ def create_document(
     # §10.3) merges documents that were each already accepted, so holding it to the same limit
     # would reject a legitimate export of a large case; it gets the runaway-merge bound instead.
     generated = input_source == Document.InputSource.SYSTEM_GENERATED
-    limit = settings.MAX_GENERATED_BYTES if generated else settings.MAX_UPLOAD_BYTES
+    # A **compiled case** gets that bound however it was made. The office's paper backlog arrives
+    # as one scan of the whole file (UC-114) — the same artefact this app compiles itself, and a
+    # twenty-page scan does not fit the single-paper limit. `input_source` still says `imported`,
+    # because a person did import it and the audit trail must not claim otherwise.
+    limit = (
+        settings.MAX_GENERATED_BYTES
+        if generated or document_type == COMPILED_CASE
+        else settings.MAX_UPLOAD_BYTES
+    )
     if len(content) > limit:
         raise PayloadTooLarge()
 
