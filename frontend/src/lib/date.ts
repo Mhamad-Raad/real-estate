@@ -81,6 +81,38 @@ export function segmentIsFinished(kind: "day" | "month" | "year", text: string):
   return text.length === 1 && first > (kind === "month" ? 1 : 3);
 }
 
+/** One box a step up or down, the way the arrow keys move a native date input.
+ *
+ * Day and month **wrap** — 12 up is January, not a dead end — while the year clamps at the window
+ * a typed date may land in. An empty box starts somewhere useful rather than at zero: the year on
+ * this year, the others at whichever end the arrow came from.
+ */
+export function stepSegment(kind: keyof DateParts, parts: DateParts, by: number): string {
+  if (kind === "year") {
+    const from = Number(parts.year) || new Date().getFullYear();
+    const year = parts.year ? clamp(from + by, MIN_YEAR, MAX_YEAR) : from;
+    return String(year).padStart(4, "0");
+  }
+  const max =
+    kind === "month"
+      ? 12
+      : // The month's real length once it is known — 31 is the honest guess until then.
+        isRealDate(Number(parts.year), Number(parts.month), 1)
+        ? daysInMonth(Number(parts.year), Number(parts.month))
+        : 31;
+  const from = Number(parts[kind]) || (by > 0 ? 0 : max + 1);
+  return pad(wrap(from + by, 1, max));
+}
+
+function clamp(value: number, low: number, high: number): number {
+  return Math.min(Math.max(value, low), high);
+}
+
+function wrap(value: number, low: number, high: number): number {
+  const span = high - low + 1;
+  return ((((value - low) % span) + span) % span) + low;
+}
+
 /** A whole date pasted into one of the boxes (a native date input took one; this keeps parity).
  *
  * Two shapes, and the order is never guessed: **ISO** `2026-08-05`, which is what a copy out of

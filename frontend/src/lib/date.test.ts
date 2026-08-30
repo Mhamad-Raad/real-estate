@@ -7,6 +7,7 @@ import {
   parsePasted,
   segmentInput,
   segmentIsFinished,
+  stepSegment,
   shiftMonth,
   toIso,
   toParts,
@@ -102,6 +103,40 @@ describe("parsePasted", () => {
   it("refuses anything that is not a real day", () => {
     expect(parsePasted("31/02/2026")).toBeNull();
     expect(parsePasted("hello")).toBeNull();
+  });
+});
+
+describe("stepSegment", () => {
+  const parts = { day: "05", month: "08", year: "2026" };
+
+  it("steps a box up and down", () => {
+    expect(stepSegment("day", parts, 1)).toBe("06");
+    expect(stepSegment("month", parts, -1)).toBe("07");
+    expect(stepSegment("year", parts, 1)).toBe("2027");
+  });
+
+  it("wraps the day and the month rather than stopping dead", () => {
+    expect(stepSegment("month", { ...parts, month: "12" }, 1)).toBe("01");
+    expect(stepSegment("month", { ...parts, month: "01" }, -1)).toBe("12");
+    expect(stepSegment("day", { ...parts, day: "01" }, -1)).toBe("31");
+  });
+
+  it("stops the day at the length of the month it is in", () => {
+    expect(stepSegment("day", { day: "28", month: "02", year: "2026" }, 1)).toBe("01");
+    expect(stepSegment("day", { day: "28", month: "02", year: "2024" }, 1)).toBe("29");
+  });
+
+  it("clamps the year instead of wrapping — 1900 up from 2200 is not what anyone meant", () => {
+    expect(stepSegment("year", { ...parts, year: "2200" }, 1)).toBe("2200");
+    expect(stepSegment("year", { ...parts, year: "1900" }, -1)).toBe("1900");
+  });
+
+  it("starts an empty box somewhere useful", () => {
+    const empty = { day: "", month: "", year: "" };
+
+    expect(stepSegment("month", empty, 1)).toBe("01");
+    expect(stepSegment("month", empty, -1)).toBe("12");
+    expect(stepSegment("year", empty, 1)).toBe(String(new Date().getFullYear()));
   });
 });
 

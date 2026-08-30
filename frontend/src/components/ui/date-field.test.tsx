@@ -106,6 +106,81 @@ describe("DateField", () => {
     expect(boxes().day).toHaveFocus();
   });
 
+  it("selects the whole box when it is clicked, so typing replaces it", async () => {
+    render(<Controlled initial="2026-08-05" />);
+    const year = boxes().year as HTMLInputElement;
+
+    await userEvent.click(year);
+
+    expect(year.selectionStart).toBe(0);
+    expect(year.selectionEnd).toBe(4);
+  });
+
+  it("selects the box reached by tabbing into it", async () => {
+    render(<Controlled initial="2026-08-05" />);
+    boxes().day.focus();
+
+    await userEvent.tab();
+
+    const month = boxes().month as HTMLInputElement;
+    expect(month).toHaveFocus();
+    expect([month.selectionStart, month.selectionEnd]).toEqual([0, 2]);
+  });
+
+  it("walks the boxes with left and right", async () => {
+    render(<Controlled initial="2026-08-05" />);
+    boxes().day.focus();
+
+    await userEvent.keyboard("{ArrowRight}");
+    expect(boxes().month).toHaveFocus();
+
+    await userEvent.keyboard("{ArrowRight}");
+    expect(boxes().year).toHaveFocus();
+
+    await userEvent.keyboard("{ArrowLeft}");
+    expect(boxes().month).toHaveFocus();
+  });
+
+  it("stays put when an arrow would leave the date", async () => {
+    render(<Controlled initial="2026-08-05" />);
+    boxes().day.focus();
+
+    await userEvent.keyboard("{ArrowLeft}");
+
+    expect(boxes().day).toHaveFocus();
+  });
+
+  it("comes back with shift+tab", async () => {
+    render(<Controlled initial="2026-08-05" />);
+    boxes().year.focus();
+
+    await userEvent.tab({ shift: true });
+
+    expect(boxes().month).toHaveFocus();
+  });
+
+  it("steps a box up and down with the arrows", async () => {
+    const onChange = vi.fn();
+    render(<Controlled initial="2026-08-05" onChange={onChange} />);
+    boxes().month.focus();
+
+    await userEvent.keyboard("{ArrowUp}");
+    expect(boxes().month).toHaveValue("09");
+    expect(onChange).toHaveBeenLastCalledWith("2026-09-05");
+
+    await userEvent.keyboard("{ArrowDown}{ArrowDown}");
+    expect(boxes().month).toHaveValue("07");
+  });
+
+  it("wraps the month rather than stopping at December", async () => {
+    render(<Controlled initial="2026-12-05" />);
+    boxes().month.focus();
+
+    await userEvent.keyboard("{ArrowUp}");
+
+    expect(boxes().month).toHaveValue("01");
+  });
+
   it("refuses a day the month does not have", async () => {
     const onChange = vi.fn();
     render(<Controlled onChange={onChange} />);

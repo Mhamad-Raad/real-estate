@@ -9,6 +9,7 @@ import {
   parsePasted,
   segmentInput,
   segmentIsFinished,
+  stepSegment,
   toIso,
   toParts,
   type DateParts,
@@ -81,7 +82,15 @@ export function DateField({
   const focusSegment = (kind: keyof DateParts) =>
     wrapper.current?.querySelector<HTMLInputElement>(`[data-segment="${kind}"]`)?.focus();
 
-  const segment = (kind: keyof DateParts, size: number, next?: keyof DateParts) => ({
+  // Selecting the whole box rather than placing a caret in it: a segment is one value, and the
+  // native date input this replaces treated it that way — click the year and type over it.
+  const selectAll = (box: HTMLInputElement) => box.setSelectionRange(0, box.value.length);
+
+  const segment = (
+    kind: keyof DateParts,
+    size: number,
+    { previous, next }: { previous?: keyof DateParts; next?: keyof DateParts } = {},
+  ) => ({
     "data-segment": kind,
     // The caller's `id` lands on the day box, so a `<Label htmlFor>` still focuses the field when
     // clicked — and its text, not "Day", is what names the field to a screen reader. Only an
@@ -116,15 +125,37 @@ export function DateField({
       event.preventDefault();
       emit(pasted);
     },
+    // Focus lands on the whole value, however it was reached — clicking, tabbing, or an arrow
+    // from the box beside it.
+    onFocus: (event: React.FocusEvent<HTMLInputElement>) => selectAll(event.currentTarget),
+    // A second click inside an already-focused box would otherwise collapse that selection to a
+    // caret, and the office would be typing into the middle of a number.
+    onMouseUp: (event: React.MouseEvent<HTMLInputElement>) => {
+      event.preventDefault();
+      selectAll(event.currentTarget);
+    },
     onKeyDown: (event: React.KeyboardEvent<HTMLInputElement>) => {
-      // Backspace at the start of an empty box steps back, so a whole date can be erased without
-      // reaching for the mouse.
-      if (event.key === "Backspace" && !parts[kind]) {
-        const previous = kind === "year" ? "month" : kind === "month" ? "day" : null;
-        if (previous) {
-          event.preventDefault();
-          focusSegment(previous);
-        }
+      const box = event.currentTarget;
+      // Up and down change the value, as they do in the input this replaces. Left and right walk
+      // the boxes — and are **not** mirrored for RTL: the three boxes are an LTR run whatever the
+      // language, so right is always the year. Tab and Shift+Tab walk them too, for free.
+      if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+        event.preventDefault();
+        emit({ ...parts, [kind]: stepSegment(kind, parts, event.key === "ArrowUp" ? 1 : -1) });
+        // After the re-render — setting `value` puts the caret at the end, and the box should
+        // stay selected so the next press steps again rather than typing beside it.
+        requestAnimationFrame(() => selectAll(box));
+        return;
+      }
+      const sideways = event.key === "ArrowRight" ? next : event.key === "ArrowLeft" ? previous : undefined;
+      if (sideways) {
+        event.preventDefault();
+        return focusSegment(sideways);
+      }
+      // Backspace in an empty box steps back, so a whole date can be erased without the mouse.
+      if (event.key === "Backspace" && !parts[kind] && previous) {
+        event.preventDefault();
+        focusSegment(previous);
       }
     },
   });
@@ -170,11 +201,11 @@ export function DateField({
             LTR run even inside Sorani text, and letting it mirror would print the year first.
             Scoped to the boxes so the buttons and the calendar still follow the page. */}
         <div dir="ltr" className="flex items-center gap-0.5">
-          <input {...segment("day", 2, "month")} />
+          <input {...segment("day", 2, { next: "month" })} />
           <span aria-hidden className="text-muted-foreground">/</span>
-          <input {...segment("month", 2, "year")} />
+          <input {...segment("month", 2, { previous: "day", next: "year" })} />
           <span aria-hidden className="text-muted-foreground">/</span>
-          <input {...segment("year", 4)} />
+          <input {...segment("year", 4, { previous: "month" })} />
         </div>
         <div className="ms-auto flex items-center">
           {!disabled && !isBlank(parts) && (
