@@ -40,6 +40,7 @@ STEP_END_BEFORE_START = "errors.stepDate.endBeforeStart"
 # `documents.services` — but its message is one more thing the API says to the office, so it is
 # registered here with the rest and covered by the same translation guard.
 SLOT_SIDES_FULL = "errors.slot.sidesFull"
+SLOT_PAGES_FULL = "errors.slot.pagesFull"
 SLOT_FILES_FULL = "errors.slot.filesFull"
 PID_FORMAT = "errors.pid.format"
 
@@ -50,6 +51,7 @@ VALIDATION_KEYS = (
     BIRTH_TOO_OLD,
     STEP_END_BEFORE_START,
     SLOT_SIDES_FULL,
+    SLOT_PAGES_FULL,
     SLOT_FILES_FULL,
     PID_FORMAT,
 )

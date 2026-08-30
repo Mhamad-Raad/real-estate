@@ -15,7 +15,7 @@ const CARD: DocumentType = {
   only_when_married: false,
   generated: false,
   expected_parts: 2,
-  counts_pages: true,
+  part: "side",
   name_ckb: "ناسنامەی کڕیار",
   name_en: "", // one label is enough for a card
 };
@@ -23,7 +23,7 @@ const CARD: DocumentType = {
 const PAPERS: DocumentType = {
   ...CARD,
   code: "RealEstate",
-  counts_pages: false,
+  part: "page",
   name_ckb: "فۆرم و نووسراوی شارەوانی",
   name_en: "Municipality form and letter",
 };
@@ -81,16 +81,33 @@ describe("StepDocumentSlots count", () => {
     expect(screen.getByText("1 of 2 sides")).toBeInTheDocument();
   });
 
-  it("counts files, not pages, for a paper the office files twice", () => {
-    // Two separate papers, one of which runs to three pages — that is 2 of 2 files, not 4.
+  it("counts the municipality pair in pages, so two one-page scans are complete", () => {
     const papers = [
-      doc({ id: 2, document_type: "RealEstate", page_count: 3 }),
-      doc({ id: 3, document_type: "RealEstate", page_count: 1 }),
+      doc({ id: 2, document_type: "RealEstate" }),
+      doc({ id: 3, document_type: "RealEstate" }),
     ];
 
     render(<StepDocumentSlots process={process(papers)} step={1} canEdit />);
 
-    expect(screen.getByText("complete")).toBeInTheDocument();
+    expect(screen.getByText("both pages")).toBeInTheDocument();
+  });
+
+  it("reads one two-page file as the same complete pair", () => {
+    // UC-109: the office files these either way, and counting rows called the merged shape
+    // half-done — which is what sent them looking for a second paper that was already in.
+    const merged = [doc({ id: 2, document_type: "RealEstate", page_count: 2 })];
+
+    render(<StepDocumentSlots process={process(merged)} step={1} canEdit />);
+
+    expect(screen.getByText("both pages")).toBeInTheDocument();
+  });
+
+  it("says pages, not sides, about the municipality papers", () => {
+    const half = [doc({ id: 2, document_type: "RealEstate" })];
+
+    render(<StepDocumentSlots process={process(half)} step={1} canEdit />);
+
+    expect(screen.getByText("1 of 2 pages")).toBeInTheDocument();
   });
 });
 
@@ -141,6 +158,6 @@ describe("StepDocumentSlots capacity", () => {
     render(<StepDocumentSlots process={process(papers)} step={1} canEdit />);
 
     expect(uploadDisabled("ClientID")).toBe("true");
-    expect(uploadDisabled("RealEstate")).toBe("false"); // 1 of 2 papers
+    expect(uploadDisabled("RealEstate")).toBe("false"); // 1 of 2 pages
   });
 });

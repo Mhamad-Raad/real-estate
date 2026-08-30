@@ -9,10 +9,16 @@ from rest_framework import status
 from docxtpl import DocxTemplate
 from rest_framework.exceptions import APIException, ValidationError
 
-from catalog.document_types import IDENTITY_TYPE_CODES, SPOUSE_ID, slot_capacity
+from catalog.document_types import (
+    IDENTITY_TYPE_CODES,
+    PART_FILE,
+    PART_SIDE,
+    SPOUSE_ID,
+    slot_capacity,
+)
 from common.models import ActivityLog
 from common.services import record_activity
-from common.validators import SLOT_FILES_FULL, SLOT_SIDES_FULL
+from common.validators import SLOT_FILES_FULL, SLOT_PAGES_FULL, SLOT_SIDES_FULL
 
 from . import filestore
 from .models import Document, DocumentTemplate
@@ -30,16 +36,18 @@ def assert_slot_has_room(
 ) -> None:
     """Refuse a file the slot has no room for (UC-085).
 
-    An identity card has exactly two sides and every other paper is filed once — the office was
-    able to keep adding to a full slot, so a card ended up with four sides after a re-scan and the
-    count could only be capped for display. Capacity is `expected_parts` (§6.7), so the rule and
-    the "2 of 2 sides" hint can never disagree.
+    An identity card has exactly two sides, the municipality form and its letter two pages, and
+    every other paper is filed once — the office was able to keep adding to a full slot, so a card
+    ended up with four sides after a re-scan and the count could only be capped for display.
+    Capacity is `expected_parts` (§6.7), so the rule and the "2 of 2 sides" hint can never
+    disagree.
 
     Enforced here rather than in the serializer because both upload paths must obey it: the import
     button and the confirmed card scan, which files its document straight from staging. Making
     room is a delete — the rule counts live rows only.
     """
-    limit, by_pages = slot_capacity(document_type)
+    limit, part = slot_capacity(document_type)
+    by_pages = part != PART_FILE
     filed = slot_usage(
         process_id=process.id,
         step_number=step_number,
@@ -47,10 +55,12 @@ def assert_slot_has_room(
         institute_entry_id=institute_entry.id if institute_entry else None,
         by_pages=by_pages,
     )
-    # A card's pages are its sides, so a two-page scan fills the slot on its own; anything else
-    # counts as the one paper it is, however many pages that paper happens to have.
+    # A page-counted slot is filled by the pages inside the upload, which is what lets the same
+    # pair arrive as two one-page scans or as one two-page PDF (UC-109); anything else counts as
+    # the one paper it is, however many pages that paper happens to have.
     if filed + (pages if by_pages else 1) > limit:
-        raise ValidationError({"file": [SLOT_SIDES_FULL if by_pages else SLOT_FILES_FULL]})
+        full = {PART_SIDE: SLOT_SIDES_FULL, PART_FILE: SLOT_FILES_FULL}.get(part, SLOT_PAGES_FULL)
+        raise ValidationError({"file": [full]})
 
 
 def read_upload(upload, *, limit: int | None = None) -> bytes:

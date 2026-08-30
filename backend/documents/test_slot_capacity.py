@@ -162,6 +162,24 @@ class SlotCapacityTests(APITestCase):
             status.HTTP_400_BAD_REQUEST,
         )
 
+    def test_the_real_estate_slot_also_takes_the_pair_as_one_two_page_file(self):
+        """UC-109: the office files these either as two one-page scans or as one two-page PDF.
+        Counting rows called the merged shape half-done and left room for two more papers."""
+        first = self._post(document_type="RealEstate", step=4, pages=2)
+
+        second = self._post(document_type="RealEstate", step=4)
+
+        self.assertEqual(first.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(second.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_the_two_municipality_papers_stay_two_documents(self):
+        """Unlike a card, they are two different papers — the slot counts their pages together
+        but must not merge them into one file."""
+        for _ in range(2):
+            self._post(document_type="RealEstate", step=4)
+
+        self.assertEqual(Document.objects.filter(document_type="RealEstate").count(), 2)
+
     def test_deleting_a_document_makes_room_again(self):
         """Replacing a scan is delete-then-upload — the rule counts live rows, so it works."""
         doc_id = self._post(pages=2).data["id"]

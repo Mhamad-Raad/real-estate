@@ -1,6 +1,9 @@
 import { bilingualLabel } from "@/lib/bilingual";
 import { baseApi } from "@/services/baseApi";
 
+/** The kinds of part a slot holds. Everything but `file` is measured in pages. */
+export type DocumentPart = "file" | "side" | "page";
+
 // The shared controlled document-type vocabulary (§6.7) — read-only, never hard-coded on the
 // client. Keeps the upload slots in step with what the backend requires for completion.
 export interface DocumentType {
@@ -13,9 +16,11 @@ export interface DocumentType {
   // The slot's capacity, refused past (UC-085). Still not a *completion* rule in the other
   // direction: a card with one side on file is present, and no step is blocked on the second.
   expected_parts: number;
-  // What a "part" is. An identity card stores BOTH sides as one document, so its slot counts
-  // pages and says "sides" — counting rows reported a complete card as "1 of 2 files" (UC-083).
-  counts_pages: boolean;
+  // What a "part" is, and therefore how the slot counts. `side` and `page` are both counted in
+  // pages; they are two words because a card has sides and a form has pages. Counting rows
+  // reported a complete card as "1 of 2 files" (UC-083) and the municipality pair filed as one
+  // two-page PDF the same way (UC-109).
+  part: DocumentPart;
   name_ckb: string;
   // Set only for a paper the office knows by both names; blank means one label is enough.
   name_en: string;

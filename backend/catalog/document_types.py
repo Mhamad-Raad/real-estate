@@ -12,6 +12,12 @@ generated type (the eligibility letter) is produced by the system, never uploade
 
 from typing import NamedTuple
 
+# The three kinds of part a slot can hold. `side` and `page` are both counted in pages; they are
+# two words because a form has no sides and a card has no pages.
+PART_FILE = "file"
+PART_SIDE = "side"
+PART_PAGE = "page"
+
 
 class DocumentType(NamedTuple):
     code: str
@@ -27,11 +33,12 @@ class DocumentType(NamedTuple):
     # It is not a *completion* rule in the other direction: a slot short of its second part still
     # counts as present, so a step is never blocked on it (UC-055).
     expected_parts: int = 1
-    # **What a "part" is.** For most papers it is a file, one row each. An identity card is not:
-    # both sides are deliberately stored as ONE document with two pages
-    # (`ocr.services.stage_scan`), so counting rows told the office that a complete card was
-    # "1 of 2 files" (UC-083). Those slots count pages instead, and say "sides".
-    counts_pages: bool = False
+    # **What a "part" is** — and therefore how the slot counts. `file` counts rows; `side` and
+    # `page` both count pages and differ only in the word the screen uses. Counting rows told the
+    # office that a card scanned front-and-back was "1 of 2 files" (UC-083), and that the
+    # municipality form and its letter filed as one two-page PDF was "1 of 2" as well (UC-109).
+    # One field rather than a flag beside a noun: the two can then never disagree.
+    part: str = PART_FILE
 
 
 # The two identity papers. Named because OCR reads these into client fields and files the rest
@@ -61,16 +68,21 @@ ID_CARD_SIDES = 2
 DOCUMENT_TYPES: list[DocumentType] = [
     DocumentType(
         CLIENT_ID, "workflow.docType.ClientID", 1, True,
-        expected_parts=ID_CARD_SIDES, counts_pages=True,
+        expected_parts=ID_CARD_SIDES, part=PART_SIDE,
     ),
     DocumentType(
         SPOUSE_ID, "workflow.docType.SpouseID", 1, True,
-        only_when_married=True, expected_parts=ID_CARD_SIDES, counts_pages=True,
+        only_when_married=True, expected_parts=ID_CARD_SIDES, part=PART_SIDE,
     ),
     # The municipality form and its covering letter — the case's own Step-4 paperwork, filed as
     # two papers (UC-055). It cannot be demanded when a case opens (UC-037), and unlike the two
     # Step-4 institutes it is **not** optional: a case may not close without it (UC-088).
-    DocumentType("RealEstate", "workflow.docType.RealEstate", 4, True, expected_parts=2),
+    # Counted in **pages**, not files: the office files these either as two one-page scans or as
+    # one two-page PDF, and both are the same complete pair (UC-109). Counting rows called the
+    # merged shape half-done.
+    DocumentType(
+        "RealEstate", "workflow.docType.RealEstate", 4, True, expected_parts=2, part=PART_PAGE
+    ),
     DocumentType("SignedAgreement", "workflow.docType.SignedAgreement", 1, True),
     # The citizen's own request. Optional on purpose — not every case arrives with one, so it must
     # never hold Step 1 back. The office prints the blank form, has it signed, and scans it back,
@@ -89,15 +101,17 @@ DOCUMENT_TYPE_CODES = frozenset(dt.code for dt in DOCUMENT_TYPES)
 _BY_CODE: dict[str, DocumentType] = {dt.code: dt for dt in DOCUMENT_TYPES}
 
 
-def slot_capacity(code: str) -> tuple[int, bool]:
-    """How much one slot may hold, and whether that is counted in **pages** or in **files** (§6.7).
+def slot_capacity(code: str) -> tuple[int, str]:
+    """How much one slot may hold, and what it holds it in — `file`, `side` or `page` (§6.7).
 
-    A card holds two sides in one document, so its capacity is pages; every other slot counts the
-    papers filed under it. An unknown code gets the conservative single-file answer — the upload
-    serializer refuses those anyway, so this only keeps the rule closed if that ever changes.
+    A card holds two sides in one document and the municipality papers two pages (UC-109), so
+    both are measured in pages; every other slot counts the papers filed under it. The noun comes
+    back with the limit because the refusal has to say which it means. An unknown code gets the
+    conservative single-file answer — the upload serializer refuses those anyway, so this only
+    keeps the rule closed if that ever changes.
     """
     dt = _BY_CODE.get(code)
-    return (dt.expected_parts, dt.counts_pages) if dt else (1, False)
+    return (dt.expected_parts, dt.part) if dt else (1, PART_FILE)
 
 
 # The Sorani names, for the **filenames** — the same reason `INSTITUTE_NAMES_CKB` exists. The

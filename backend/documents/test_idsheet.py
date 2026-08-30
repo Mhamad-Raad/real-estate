@@ -172,13 +172,20 @@ class PageCountTests(TestCase):
         self.assertEqual(second.id, first.id)
         self.assertEqual(second.page_count, 2)
 
-    def test_the_card_types_are_the_ones_that_count_pages(self):
-        """The flag drives the label too, so the wrong one would say "sides" about paper files."""
-        from catalog.document_types import DOCUMENT_TYPES
+    def test_only_the_cards_are_measured_in_sides(self):
+        """The noun drives the label too, so the wrong one would say "sides" about paper files."""
+        from catalog.document_types import DOCUMENT_TYPES, PART_SIDE
 
-        by_page = {dt.code for dt in DOCUMENT_TYPES if dt.counts_pages}
+        by_side = {dt.code for dt in DOCUMENT_TYPES if dt.part == PART_SIDE}
 
-        self.assertEqual(by_page, set(IDENTITY_TYPE_CODES))
+        self.assertEqual(by_side, set(IDENTITY_TYPE_CODES))
+
+    def test_the_municipality_papers_are_measured_in_pages(self):
+        """UC-109: the pair may arrive as two one-page scans or as one two-page PDF, and counting
+        rows called the merged shape half-done. Pages answer both."""
+        from catalog.document_types import PART_PAGE, slot_capacity
+
+        self.assertEqual(slot_capacity("RealEstate"), (2, PART_PAGE))
 
 
 @unittest.skipUnless(HAS_POPPLER, NO_POPPLER_REASON)

@@ -6,10 +6,32 @@ import { DocumentUpload } from "@/features/documents/DocumentUpload";
 import {
   documentTypeLabel,
   useListDocumentTypesQuery,
+  type DocumentPart,
 } from "@/features/documents/documentTypesApi";
 import { useNum } from "@/hooks/useNum";
 
 import type { ProcessDetail } from "../types";
+
+// Each kind of part brings its own wording: a card has sides, the municipality form and its
+// letter have pages, everything else is files (UC-109). Listed rather than built from the noun so
+// every key a screen can render is greppable.
+const PART_WORDS: Record<DocumentPart, { complete: string; expected: string; full: string }> = {
+  file: {
+    complete: "workflow.filesComplete",
+    expected: "workflow.filesExpected",
+    full: "errors.slot.filesFull",
+  },
+  side: {
+    complete: "workflow.sidesComplete",
+    expected: "workflow.sidesExpected",
+    full: "errors.slot.sidesFull",
+  },
+  page: {
+    complete: "workflow.pagesComplete",
+    expected: "workflow.pagesExpected",
+    full: "errors.slot.pagesFull",
+  },
+};
 
 /**
  * The named upload slots a step owns, laid out from the shared vocabulary so a slot can never go
@@ -46,11 +68,13 @@ export function StepDocumentSlots({
               docs.some((d) => d.document_type === dt.code)),
         )
         .map((documentType) => {
-          const { code: type, display_key, expected_parts: expected, counts_pages: byPage } =
-            documentType;
+          const { code: type, display_key, expected_parts: expected, part } = documentType;
+          const words = PART_WORDS[part];
           const forType = docs.filter((d) => d.document_type === type);
-          // An identity card is ONE document holding both sides, so its slot counts pages —
-          // counting rows reported a scanned card, front and back, as "1 of 2 files" (UC-083).
+          // A card is ONE document holding both sides, and the municipality form and its letter
+          // may arrive as one two-page PDF — both are counted in pages, because counting rows
+          // reported either as "1 of 2 files" (UC-083, UC-109).
+          const byPage = part !== "file";
           const filed = byPage
             ? forType.reduce((total, d) => total + d.page_count, 0)
             : forType.length;
@@ -75,11 +99,8 @@ export function StepDocumentSlots({
                   {expected > 1 && filed > 0 && (
                     <span className="ms-2 text-xs font-normal text-muted-foreground">
                       {full
-                        ? t(byPage ? "workflow.sidesComplete" : "workflow.filesComplete")
-                        : t(byPage ? "workflow.sidesExpected" : "workflow.filesExpected", {
-                            have: num(have),
-                            want: num(expected),
-                          })}
+                        ? t(words.complete)
+                        : t(words.expected, { have: num(have), want: num(expected) })}
                     </span>
                   )}
                 </Label>
@@ -89,10 +110,11 @@ export function StepDocumentSlots({
                     step={step}
                     documentType={type}
                     label={t("workflow.import")}
-                    // Both sides of a card can be picked together; one at a time still works.
+                    // Both parts of a page-counted slot can be picked together; one at a time
+                    // still works.
                     multiple={byPage}
                     disabled={full}
-                    disabledReason={t(byPage ? "errors.slot.sidesFull" : "errors.slot.filesFull")}
+                    disabledReason={t(words.full)}
                   />
                 )}
               </div>
