@@ -212,7 +212,8 @@ class CategoryIsRequiredAtIntakeTests(APITestCase):
 
 
 class UnifiedSearchTests(APITestCase):
-    """One box finds a case by name, national ID **or** the office's code (§4.3)."""
+    """One box finds a case by name, national ID, the office's code **or** the land number
+    (§4.3, UC-113)."""
 
     def setUp(self):
         self.lawyer = User.objects.create_user("srch_lw", password="pw12345678")
@@ -246,6 +247,26 @@ class UnifiedSearchTests(APITestCase):
 
     def test_still_finds_a_case_by_a_national_id_fragment(self):
         self.assertIn(self.target.unique_code, self._codes("771212"))
+
+    def test_finds_a_case_by_its_land_number(self):
+        """UC-113: the office looks a case up by the plot as readily as by the person."""
+        self.target.land_id = "ز/٤٤٧٢"
+        self.target.save(update_fields=["land_id"])
+
+        self.assertIn(self.target.unique_code, self._codes("٤٤٧٢"))
+
+    def test_two_cases_on_the_same_land_both_come_back(self):
+        """A land number is deliberately not unique — a plot can be split and allocated more than
+        once — so the search must show every case on it rather than assume one (UC-113)."""
+        other = create_process(
+            client=make_client(full_name="Third Person", pid="198001010077", category=self.category),
+            assigned_lawyer=self.lawyer, actor=self.lawyer, category=self.category,
+        )
+        for process in (self.target, other):
+            process.land_id = "4472"
+            process.save(update_fields=["land_id"])
+
+        self.assertCountEqual(self._codes("4472"), [self.target.unique_code, other.unique_code])
 
     def test_a_term_matching_nothing_returns_nothing(self):
         self.assertEqual(self._codes("zzzz-no-such-thing"), [])

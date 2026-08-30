@@ -86,6 +86,10 @@ class Process(SoftDeleteModel):
             # `ix_process_unique_code` is a btree and serves equality only — exactly the gap that
             # made a PID substring seq-scan until `ix_client_pid_trgm` was added (§3.7, UC-005).
             GinIndex(name="ix_process_code_trgm", fields=["unique_code"], opclasses=["gin_trgm_ops"]),
+            # Same reason, for the land number: the office looks a case up by the plot as readily
+            # as by the person, and `land_id` carries no index of its own — it is deliberately not
+            # unique, since one plot can be split and allocated more than once (UC-113).
+            GinIndex(name="ix_process_land_trgm", fields=["land_id"], opclasses=["gin_trgm_ops"]),
             models.Index(fields=["client"], name="ix_process_client"),
             models.Index(
                 fields=["category", "overall_status", "assigned_lawyer"],
