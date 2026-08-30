@@ -235,16 +235,6 @@ def fast_entry_process(
     )
     process.fast_entry = True
     process.save(update_fields=["fast_entry", "updated_at"])
-    create_document(
-        process=process,
-        step_number=LAST_STEP,
-        document_type=COMPILED_CASE,
-        input_source=Document.InputSource.IMPORTED,
-        content=bundle,
-        actor=actor,
-        original_filename=original_filename,
-        request=request,
-    )
     # Closed **over** its empty steps, which is what `force` already means (§10.3) — a case typed
     # in from a finished paper file has no requirements to meet, so there is no second way to
     # close a case and no rule loosened for anyone else.
@@ -257,6 +247,20 @@ def fast_entry_process(
             process=process, actor=actor, force=True, expected_version=process.version,
             request=request,
         )
+    # **Filed last, and that ordering is the whole "one act, or none" guarantee.** The bytes hit
+    # the disk outside this transaction's control: `create_document` removes its own orphan if the
+    # row fails, but nothing removes it if a *later* statement rolls the transaction back. With the
+    # write last, every failure happens before there is a file to strand.
+    create_document(
+        process=process,
+        step_number=LAST_STEP,
+        document_type=COMPILED_CASE,
+        input_source=Document.InputSource.IMPORTED,
+        content=bundle,
+        actor=actor,
+        original_filename=original_filename,
+        request=request,
+    )
     return process
 
 
