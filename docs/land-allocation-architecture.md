@@ -22,6 +22,7 @@ This section records where the **built system intentionally differs** from the d
 | **The out-of-city name is required by the step, not by the serializer** (2026-08-30, the office — UC-111) | §3.4: a custom Step-3 row "requires a name", enforced on write | The row is **created blank** with a placeholder; `missing_requirements` holds the rule — a step 3 carrying an unnamed out-of-city row is incomplete and the case cannot close over it. See **§3.4**, **§3.6** | Refusing a blank name on write is what forced the frontend to invent one: a row could not be created without a name, so it was born as *"New institute"* — and shipped that way whenever nobody overwrote it, reading as a real institute on a real case. The write-time rule also fired **mid-edit**, since select-all-and-retype passes through empty. A blank name cannot reach a signed document: only step 4's institutes are optional (UC-088), and the archive filename falls back to `Custom` |
 | **The search box also finds a land number** (2026-08-30, the office — UC-113) | §4.3's unified box covers client name, national ID and the case code | `land_id` joined the same box, with **`ix_process_land_trgm`** (trigram GIN). See **§3.7**, **§4.3** | The office looks a case up by the plot as readily as by the person, and it was the one thing in front of them the box could not answer. Trigram because the box matches a *fragment* and a btree cannot serve `ILIKE '%…%'` — the UC-005 trap; `land_id` carried no index at all. **Duplicates are expected and need no work**: `land_id` has no unique constraint, so every case on a plot comes back, which is what the office asked for — a plot can be split and allocated more than once |
 | **Dates are typed into the app's own field, not the browser's** (2026-08-30, the office — UC-108) | §9 says nothing about date entry; every date was a native `<input type="date">` | **`components/ui/date-field.tsx`** — three boxes reading day / month / year, Arabic-Indic digits accepted, a hand-built offline calendar, ISO in and out. Replaces all eight native date inputs. See **§9** | The office reads month/day/year. A native date input's order comes from a **machine setting** — the browser's UI language in Chrome and Edge, the Windows regional format in Firefox, the OS locale in Safari — so the app had no say, and the setting has to be found again on every computer it is installed on and is invisible from inside the app when it is wrong. Fixing it in the office's browser would have been one setting and no code; it was rejected because it does not travel to the second computer. The field also **closes UC-072 at the source** — it reports a date only once its three boxes name a real day, where a native input called 2, 20 and 202 valid on the way to 2026 |
+| **A case may be carried in whole, from paper** (2026-08-30, the office — UC-114) | §5: a case is opened at Step 1 and worked through five steps; §10.3's `CompiledCase` is **system output, never an upload slot** | **`POST /processes/fast-entry/`** + a temporary screen: one multipart request creates the beneficiary, the case and **one filed PDF** — the case file, filed as `CompiledCase` on step 5. Runs through `intake_process`, so the duplicate and field rules are the intake form's own. `Process.fast_entry` badges it. Closing reuses `complete_process(force=True)`. See **§5.9** | The office has **~5000+ finished allocations on paper** and the cases already in the app are that same backlog, entered one at a time — so the code sequence is already in the right place and nothing is typed. The one PDF *is* the compiled case: an old file is the same artefact this app compiles, made by hand, so it needed no new document type. Offered a spreadsheet import twice (≈170 hours of typing versus hours) and the office chose the form. **A flagged duplicate is never closed** — that would file a possible duplicate as finished and take it off every list. The screen is temporary and says so; the flag is not, because the cases it marks are not |
 | **`GET /api/v1/lawyers/`** | not present (only admin `GET /users/`) | Added: read-only `id`+`username` of active users, any authenticated caller | Non-admin assignees need it for the per-institute lawyer dropdowns; the full Users API stays admin-only |
 | **User soft-delete** | "every domain model extends `SoftDeleteModel`" | `User` **mirrors** the soft-delete fields (`is_deleted/deleted_at/deleted_by/version`) rather than extending it | `AbstractUser` cannot cleanly multi-inherit `SoftDeleteModel`; behavior is identical (a deleted user is also `is_active=False`) |
 | **`version` field** | not shown in the `SoftDeleteModel` snippet (§3.1) | Present on every soft-deletable model incl. `User` | Required by the optimistic-locking invariant (§4.1, §12) |
@@ -1119,6 +1120,37 @@ Step 4 has no rule: its end date is typed, like its institutes' dates. Every aut
 > **Known consequence.** An approval date earlier than the step's stamped `start_date` produces an inverted pair, which `save_step`'s ordering rule would refuse if a human typed it. The realistic case is **backfilling** — entering a case now for paperwork decided in June. The paperwork's date wins deliberately: refusing it would drop the only real date in the row. Revisit if the office starts entering historic cases in bulk.
 
 ---
+
+### 5.9 Fast entry — carrying the paper backlog in (UC-114, 2026-08-30)
+
+The office holds **~5000+ finished allocations that exist only on paper**, and the cases already in
+the app are that same backlog entered one at a time. `POST /api/v1/processes/fast-entry/` takes one
+of them in a single multipart request, and a temporary screen (`FastEntryPage`, reachable from the
+Processes list) drives it.
+
+| What it asks for | Why |
+|---|---|
+| full name, national ID, mother's name, date of birth | the beneficiary, and the two duplicate keys (§3.7). The office chose to type these rather than loosen them, so nothing in the data model was relaxed |
+| category | the code takes its letter from it and it is fixed for the life of the case (§3.8, UC-059), so unlike an ordinary case it is **required** |
+| land number | what the office searches by (UC-113) |
+| **one PDF** | the case file — **the same document step 5 compiles** for a case worked here, so it is filed as `CompiledCase` on step 5 and needed no new type |
+| complete / in progress | the office knows which are finished; it picks per case |
+
+- **No code is typed.** The sequence is already where it should be, so a backlog case takes the
+  next code exactly as a new one does.
+- **It runs through `intake_process`**, the intake form's own path, so the duplicate rules, the PID
+  rule and the married-spouse constraint cannot drift between the two doors. **The duplicate rules
+  are not relaxed** (the office's call).
+- **A flagged duplicate is never closed.** `mark_complete` is ignored when the warning fired:
+  closing would file a possible duplicate as a finished allocation and take it off every list a
+  person would look at.
+- **Closing reuses `complete_process(force=True)`** — the admin path that already exists for
+  closing a case over missing files (§10.3). There is no second way to close a case. A lawyer may
+  do it *here* without being an admin, because a backlog case has no requirements to force past.
+- **`Process.fast_entry`** badges the case and prints one line above the steps, so five empty steps
+  read as history rather than as work nobody finished.
+- **The screen is temporary by design.** When the backlog is in, delete the page, its test, its
+  route, its button and its `fastEntry` translations. **The flag stays** — the cases it marks do.
 
 ## 6. Document + OCR Pipeline
 
