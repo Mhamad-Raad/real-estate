@@ -187,6 +187,38 @@ class PidTakenMessageTests(APITestCase):
 
         self.assertEqual(resp.status_code, status.HTTP_200_OK, resp.data)
 
+    def test_the_same_id_typed_in_arabic_indic_is_caught_before_the_database(self):
+        """**The bug this validator was written to close.** DRF runs a field's validators *before*
+        `validate_pid` folds Arabic-Indic digits, so the generated `UniqueValidator` compared the
+        raw `١٩٧٧…` against a stored `1977…`, found nothing, and let the write reach
+        `ix_client_pid_active` — an IntegrityError, i.e. **HTTP 500** in front of a lawyer typing
+        digits the way this office writes them (§9). The edit path is where it bit, because it has
+        no service check behind the serializer."""
+        other = make_client(full_name="Someone Else", pid="196505050088")
+
+        resp = self.client.patch(
+            reverse("client-detail", args=[other.id]),
+            {"pid": "١٩٧٧١٢١٢٠٠٩٩", "version": other.version},
+            format="json",
+        )
+
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(self._message(resp), f"{PID_TAKEN}:Karwan Ahmed")
+
+    def test_an_arabic_indic_id_nobody_holds_is_still_accepted(self):
+        """The fold must not turn into a refusal: the office types every number this way."""
+        other = make_client(full_name="Someone Else", pid="196505050088")
+
+        resp = self.client.patch(
+            reverse("client-detail", args=[other.id]),
+            {"pid": "١٩٨٠٠١٠١٠٠٧٧", "version": other.version},
+            format="json",
+        )
+
+        self.assertEqual(resp.status_code, status.HTTP_200_OK, resp.data)
+        other.refresh_from_db()
+        self.assertEqual(other.pid, "198001010077")  # stored canonical, never the raw script
+
     def test_a_soft_deleted_persons_id_is_free_again(self):
         """The validator's queryset hides soft-deleted rows, matching `ix_client_pid_active`. A
         deleted beneficiary must not lock their national ID for ever."""

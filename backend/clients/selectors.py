@@ -46,6 +46,24 @@ def search_clients(*, search: str = "", pid: str = ""):
     return qs.order_by("full_name")
 
 
+def pid_holder(*, pid: str, exclude=None):
+    """The living client holding this national ID, or `None` — the one place that asks (§3.7).
+
+    **Normalised first, and that is the whole point.** DRF runs a field's validators *before*
+    `validate_pid` folds Arabic-Indic digits, so a check that queried the raw input missed
+    `١٩٧٧…` against a stored `1977…` — the serializer passed, and the write then hit
+    `ix_client_pid_active` as an IntegrityError, i.e. a 500 in front of a lawyer typing digits the
+    way this office writes them (§9). Asking here, on the canonical form, closes that.
+
+    Active rows only, matching the partial index: a soft-deleted beneficiary must not hold their
+    national ID for ever.
+    """
+    candidates = Client.objects.filter(pid=normalise_pid(pid))
+    if exclude is not None:
+        candidates = candidates.exclude(pk=exclude.pk)
+    return candidates.first()
+
+
 def household_matches(*, pid: str, spouse_pid: str = "", exclude_id=None):
     """Clients already covered by an allocation as the same **household** (§3.7, §5.7).
 

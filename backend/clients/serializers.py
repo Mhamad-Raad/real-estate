@@ -1,45 +1,43 @@
 from rest_framework import serializers
 
-from rest_framework.validators import UniqueValidator
-
 from common.validators import (
-    PID_TAKEN,
     normalise_pid,
+    pid_taken,
     validate_birth_date,
     validate_phone,
     validate_pid,
 )
 
 from .models import Client
+from .selectors import pid_holder
 
 
-class PidTakenValidator(UniqueValidator):
-    """DRF's own uniqueness rule, answering with **our** message instead of its default.
+class PidTakenValidator:
+    """The national ID is not already on somebody else's live record (§3.7).
 
-    DRF builds a `UniqueValidator` for `pid` automatically, from the model's conditional
-    `ix_client_pid_active`. It is the only uniqueness check on the **edit** path — there is no
-    `update_client` service — so it must stay. What it said was
-    `"client with this pid already exists."`: English on screens the office reads in Sorani, naming
-    the *column* rather than the field, and never saying **who** holds the ID, which is the one
-    thing the person typing needs in order to act on it.
+    **Replaces the `UniqueValidator` DRF builds automatically** from the conditional index
+    `ix_client_pid_active`. That one had to be replaced rather than merely re-worded, for two
+    reasons — and it could not simply be dropped, because it is the **only** uniqueness check on
+    the client-**edit** path, which has no service of its own.
 
-    The lookup repeats what the parent just did, deliberately: DRF's validator answers only
-    *whether* a row exists, and the row itself is what carries the name.
+    1. It answered `"client with this pid already exists."` — English on screens the office reads
+       in Sorani, naming the *column*, and never saying **who** holds the ID, which is the one fact
+       the person typing needs.
+    2. It queried the **raw** input. DRF runs field validators before `validate_pid` folds
+       Arabic-Indic digits, so `١٩٧٧…` did not match a stored `1977…`: the serializer passed and
+       the write then hit the index as an IntegrityError — a 500 in front of a lawyer typing digits
+       the way this office writes them (§9).
+
+    Both are answered by asking `pid_holder`, which normalises first and is the same query
+    `assert_pid_is_free` uses, so the two can never disagree about who holds an ID.
     """
 
-    def __init__(self):
-        super().__init__(queryset=Client.objects.all())
+    requires_context = True
 
     def __call__(self, value, serializer_field):
-        try:
-            super().__call__(value, serializer_field)
-        except serializers.ValidationError:
-            taken = Client.objects.filter(pid=normalise_pid(value))
-            instance = getattr(serializer_field.parent, "instance", None)
-            if instance is not None:
-                taken = taken.exclude(pk=instance.pk)
-            holder = taken.first()
-            raise serializers.ValidationError(f"{PID_TAKEN}:{holder.full_name if holder else ''}")
+        holder = pid_holder(pid=value, exclude=getattr(serializer_field.parent, "instance", None))
+        if holder is not None:
+            raise serializers.ValidationError(pid_taken(holder.full_name))
 
 
 class ClientSerializer(serializers.ModelSerializer):
