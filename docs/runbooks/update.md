@@ -556,7 +556,7 @@ STEP M11. And last: stop anyone deleting the two folders by accident.
 
 
 ------------------------------------------------------------------------
-  TWO THINGS TO DO AFTER THE UPDATE
+  THINGS TO DO AFTER THE UPDATE
 ------------------------------------------------------------------------
 
   1. DELETE THE OLD "_generated" FOLDER
@@ -601,6 +601,30 @@ STEP M11. And last: stop anyone deleting the two folders by accident.
   It never touches a row that already names someone, so an institute a
   colleague handled keeps saying so. Running it twice does nothing the
   second time.
+
+
+  3. REMOVE THE OLD COMPILED CASE FILES  (from build 7)
+
+  Until this version, closing a case stored its compiled file — every
+  paper on the case, merged again — in the case's folder, so a finished
+  case took about twice the space it needed. The app no longer keeps
+  that file: pressing "Compile" produces it fresh whenever it is needed.
+
+  One command removes the copies stored before. First, see what it
+  would do:
+
+      docker compose exec backend python manage.py retire_compiled_exports
+
+  It only REPORTS — how many files, how many cases, how many MB. Then,
+  to actually remove them:
+
+      docker compose exec backend python manage.py retire_compiled_exports --apply
+
+  ** It never touches a case file you scanned in through the backlog
+  page. ** Those are the only copy of that paper case and stay exactly
+  where they are. Only files the app itself produced are removed, and
+  each one is recorded in the activity log. Running it twice does nothing
+  the second time.
 
 
 ------------------------------------------------------------------------
@@ -685,6 +709,7 @@ STEP M11. And last: stop anyone deleting the two folders by accident.
   [ ] 9. All cases still listed, one case opened and checked
   [ ] 10. the old `_generated` folder deleted from documents\
   [ ] 11. backfill_entry_lawyers run with --apply (see the section above)
+  [ ] 12. retire_compiled_exports run with --apply (from build 7; see above)
 
   Only if you also did the MOVING section:
 
