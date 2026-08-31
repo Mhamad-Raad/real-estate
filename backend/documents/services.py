@@ -291,12 +291,20 @@ def supersede_generated_documents(*, process, document_type: str, actor, job_id=
     generated it, when it was replaced and by which job. What is lost is the ability to reprint the
     exact earlier PDF — the office's call (2026-08-11), taken to stop the store growing without
     bound. Never call this for a document a person deleted.
+
+    **Only system-made rows, ever.** A `CompiledCase` the office *scanned* through the backlog door
+    (§5.9, UC-114) shares the type but is the only copy of that paper case — the filter on
+    `input_source` is what keeps this from ever unlinking one.
     """
     from django.utils import timezone
 
     root = Path(settings.DOCUMENTS_ROOT)
     superseded = 0
-    for old in Document.objects.filter(process=process, document_type=document_type):
+    for old in Document.objects.filter(
+        process=process,
+        document_type=document_type,
+        input_source=Document.InputSource.SYSTEM_GENERATED,
+    ):
         old.is_deleted = True
         old.deleted_at = timezone.now()
         old.deleted_by = actor

@@ -9,6 +9,7 @@ would produce a case that fails at the next compile. That is the line these test
 import tempfile
 from datetime import date
 from pathlib import Path
+from urllib.parse import quote
 
 from django.conf import settings
 from django.test import TestCase, override_settings
@@ -82,6 +83,23 @@ class SupersedeTests(TestCase):
         )
 
         self.assertFalse(self._path(old).is_file())
+
+    def test_a_scanned_case_file_is_never_superseded(self):
+        """A CompiledCase the office scanned in (UC-114) is the only copy of that paper case —
+        retiring the stored exports (UC-118) must go around it."""
+        scan = create_document(
+            process=self.process, step_number=5, document_type="CompiledCase",
+            input_source=Document.InputSource.IMPORTED, content=make_pdf(1), actor=self.actor,
+        )
+
+        count = supersede_generated_documents(
+            process=self.process, document_type="CompiledCase", actor=self.actor
+        )
+
+        self.assertEqual(count, 0)
+        scan.refresh_from_db()
+        self.assertFalse(scan.is_deleted)
+        self.assertTrue(self._path(scan).is_file())
 
     def test_it_only_touches_the_type_it_was_asked_for(self):
         """A regenerate must not sweep the papers the case was built from."""
@@ -197,6 +215,34 @@ class ListDownloadIsOneShotTests(TestCase):
         second = self.api.get(f"/api/v1/generation-jobs/{job.id}/file/")
         self.assertEqual(second.status_code, 404)
         self.assertIn("no longer available", str(second.data["detail"]))
+
+    def test_a_compiled_case_is_collected_on_its_first_read_too(self):
+        """UC-118 — the export is no longer stored on the case; like the letter, one read serves
+        preview, print and download, and a second read says what happened rather than 'missing'."""
+        from .models import DocumentTemplate, GenerationJob
+
+        template = DocumentTemplate.objects.create(
+            template_type=DocumentTemplate.TemplateType.CASE_SUMMARY,
+            name="C", file_path="x/c.docx", sha256="2" * 64,
+        )
+        out = Path(settings.GENERATED_ROOT) / "compiled/compiled_1.pdf"
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_bytes(make_pdf(1))
+        job = GenerationJob.objects.create(
+            kind=GenerationJob.Kind.COMPILED_CASE, template=template,
+            status=GenerationJob.Status.DONE, output_path="compiled/compiled_1.pdf",
+            process_ids=[], requested_by=self.actor,
+        )
+
+        first = self.api.get(f"/api/v1/generation-jobs/{job.id}/file/")
+        self.assertEqual(first.status_code, 200)
+        # Named like the filed paper, RFC 5987-encoded on the wire.
+        self.assertIn(quote("دۆسیەی کۆکراوەی کەیس"), first["Content-Disposition"])
+        self.assertFalse(out.is_file(), "the export outlived the read that served it")
+
+        second = self.api.get(f"/api/v1/generation-jobs/{job.id}/file/")
+        self.assertEqual(second.status_code, 404)
+        self.assertIn("Compile it again", str(second.data["detail"]))
 
     def test_the_job_row_still_records_what_was_produced(self):
         """The file goes; the trail of who exported whose data does not (§11)."""

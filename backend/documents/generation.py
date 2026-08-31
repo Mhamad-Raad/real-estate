@@ -3,7 +3,8 @@
 Runs inside the Celery worker: `docxtpl` fills the stored `.docx`, headless LibreOffice renders
 it, and the result becomes a standalone file the requester downloads. Nothing generated here is
 filed on a case — the list letters span several people and so belong to none, and the Step-1
-letter is produced to be read and printed rather than archived (UC-075).
+letter is produced to be read and printed rather than archived (UC-075). The compiled case
+(`compile.py`) joined them in UC-118, for the same reason.
 """
 
 import tempfile
@@ -25,11 +26,13 @@ from .letters import eligibility_context, process_codes_context, process_list_co
 from .models import DocumentTemplate, GenerationJob
 from .rendering import RenderError, docx_to_pdf
 
-# Both live under `settings.GENERATED_ROOT`, which is **outside the office's archive** (UC-101):
-# a list spans people so it belongs to no case folder (§6.8), and the Step-1 letter is produced to
-# be read and printed rather than archived (UC-075). Neither is ever a Document on a case.
+# All three live under `settings.GENERATED_ROOT`, which is **outside the office's archive**
+# (UC-101): a list spans people so it belongs to no case folder (§6.8), the Step-1 letter is
+# produced to be read and printed rather than archived (UC-075), and the compiled case is every
+# paper on the case merged again, reproducible in seconds (UC-118). None is a Document on a case.
 GENERATED_LISTS_DIR = "lists"
 GENERATED_LETTERS_DIR = "letters"
+GENERATED_COMPILED_DIR = "compiled"
 
 
 def render_to_pdf(template: DocumentTemplate, context: dict, out_dir: Path) -> bytes:
@@ -56,12 +59,13 @@ def _fail(job: GenerationJob, message: str) -> None:
     job.save(update_fields=["status", "error", "updated_at"])
 
 
-# The generated kinds no case ever points at, and so the only ones whose files are ours to remove.
-# `COMPILED_CASE` is deliberately absent: it is filed on the case as a real `Document` (§10.3).
+# The generated kinds no case ever points at, and so the only ones whose files are ours to remove —
+# since UC-118 that is every kind there is.
 UNFILED_KINDS = (
     GenerationJob.Kind.ELIGIBILITY,
     GenerationJob.Kind.PROCESS_LIST,
     GenerationJob.Kind.PROCESS_CODES,
+    GenerationJob.Kind.COMPILED_CASE,
 )
 
 
@@ -73,7 +77,8 @@ def _discard_stale_output(job: GenerationJob) -> None:
     go, both file-only — **the job rows always stay**, because they are the record of who
     generated what (§11):
 
-    1. the previous output this one supersedes — for a letter, the same case's earlier copy;
+    1. the previous output this one supersedes — for a letter or a compiled case, the same
+       case's earlier copy;
     2. **any** output of this kind older than the retention window, which is what stops the
        directory growing by one permanent file per generation ever run.
 

@@ -4,6 +4,11 @@ Renders a summary cover sheet, then appends every document attached to the case 
 — into one PDF for leadership. Reuses the same LibreOffice path as the letters, so there is one
 RTL-PDF pipeline to maintain, not several.
 
+**Not filed on the case (UC-118).** The export is every paper on the case merged again, so keeping
+it doubled what each closed case cost on disk — for a file that can be produced again from the
+same papers in seconds. It is written like the Step-1 letter: a job output under `GENERATED_ROOT`,
+previewed and printed on the spot, collected on its first read.
+
 Inputs are always PDFs: the office scans to PDF, and the scan-capture feature (It.6) converts
 camera images to PDF before upload. A file that is missing or unreadable therefore means
 something is genuinely wrong, and the export **fails loudly** rather than quietly producing an
@@ -16,21 +21,16 @@ from pathlib import Path
 
 from django.conf import settings
 from django.db import transaction
-from django.utils import timezone
 from pypdf import PdfReader, PdfWriter
 
 from common.models import ActivityLog
-from processes.constants import LAST_STEP
 from common.services import record_activity
-
-from processes.models import Process
 
 from catalog.document_types import COMPILED_CASE, ELIGIBILITY_LETTER, IDENTITY_TYPE_CODES
 
 from .idsheet import sheets_as_pdf
 from .models import Document, DocumentTemplate, GenerationJob
 from .rendering import RenderError
-from .services import create_document, supersede_generated_documents
 from .summary import case_summary_context
 
 # The compiled export is Step-5 output and carries its own controlled type (§6.7), declared with
@@ -39,21 +39,30 @@ from .summary import case_summary_context
 COMPILED_DOC_TYPE = COMPILED_CASE
 
 
-# Never merged into the compiled export. The previous compilation, or each run would nest the
-# last one inside the next and the file would grow without bound — and the Step-1 letter, which
-# the office does not want in the compilation at all (UC-075). Nothing files a letter any more,
-# but cases created before that change still carry one, and they must compile the same way.
-EXCLUDED_FROM_COMPILATION = frozenset({COMPILED_CASE, ELIGIBILITY_LETTER})
+def belongs_in_compilation(document: Document) -> bool:
+    """Whether a document on the case is one of the papers the export merges.
+
+    Two system outputs are left out. A **previous compilation** — nothing files one any more
+    (UC-118), but cases closed before that still carry one until `retire_compiled_exports` runs,
+    and merging it would nest the last export inside the next. And the **Step-1 letter**, which the
+    office does not want in the compilation at all (UC-075); nothing files one either, but cases
+    created before that change still carry one and must compile the same way.
+
+    A `CompiledCase` the office **scanned** is different: that is the paper case file itself,
+    carried in through the backlog door (§5.9, UC-114), and it is the whole point of the export.
+    """
+    if document.document_type == ELIGIBILITY_LETTER:
+        return False
+    return not (
+        document.document_type == COMPILED_CASE
+        and document.input_source == Document.InputSource.SYSTEM_GENERATED
+    )
 
 
 def documents_in_step_order(process) -> list[Document]:
     """Every live document on the case that belongs in the compilation, in paper order: step 1 → 5."""
     return sorted(
-        (
-            document
-            for document in process.documents.all()
-            if document.document_type not in EXCLUDED_FROM_COMPILATION
-        ),
+        (document for document in process.documents.all() if belongs_in_compilation(document)),
         key=lambda d: (d.step_number, d.id),
     )
 
@@ -118,8 +127,8 @@ def merge_pdfs(summary: bytes, documents: list[Document]) -> bytes:
 
 
 def run_compile_case_job(job_id: int) -> None:
-    """Render the summary, merge the case, and attach the result to the process."""
-    from .generation import render_to_pdf
+    """Render the summary, merge the case, and leave the result as a one-read job file (UC-118)."""
+    from .generation import GENERATED_COMPILED_DIR, _discard_stale_output, render_to_pdf
 
     job = (
         GenerationJob.objects.select_related(
@@ -142,31 +151,17 @@ def run_compile_case_job(job_id: int) -> None:
             )
         merged = merge_pdfs(summary, attachments)
 
-        with transaction.atomic():
-            # Lock the case for the supersede-then-create window. Two computers compiling the
-            # same case at once would otherwise interleave and both leave a live export (§12
-            # concurrent edits) — the second waits here and supersedes the first's output.
-            Process.objects.select_for_update().get(pk=process.pk)
-            # A recompiled case supersedes the last one — row soft-deleted, audited, and its PDF
-            # removed from disk. A compiled export is the largest file the app writes (every paper
-            # on the case, merged), so keeping superseded copies grew the store fastest of all.
-            supersede_generated_documents(
-                process=process,
-                document_type=COMPILED_DOC_TYPE,
-                actor=job.requested_by,
-                job_id=job.id,
-            )
-            document = create_document(
-                process=process,
-                step_number=LAST_STEP,
-                document_type=COMPILED_DOC_TYPE,
-                input_source=Document.InputSource.SYSTEM_GENERATED,
-                content=merged,
-                actor=job.requested_by,
-            )
-            job.document = document
-            job.status = GenerationJob.Status.DONE
-            job.save(update_fields=["document", "status", "updated_at"])
+        # Written beside the letters and lists, outside the office's archive, and swept the same
+        # way: the case's earlier export goes now, and anything older than the retention window.
+        destination = Path(settings.GENERATED_ROOT) / GENERATED_COMPILED_DIR
+        destination.mkdir(parents=True, exist_ok=True)
+        out_file = destination / f"compiled_{job.id}.pdf"
+        out_file.write_bytes(merged)
+        _discard_stale_output(job)
+
+        job.output_path = f"{GENERATED_COMPILED_DIR}/{out_file.name}"
+        job.status = GenerationJob.Status.DONE
+        job.save(update_fields=["output_path", "status", "updated_at"])
     except Exception as exc:  # a partial compilation must never look like a success
         job.status = GenerationJob.Status.FAILED
         job.error = str(exc)[:2000]

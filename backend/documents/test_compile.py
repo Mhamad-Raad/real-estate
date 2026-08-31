@@ -3,6 +3,7 @@
 import unittest
 from io import BytesIO
 from pathlib import Path
+from unittest import mock
 
 from django.conf import settings
 from django.test import TestCase
@@ -56,7 +57,8 @@ class OrderingTests(CompileTestBase):
         self.assertEqual([d.id for d in ordered], [first.id, second.id, third.id])
 
     def test_a_previous_compilation_is_excluded(self):
-        """Including it would nest each run inside the next and grow the file without bound."""
+        """Including it would nest each run inside the next and grow the file without bound.
+        Nothing files one any more (UC-118), but a case closed before that may still carry one."""
         self._document(1, "ClientID")
         create_document(
             process=self.process,
@@ -68,6 +70,13 @@ class OrderingTests(CompileTestBase):
         )
         types = [d.document_type for d in documents_in_step_order(self.process)]
         self.assertNotIn(COMPILED_DOC_TYPE, types)
+
+    def test_a_scanned_case_file_is_merged(self):
+        """The backlog door files the paper case as a CompiledCase (UC-114) — that scan *is* the
+        case's papers, and an export that left it out would be a cover sheet and nothing else."""
+        scan = self._document(5, COMPILED_DOC_TYPE)
+
+        self.assertEqual([d.id for d in documents_in_step_order(self.process)], [scan.id])
 
     def test_a_letter_filed_before_the_change_is_still_left_out(self):
         """UC-075: nothing files an EligibilityLetter any more, but every case created before
@@ -157,7 +166,42 @@ class CompileJobTests(CompileTestBase):
         job.refresh_from_db()
         self.assertEqual(job.status, GenerationJob.Status.FAILED)
         self.assertIn("missing", job.error)
-        self.assertIsNone(job.document)
+        self.assertEqual(job.output_path, "")
+
+    def _run_with_stub_cover_sheet(self, job: GenerationJob) -> None:
+        # The cover sheet needs LibreOffice; what these tests hold is where the merge lands.
+        with mock.patch("documents.generation.render_to_pdf", return_value=make_pdf()):
+            run_compile_case_job(job.id)
+
+    def test_the_export_is_a_one_read_job_file_not_a_document(self):
+        """UC-118: nothing is filed on the case — the merge lands under GENERATED_ROOT like the
+        Step-1 letter, so a closed case no longer costs twice its papers on disk."""
+        self._document(1, "ClientID")
+        job = self._job()
+
+        self._run_with_stub_cover_sheet(job)
+
+        job.refresh_from_db()
+        self.assertEqual(job.status, GenerationJob.Status.DONE)
+        self.assertEqual(job.output_path, f"compiled/compiled_{job.id}.pdf")
+        self.assertTrue((Path(settings.GENERATED_ROOT) / job.output_path).is_file())
+        self.assertFalse(
+            Document.objects.filter(process=self.process, document_type=COMPILED_DOC_TYPE).exists()
+        )
+
+    def test_recompiling_removes_the_case_s_previous_export(self):
+        """The largest file the app writes must not accumulate one copy per press."""
+        self._document(1, "ClientID")
+        first, second = self._job(), self._job()
+        self._run_with_stub_cover_sheet(first)
+        first.refresh_from_db()
+        first_file = Path(settings.GENERATED_ROOT) / first.output_path
+
+        self._run_with_stub_cover_sheet(second)
+
+        self.assertFalse(first_file.is_file())
+        first.refresh_from_db()
+        self.assertEqual(first.output_path, f"compiled/compiled_{first.id}.pdf", "the record of what was produced stays")
 
 
 class SummaryContextTests(CompileTestBase):
