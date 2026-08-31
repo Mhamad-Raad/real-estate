@@ -6,6 +6,8 @@ from rest_framework.exceptions import ValidationError
 from common.models import ActivityLog
 from common.services import record_activity
 
+from common.validators import PID_TAKEN
+
 from .models import Client
 
 
@@ -25,7 +27,9 @@ def assert_pid_is_free(pid: str, *, exclude=None) -> None:
     conflict = candidates.first()
     if conflict:
         raise ValidationError(
-            {"pid": f"National ID {pid} already belongs to {conflict.full_name}."}
+            # The key, not a sentence: the office reads these screens in Sorani (§9). The holder's
+            # name rides along after the colon — see `common.validators.PID_TAKEN`.
+            {"pid": f"{PID_TAKEN}:{conflict.full_name}"}
         )
 
 

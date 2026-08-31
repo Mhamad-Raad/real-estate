@@ -152,3 +152,59 @@ describe("pre-existing error shapes (regression)", () => {
     expect(apiErrorMessage({ data: { file: ["Bad file."] } }, "fb")).toBe("Bad file.");
   });
 });
+
+describe("a key that carries a name", () => {
+  // `errors.pid.taken:<full name>` — the one message with a runtime value in it. The validators
+  // are otherwise parameterless because their bounds are constants; a national ID's holder is not.
+  const t = (key: string, params?: Record<string, string>) =>
+    key === "errors.pid.taken" ? `This national ID already belongs to ${params?.name}.` : key;
+
+  /** The rendered text with the bidi isolates stripped — they are invisible to a reader. */
+  const readable = (message: string) => message.replace(/[\u2068\u2069]/g, "");
+
+  it("translates the key and fills the name in", () => {
+    expect(readable(translateApiMessage("errors.pid.taken:Karwan Ahmed", t))).toBe(
+      "This national ID already belongs to Karwan Ahmed.",
+    );
+  });
+
+  it("reaches the form field it belongs to", () => {
+    const errors = fieldErrors({ data: { pid: ["errors.pid.taken:Karwan Ahmed"] } }, t);
+
+    expect(readable(errors.pid)).toBe("This national ID already belongs to Karwan Ahmed.");
+  });
+
+  it("isolates the name so it cannot reorder the sentence around it", () => {
+    // §9: a Latin name inside a Sorani sentence needs a bidi isolate, or the words either side of
+    // it swap. The office's names come in both scripts.
+    const seen = translateApiMessage("errors.pid.taken:Karwan Ahmed", (_k, p) => p?.name ?? "");
+
+    expect(seen.startsWith("\u2068")).toBe(true); // First Strong Isolate
+    expect(seen.endsWith("\u2069")).toBe(true); // Pop Directional Isolate
+  });
+
+  it("survives a name with spaces, Sorani script or punctuation", () => {
+    expect(translateApiMessage("errors.pid.taken:کاروان ئەحمەد", t)).toContain("کاروان ئەحمەد");
+    expect(translateApiMessage("errors.pid.taken:O'Brien, A.", t)).toContain("O'Brien, A.");
+  });
+
+  it("shows the raw message when the key has no translation", () => {
+    // The safety net every other key has: a bare `errors.…` in front of a user is worse than the
+    // English sentence it replaced.
+    expect(translateApiMessage("errors.pid.unknown:Someone", (k) => k)).toBe(
+      "errors.pid.unknown:Someone",
+    );
+  });
+
+  it("leaves an ordinary English sentence containing a colon alone", () => {
+    const sentence = "Date has wrong format. Use one of these formats instead: YYYY-MM-DD.";
+
+    expect(translateApiMessage(sentence, t)).toBe(sentence);
+  });
+
+  it("still handles a plain key with no name", () => {
+    expect(translateApiMessage("errors.phone.chars", (k) => (k === "errors.phone.chars" ? "Digits only." : k))).toBe(
+      "Digits only.",
+    );
+  });
+});

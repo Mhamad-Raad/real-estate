@@ -1,12 +1,52 @@
 from rest_framework import serializers
 
-from common.validators import normalise_pid, validate_birth_date, validate_phone, validate_pid
+from rest_framework.validators import UniqueValidator
+
+from common.validators import (
+    PID_TAKEN,
+    normalise_pid,
+    validate_birth_date,
+    validate_phone,
+    validate_pid,
+)
 
 from .models import Client
 
 
+class PidTakenValidator(UniqueValidator):
+    """DRF's own uniqueness rule, answering with **our** message instead of its default.
+
+    DRF builds a `UniqueValidator` for `pid` automatically, from the model's conditional
+    `ix_client_pid_active`. It is the only uniqueness check on the **edit** path — there is no
+    `update_client` service — so it must stay. What it said was
+    `"client with this pid already exists."`: English on screens the office reads in Sorani, naming
+    the *column* rather than the field, and never saying **who** holds the ID, which is the one
+    thing the person typing needs in order to act on it.
+
+    The lookup repeats what the parent just did, deliberately: DRF's validator answers only
+    *whether* a row exists, and the row itself is what carries the name.
+    """
+
+    def __init__(self):
+        super().__init__(queryset=Client.objects.all())
+
+    def __call__(self, value, serializer_field):
+        try:
+            super().__call__(value, serializer_field)
+        except serializers.ValidationError:
+            taken = Client.objects.filter(pid=normalise_pid(value))
+            instance = getattr(serializer_field.parent, "instance", None)
+            if instance is not None:
+                taken = taken.exclude(pk=instance.pk)
+            holder = taken.first()
+            raise serializers.ValidationError(f"{PID_TAKEN}:{holder.full_name if holder else ''}")
+
+
 class ClientSerializer(serializers.ModelSerializer):
     is_married = serializers.BooleanField(read_only=True)
+    # Declared so the validator is ours rather than the one DRF generates — see above. Everything
+    # else about the field is what the model would have given it.
+    pid = serializers.CharField(max_length=50, validators=[PidTakenValidator()])
 
     class Meta:
         model = Client

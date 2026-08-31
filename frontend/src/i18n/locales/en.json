@@ -641,7 +641,8 @@
       "filesFull": "This slot already holds every paper it takes — delete one to add another."
     },
     "pid": {
-      "format": "A national ID must be digits only, at most 12 of them."
+      "format": "A national ID must be digits only, at most 12 of them.",
+      "taken": "This national ID already belongs to {{name}}."
     }
   },
   "fastEntry": {
