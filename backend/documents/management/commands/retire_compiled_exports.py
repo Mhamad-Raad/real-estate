@@ -60,6 +60,9 @@ class Command(BaseCommand):
                 # The same retirement a recompile used to do — row soft-deleted, audited with
                 # `file_removed`, PDF unlinked — so the trail reads the same for both.
                 retired += supersede_generated_documents(
-                    process=process, document_type=COMPILED_CASE, actor=None
+                    process=process,
+                    document_type=COMPILED_CASE,
+                    actor=None,
+                    reason="retired by retire_compiled_exports (UC-118)",
                 )
         self.stdout.write(self.style.SUCCESS(f"Retired {retired} compiled export(s); {summary}"))

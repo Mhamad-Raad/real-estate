@@ -53,7 +53,8 @@ def render_to_pdf(template: DocumentTemplate, context: dict, out_dir: Path) -> b
     return docx_to_pdf(filled, out_dir).read_bytes()
 
 
-def _fail(job: GenerationJob, message: str) -> None:
+def fail_job(job: GenerationJob, message: str) -> None:
+    """A failed render must never look like a success — shared by every job runner."""
     job.status = GenerationJob.Status.FAILED
     job.error = message[:2000]
     job.save(update_fields=["status", "error", "updated_at"])
@@ -69,7 +70,7 @@ UNFILED_KINDS = (
 )
 
 
-def _discard_stale_output(job: GenerationJob) -> None:
+def discard_stale_output(job: GenerationJob) -> None:
     """Clear out generated files nobody can still be reading (UC-075, UC-096).
 
     None of these are archived, so nothing on a case ever points at one: the screen forgets the
@@ -126,13 +127,13 @@ def run_eligibility_job(job_id: int) -> None:
         destination.mkdir(parents=True, exist_ok=True)
         out_file = destination / f"letter_{job.id}.pdf"
         out_file.write_bytes(pdf)
-        _discard_stale_output(job)
+        discard_stale_output(job)
 
         job.output_path = f"{GENERATED_LETTERS_DIR}/{out_file.name}"
         job.status = GenerationJob.Status.DONE
         job.save(update_fields=["output_path", "status", "updated_at"])
     except Exception as exc:  # a failed render must never look like a success
-        _fail(job, str(exc))
+        fail_job(job, str(exc))
         raise
 
 
@@ -163,13 +164,13 @@ def _run_bulk_job(job_id: int, *, build_context, stem: str) -> None:
         destination.mkdir(parents=True, exist_ok=True)
         out_file = destination / f"{stem}_{job.id}.pdf"
         out_file.write_bytes(pdf)
-        _discard_stale_output(job)
+        discard_stale_output(job)
 
         job.output_path = f"{GENERATED_LISTS_DIR}/{out_file.name}"
         job.status = GenerationJob.Status.DONE
         job.save(update_fields=["output_path", "status", "updated_at"])
     except Exception as exc:
-        _fail(job, str(exc))
+        fail_job(job, str(exc))
         raise
 
 

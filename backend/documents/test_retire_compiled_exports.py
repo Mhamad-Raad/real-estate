@@ -62,6 +62,8 @@ class RetireCompiledExportsTests(TestCase):
         self.assertFalse(self._path(export).is_file())
         row = ActivityLog.objects.get(entity_type="Document", entity_id=str(export.pk), action=ActivityLog.Action.DELETE)
         self.assertTrue(row.before["file_removed"])
+        self.assertIn("retire_compiled_exports", row.before["reason"])
+        self.assertIsNone(row.actor, "a command has no user; the reason is what explains the row")
 
     def test_a_scanned_case_file_is_the_only_copy_and_stays(self):
         """The backlog door files the paper case itself as a CompiledCase (UC-114)."""

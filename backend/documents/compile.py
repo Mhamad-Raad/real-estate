@@ -128,7 +128,7 @@ def merge_pdfs(summary: bytes, documents: list[Document]) -> bytes:
 
 def run_compile_case_job(job_id: int) -> None:
     """Render the summary, merge the case, and leave the result as a one-read job file (UC-118)."""
-    from .generation import GENERATED_COMPILED_DIR, _discard_stale_output, render_to_pdf
+    from .generation import GENERATED_COMPILED_DIR, discard_stale_output, fail_job, render_to_pdf
 
     job = (
         GenerationJob.objects.select_related(
@@ -157,15 +157,13 @@ def run_compile_case_job(job_id: int) -> None:
         destination.mkdir(parents=True, exist_ok=True)
         out_file = destination / f"compiled_{job.id}.pdf"
         out_file.write_bytes(merged)
-        _discard_stale_output(job)
+        discard_stale_output(job)
 
         job.output_path = f"{GENERATED_COMPILED_DIR}/{out_file.name}"
         job.status = GenerationJob.Status.DONE
         job.save(update_fields=["output_path", "status", "updated_at"])
     except Exception as exc:  # a partial compilation must never look like a success
-        job.status = GenerationJob.Status.FAILED
-        job.error = str(exc)[:2000]
-        job.save(update_fields=["status", "error", "updated_at"])
+        fail_job(job, str(exc))
         raise
 
 
