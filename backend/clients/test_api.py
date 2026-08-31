@@ -6,6 +6,7 @@ from rest_framework.test import APITestCase
 
 from accounts.models import User
 from catalog.models import Category
+from common.validators import PID_TAKEN
 
 from .models import Client
 from .factories import client_data, make_client
@@ -123,3 +124,85 @@ class ClientApiTests(APITestCase):
         resp = self.post_client(marital_status="married")
 
         self.assertEqual(resp.status_code, status.HTTP_201_CREATED)
+
+
+
+class PidTakenMessageTests(APITestCase):
+    """A national ID already on file must say **whose** it is, in the office's language (§9).
+
+    DRF generates a `UniqueValidator` for `pid` from the conditional index, and it answered
+    `"client with this pid already exists."` — English, naming the column, and never the holder,
+    which is the one thing the person typing needs. It is also the **only** uniqueness check on the
+    edit path, so it could not simply be removed.
+    """
+
+    def setUp(self):
+        self.admin = User.objects.create_user(
+            "pid_admin", password="pw12345678", role=User.Role.ADMIN
+        )
+        self.client.force_authenticate(self.admin)
+        self.category = Category.objects.create(code="P", name="P")
+        self.existing = make_client(full_name="Karwan Ahmed", pid="197712120099")
+
+    def _message(self, response):
+        return response.data["pid"][0]
+
+    def test_creating_a_case_on_a_taken_id_names_the_holder(self):
+        resp = self.client.post(
+            reverse("process-list"),
+            {
+                "client_data": {
+                    "full_name": "Someone Else", "pid": "197712120099",
+                    "mother_full_name": "M", "date_of_birth": "1980-01-01",
+                },
+            },
+            format="json",
+        )
+
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(resp.data["client_data"]["pid"][0], f"{PID_TAKEN}:Karwan Ahmed")
+
+    def test_editing_a_client_onto_a_taken_id_names_the_holder(self):
+        """The edit path has no service check of its own — the serializer's validator is all there
+        is — so this is the case that proves it was kept, not merely re-worded."""
+        other = make_client(full_name="Someone Else", pid="196505050088")
+
+        resp = self.client.patch(
+            reverse("client-detail", args=[other.id]),
+            {"pid": "197712120099", "version": other.version},
+            format="json",
+        )
+
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(self._message(resp), f"{PID_TAKEN}:Karwan Ahmed")
+
+    def test_a_client_may_still_be_saved_with_its_own_id(self):
+        """The exclusion the parent validator does must survive: editing a phone number must not
+        trip on the record's own PID."""
+        resp = self.client.patch(
+            reverse("client-detail", args=[self.existing.id]),
+            {"phone": "07701234567", "version": self.existing.version},
+            format="json",
+        )
+
+        self.assertEqual(resp.status_code, status.HTTP_200_OK, resp.data)
+
+    def test_a_soft_deleted_persons_id_is_free_again(self):
+        """The validator's queryset hides soft-deleted rows, matching `ix_client_pid_active`. A
+        deleted beneficiary must not lock their national ID for ever."""
+        self.existing.is_deleted = True
+        self.existing.save(update_fields=["is_deleted"])
+
+        resp = self.client.post(
+            reverse("process-list"),
+            {
+                "client_data": {
+                    "full_name": "New Person", "pid": "197712120099",
+                    "mother_full_name": "M", "date_of_birth": "1980-01-01",
+                },
+                "category": self.category.id,
+            },
+            format="json",
+        )
+
+        self.assertEqual(resp.status_code, status.HTTP_201_CREATED, resp.data)

@@ -1,3 +1,5 @@
+import { bidiIsolate } from "./format";
+
 /** Keys DRF uses for whole-request errors — they name no field and must not be shown against one. */
 const NON_FIELD_KEYS = new Set(["detail", "non_field_errors", "in_use"]);
 
@@ -9,14 +11,35 @@ const NON_FIELD_KEYS = new Set(["detail", "non_field_errors", "in_use"]);
  */
 const ERROR_KEY = /^errors(\.[A-Za-z][A-Za-z0-9]*)+$/;
 
+/** A key that carries one runtime value: `errors.pid.taken:Karwan Ahmed`.
+ *
+ * The validators are otherwise **parameterless on purpose** — their bounds are constants and live
+ * in the translation. A national ID's current holder is not a constant, and naming them is the
+ * point: "already exists" leaves the lawyer to go and search for who. One value, always named
+ * `name` in the translation, so the shape stays as narrow as the need. */
+const ERROR_KEY_WITH_NAME = /^(errors(?:\.[A-Za-z][A-Za-z0-9]*)+):([\s\S]+)$/;
+
 /** Render a server message: translate it when it is one of our keys, otherwise show it verbatim.
  *
  * The `!==` guard is the safety net — i18next returns the key itself when nothing matches, and a
  * raw `errors.phone.chars` in front of a user is worse than the English sentence it replaced.
  * `common.test_validation_keys` makes that unreachable; this keeps it harmless if it ever is.
  */
-export function translateApiMessage(message: string, t?: (key: string) => string): string {
-  if (!t || !ERROR_KEY.test(message)) return message;
+export function translateApiMessage(
+  message: string,
+  t?: (key: string, params?: Record<string, string>) => string,
+): string {
+  if (!t) return message;
+  const named = ERROR_KEY_WITH_NAME.exec(message);
+  if (named) {
+    const [, key, name] = named;
+    // Isolated, because this is the mixed-direction case §9 exists for: a Latin name dropped into
+    // a Sorani sentence reorders the words around it without one, and a beneficiary's name is
+    // exactly as likely to be Latin as Arabic-script in this office's data.
+    const translated = t(key, { name: bidiIsolate(name) });
+    return translated && translated !== key ? translated : message;
+  }
+  if (!ERROR_KEY.test(message)) return message;
   const translated = t(message);
   return translated && translated !== message ? translated : message;
 }
@@ -34,7 +57,10 @@ export function translateApiMessage(message: string, t?: (key: string) => string
  * calls its input. The API never collides on one: a beneficiary's birth date and their spouse's
  * are `date_of_birth` and `spouse_date_of_birth`, distinct all the way down.
  */
-export function fieldErrors(err: unknown, t?: (key: string) => string): Record<string, string> {
+export function fieldErrors(
+  err: unknown,
+  t?: (key: string, params?: Record<string, string>) => string,
+): Record<string, string> {
   const out: Record<string, string> = {};
 
   const walk = (node: unknown, key: string) => {
@@ -69,7 +95,7 @@ export function apiErrorMessage(
   err: unknown,
   fallback: string,
   label?: (field: string) => string | undefined,
-  t?: (key: string) => string,
+  t?: (key: string, params?: Record<string, string>) => string,
 ): string {
   const data = (err as { data?: unknown })?.data;
   if (typeof data === "string" && data.trim()) return data;

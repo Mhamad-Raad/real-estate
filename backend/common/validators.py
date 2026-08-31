@@ -43,6 +43,11 @@ SLOT_SIDES_FULL = "errors.slot.sidesFull"
 SLOT_PAGES_FULL = "errors.slot.pagesFull"
 SLOT_FILES_FULL = "errors.slot.filesFull"
 PID_FORMAT = "errors.pid.format"
+# **The one message that carries a value.** The others are deliberately parameterless — their
+# bounds are constants and live in the translation. A national ID's current holder is not a
+# constant: naming them is the whole point, because "already exists" leaves the lawyer to go and
+# search for who. Sent as `errors.pid.taken:<full name>`; `lib/apiError.ts` splits it.
+PID_TAKEN = "errors.pid.taken"
 
 VALIDATION_KEYS = (
     PHONE_CHARS,
@@ -54,6 +59,7 @@ VALIDATION_KEYS = (
     SLOT_PAGES_FULL,
     SLOT_FILES_FULL,
     PID_FORMAT,
+    PID_TAKEN,
 )
 
 # Digits, plus the separators people actually type on a form. **The dash is not one of them**
