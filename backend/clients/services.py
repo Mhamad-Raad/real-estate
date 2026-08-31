@@ -6,9 +6,10 @@ from rest_framework.exceptions import ValidationError
 from common.models import ActivityLog
 from common.services import record_activity
 
-from common.validators import PID_TAKEN
+from common.validators import pid_taken
 
 from .models import Client
+from .selectors import pid_holder
 
 
 def assert_pid_is_free(pid: str, *, exclude=None) -> None:
@@ -20,16 +21,12 @@ def assert_pid_is_free(pid: str, *, exclude=None) -> None:
     """
     if not pid:
         return
-    # `Client.objects` hides soft-deleted rows — exactly the condition the partial index carries.
-    candidates = Client.objects.filter(pid=pid)
-    if exclude is not None:
-        candidates = candidates.exclude(pk=exclude.pk)
-    conflict = candidates.first()
+    conflict = pid_holder(pid=pid, exclude=exclude)
     if conflict:
         raise ValidationError(
             # The key, not a sentence: the office reads these screens in Sorani (§9). The holder's
-            # name rides along after the colon — see `common.validators.PID_TAKEN`.
-            {"pid": f"{PID_TAKEN}:{conflict.full_name}"}
+            # name rides along after the colon — see `common.validators.pid_taken`.
+            {"pid": pid_taken(conflict.full_name)}
         )
 
 

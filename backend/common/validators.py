@@ -49,6 +49,11 @@ PID_FORMAT = "errors.pid.format"
 # search for who. Sent as `errors.pid.taken:<full name>`; `lib/apiError.ts` splits it.
 PID_TAKEN = "errors.pid.taken"
 
+
+def pid_taken(holder_name: str) -> str:
+    """`PID_TAKEN` with the holder's name attached, in the shape `lib/apiError.ts` splits."""
+    return f"{PID_TAKEN}:{holder_name}"
+
 VALIDATION_KEYS = (
     PHONE_CHARS,
     PHONE_LENGTH,
