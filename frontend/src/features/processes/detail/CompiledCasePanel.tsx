@@ -1,19 +1,21 @@
 import { FileStack } from "lucide-react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { useAppDispatch } from "@/app/hooks";
-import { toast } from "@/lib/toast";
 import { DocumentPreview } from "@/features/documents/DocumentPreview";
 import { DocumentRow } from "@/features/documents/DocumentRow";
 import { useCompileCaseMutation } from "@/features/documents/generationApi";
 import type { DocumentMeta } from "@/features/documents/types";
-import { baseApi } from "@/services/baseApi";
 
 import { newestFirst } from "@/features/documents/documentOrder";
 
 import { GeneratedDocumentPanel } from "./GeneratedDocumentPanel";
 
 const COMPILED_TYPE = "CompiledCase";
+
+// An export the app itself stored, before UC-118 — never a scan the office carried in.
+const isStoredExport = (doc: DocumentMeta) =>
+  doc.document_type === COMPILED_TYPE && doc.input_source === "system_generated";
 
 /**
  * The Step-5 leadership export (§10.3): a summary cover sheet followed by every document on the
@@ -22,9 +24,13 @@ const COMPILED_TYPE = "CompiledCase";
  * **Marking the case complete is what produces it (UC-086)** — the office was pressing two
  * buttons to finish one case, and a case closed without the second press had no export at all.
  * So there is no Compile button before completion; `autoStart` fires the job off the press that
- * closed the case, and the button comes back afterwards as **Recompile**, which is how a case
- * amended after closing gets a fresh file. It also appears on a complete case with no export —
- * an older one, or a compile that failed — since otherwise nothing could ever produce one.
+ * closed the case, and the button stays afterwards as **Recompile**.
+ *
+ * **It is not kept on the case (UC-118).** The export is every paper on the case merged again, so
+ * storing it doubled what a closed case cost on disk. Like the Step-1 letter it is a one-read job
+ * file: previewed and printed here, gone once the case is reloaded, one click to produce again.
+ * What the case *does* still carry is a scanned case file from the backlog door (UC-114) or an
+ * export stored before this rule — those are listed, since they are real documents on the case.
  */
 export function CompiledCasePanel({
   processId,
@@ -41,29 +47,28 @@ export function CompiledCasePanel({
   autoStart: boolean;
 }) {
   const { t } = useTranslation();
-  const dispatch = useAppDispatch();
   const [compile, { isLoading }] = useCompileCaseMutation();
+  const [jobId, setJobId] = useState<number | null>(null);
 
-  const compiled = newestFirst(documents, (doc) => doc.document_type === COMPILED_TYPE);
-  // Nothing to merge but the cover sheet: an export of an empty case has no value.
-  const hasAttachments = documents.some((doc) => doc.document_type !== COMPILED_TYPE);
+  const filed = newestFirst(documents, (doc) => doc.document_type === COMPILED_TYPE);
+  // Nothing to merge but the cover sheet: an export of an empty case has no value. A scanned case
+  // file counts — it *is* the case's papers — while a stored export would only nest inside itself.
+  const hasAttachments = documents.some((doc) => !isStoredExport(doc));
+  // The fresh export is previewed inline while it lasts; otherwise the newest filed one is.
+  const inline = jobId === null && filed.length > 0 ? filed[0] : null;
 
   return (
     <GeneratedDocumentPanel
       icon={FileStack}
       title={t("workflow.compiledSection")}
       hint={t("workflow.compiledHint")}
-      canGenerate={canEdit && (isComplete || compiled.length > 0)}
+      canGenerate={canEdit && isComplete}
       unlocked={hasAttachments}
-      hasResult={compiled.length > 0}
+      hasResult={jobId !== null || filed.length > 0}
       starting={isLoading}
       autoStart={autoStart}
       onStart={() => compile({ process: processId }).unwrap()}
-      // The output is a new Document on the process — refetch the case so it appears.
-      onFinished={() => {
-        dispatch(baseApi.util.invalidateTags([{ type: "Process", id: processId }]));
-        toast.success(t("common.saved"));
-      }}
+      onFinished={(job) => setJobId(job.id)}
       labels={{
         generate: t("workflow.compile"),
         regenerate: t("workflow.recompile"),
@@ -76,18 +81,19 @@ export function CompiledCasePanel({
     >
       <div className="space-y-3">
         <div className="space-y-1">
-          {compiled.map((doc, i) => (
-            // The newest is already previewed below, so it must not offer its own toggle —
-            // that opened a second copy of the same PDF under the first (UC-069).
-            <DocumentRow key={doc.id} doc={doc} previewable={i !== 0} />
+          {filed.map((doc) => (
+            // The one already previewed below must not offer its own toggle — that opened a
+            // second copy of the same PDF under the first (UC-069).
+            <DocumentRow key={doc.id} doc={doc} previewable={doc !== inline} />
           ))}
         </div>
-        {/* Newest shown inline so it can be checked and printed without leaving the case. */}
-        {compiled.length > 0 && (
-          <DocumentPreview
-            source={{ kind: "document", id: compiled[0].id }}
-            title={compiled[0].display_filename}
-          />
+        {jobId !== null && (
+          // The download name comes from the server's `Content-Disposition` (§6.7); this title is
+          // only the iframe's label and the fallback.
+          <DocumentPreview source={{ kind: "job", id: jobId }} title={t("workflow.compiledSection")} />
+        )}
+        {inline && (
+          <DocumentPreview source={{ kind: "document", id: inline.id }} title={inline.display_filename} />
         )}
       </div>
     </GeneratedDocumentPanel>

@@ -31,10 +31,20 @@ vi.mock("@/features/documents/generationApi", async () => {
 });
 
 const doc = (over: Partial<DocumentMeta> = {}): DocumentMeta =>
-  ({ id: 1, document_type: "ClientID", display_filename: "f.pdf", ...over }) as DocumentMeta;
+  ({
+    id: 1,
+    document_type: "ClientID",
+    display_filename: "f.pdf",
+    input_source: "imported",
+    ...over,
+  }) as DocumentMeta;
 
 const ATTACHED = [doc()];
-const WITH_EXPORT = [doc(), doc({ id: 2, document_type: "CompiledCase" })];
+// An export the app stored before UC-118 — still a document on the case until it is retired.
+const STORED_EXPORT = doc({ id: 2, document_type: "CompiledCase", input_source: "system_generated" });
+const WITH_EXPORT = [doc(), STORED_EXPORT];
+// The paper case file itself, carried in through the backlog door (UC-114).
+const SCANNED_CASE = doc({ id: 3, document_type: "CompiledCase", input_source: "imported" });
 
 function renderPanel(props: Partial<Parameters<typeof CompiledCasePanel>[0]> = {}) {
   return render(
@@ -93,6 +103,31 @@ describe("CompiledCasePanel", () => {
 
     expect(screen.getByRole("button", { name: /recompile/i })).toBeInTheDocument();
     expect(screen.getByTestId("preview")).toHaveTextContent("document:2");
+  });
+
+  it("shows the finished export from the job, not from the case (UC-118)", async () => {
+    // Nothing is filed any more: the export is a one-read job file, previewed while it lasts.
+    job = { id: 7, status: "done", error: "" };
+
+    renderPanel({ documents: WITH_EXPORT, isComplete: true, autoStart: true });
+
+    await waitFor(() => expect(screen.getByTestId("preview")).toHaveTextContent("job:7"));
+    expect(screen.getAllByTestId("preview")).toHaveLength(1);
+  });
+
+  it("treats a scanned case file as something worth compiling", () => {
+    // The backlog door files the paper case itself as a CompiledCase (UC-114): that scan *is*
+    // the case's papers, so the export of such a case is the cover sheet plus the scan.
+    renderPanel({ documents: [SCANNED_CASE], isComplete: true });
+
+    expect(screen.getByRole("button", { name: /recompile/i })).toBeEnabled();
+  });
+
+  it("does not count a stored export as something to merge", () => {
+    // It would only nest inside the next export — a case carrying nothing else has no papers.
+    renderPanel({ documents: [STORED_EXPORT], isComplete: true });
+
+    expect(screen.getByRole("button", { name: /recompile/i })).toBeDisabled();
   });
 
   it("leaves a complete case with no export a way to produce one", () => {
