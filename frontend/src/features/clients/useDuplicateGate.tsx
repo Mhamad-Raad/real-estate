@@ -38,6 +38,11 @@ export function useDuplicateGate() {
         result.mother_name_matches.length;
       if (!hit) return true;
       setWarning(result);
+      // **One decision at a time, and it is the dialog's modality that guarantees it.** A second
+      // `guard` while one is pending would overwrite this resolver and strand the first promise
+      // for ever. It cannot happen today: `Dialog` covers the screen and moves focus into itself,
+      // so the form behind can be neither clicked nor Enter-submitted. If this warning ever
+      // becomes inline rather than modal, that guarantee goes with it.
       return await new Promise<boolean>((resolve) => {
         decision.current = resolve;
       });
