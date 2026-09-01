@@ -21,6 +21,7 @@ from processes.services import create_process
 from . import filestore
 from .factories import make_pdf
 from .models import Document
+from .services import create_document
 from clients.factories import make_client
 
 
@@ -54,9 +55,6 @@ class DocumentApiTests(APITestCase):
         return self.client.post(reverse("document-list"), body, format="multipart")
 
     def _scanned_case_file(self):
-        from .factories import make_pdf
-        from .services import create_document
-
         return create_document(
             process=self.process, step_number=5, document_type="CompiledCase",
             input_source=Document.InputSource.IMPORTED, content=make_pdf(1), actor=self.lawyer,

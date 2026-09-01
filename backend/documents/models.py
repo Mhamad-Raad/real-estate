@@ -78,7 +78,8 @@ class Document(SoftDeleteModel):
         """The paper case file the backlog door carried in (§5.9, UC-114) — the only copy.
 
         Same type as the export the app used to store, opposite meaning: that one was rebuilt on
-        every press, this one cannot be. Every rule that treats the two differently asks here.
+        every press, this one cannot be. Row-level rules ask here; the two query-level ones
+        (`supersede_generated_documents`, `retire_compiled_exports`) filter on the same two columns.
         """
         return (
             self.document_type == document_types.COMPILED_CASE

@@ -53,10 +53,9 @@ def belongs_in_compilation(document: Document) -> bool:
     """
     if document.document_type == ELIGIBILITY_LETTER:
         return False
-    return not (
-        document.document_type == COMPILED_CASE
-        and document.input_source == Document.InputSource.SYSTEM_GENERATED
-    )
+    if document.document_type == COMPILED_CASE:
+        return document.is_scanned_case_file
+    return True
 
 
 def documents_in_step_order(process) -> list[Document]:
