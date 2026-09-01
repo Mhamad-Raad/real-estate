@@ -214,7 +214,7 @@ export function ProcessesPage() {
             {!loading &&
               !isError &&
               rows.map((process) => (
-                <LinkRow key={process.id} to={`/processes/${process.id}`} label={t("processes.openCase")}>
+                <LinkRow key={process.id} to={`/processes/${process.id}`}>
                   <TableCell>
                     <Checkbox
                       checked={selected.includes(process.id)}

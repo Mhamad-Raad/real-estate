@@ -223,7 +223,6 @@
     "codesNeedStep": "Only cases that have reached step 3 can be printed on the code list.",
     "selectAll": "Select all",
     "selectRow": "Select allocation",
-    "openCase": "Open this case",
     "pickLawyer": "Choose the responsible lawyer first.",
     "pickCategory": "Choose a category before opening the case — it cannot be set later.",
     "chooseCategory": "Choose a category…",

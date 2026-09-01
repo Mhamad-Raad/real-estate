@@ -81,11 +81,7 @@ export function ClientsPage() {
             {!isLoading &&
               !isError &&
               rows.map((client) => (
-                <LinkRow
-                  key={client.id}
-                  to={`/processes?search=${encodeURIComponent(client.pid)}`}
-                  label={t("clients.viewCase")}
-                >
+                <LinkRow key={client.id} to={`/processes?search=${encodeURIComponent(client.pid)}`}>
                   <TableCell className="font-medium">{client.full_name}</TableCell>
                   <TableCell dir="ltr" className="text-start">
                     {client.pid}

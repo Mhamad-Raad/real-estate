@@ -11,16 +11,18 @@ import { cn } from "@/lib/utils";
  * Now the whole row goes there, on click and on Enter, without taking anything away: the
  * controls inside it — a checkbox, a delete button, a link that opens in a new tab — keep their
  * own meaning, and a drag to select text is not a click.
+ *
+ * Deliberately **no `role` and no `aria-label`**: a `<tr>` re-cast as a link stops being a row,
+ * so its cells vanish for a screen reader, and a label would replace the row's own content when
+ * read aloud. A focusable row activated by Enter is the ordinary grid pattern; the in-cell link
+ * stays as the named, tabbable way in.
  */
 export function LinkRow({
   to,
-  label,
   className,
   children,
 }: {
   to: string;
-  /** Read by assistive tech for the row as a whole, since its cells are plain text. */
-  label: string;
   className?: string;
   children: ReactNode;
 }) {
@@ -42,9 +44,7 @@ export function LinkRow({
 
   return (
     <TableRow
-      role="link"
       tabIndex={0}
-      aria-label={label}
       className={cn("cursor-pointer focus-visible:bg-muted focus-visible:outline-none", className)}
       onClick={onClick}
       onKeyDown={onKeyDown}

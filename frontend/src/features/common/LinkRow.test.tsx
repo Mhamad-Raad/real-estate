@@ -1,11 +1,12 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 
 import { LinkRow } from "./LinkRow";
 
 // The whole row is the way into the detail (UC-119) — but nothing inside it loses its own click.
-function renderRow(children: React.ReactNode) {
+function renderRow(children: ReactNode) {
   return render(
     <MemoryRouter initialEntries={["/list"]}>
       <Routes>
@@ -14,7 +15,7 @@ function renderRow(children: React.ReactNode) {
           element={
             <table>
               <tbody>
-                <LinkRow to="/detail/7" label="Open case">
+                <LinkRow to="/detail/7">
                   {children}
                 </LinkRow>
               </tbody>
@@ -36,10 +37,12 @@ describe("LinkRow", () => {
     expect(screen.getByText("detail page")).toBeInTheDocument();
   });
 
-  it("opens the detail on Enter when the row is focused", () => {
+  it("opens the detail on Enter when the row is focused, and is still a row", () => {
     renderRow(<td>Ahmad</td>);
+    // Still a table row for assistive tech — a `<tr>` re-cast as a link loses its cells.
+    const row = screen.getByRole("row", { name: /Ahmad/ });
 
-    fireEvent.keyDown(screen.getByRole("link", { name: "Open case" }), { key: "Enter" });
+    fireEvent.keyDown(row, { key: "Enter" });
 
     expect(screen.getByText("detail page")).toBeInTheDocument();
   });
