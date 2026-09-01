@@ -67,6 +67,10 @@ class DocumentViewSet(AuditedSoftDeleteViewSet, ModelViewSet):
         return Response(DocumentSerializer(document).data, status=status.HTTP_201_CREATED)
 
     def perform_destroy(self, instance):
+        # The scanned case file is the only copy of a paper case (UC-114). A lawyer's delete is
+        # soft and restorable, but restore is an admin desk — so the press is an admin's too.
+        if instance.is_scanned_case_file and not self.request.user.is_admin:
+            raise PermissionDenied("Only an admin can delete a scanned case file — it is the only copy.")
         process, step_number = instance.process, instance.step_number
         super().perform_destroy(instance)
         recompute_step(process, step_number)
@@ -139,8 +143,17 @@ class DocumentTemplateViewSet(ReadOnlyModelViewSet):
         )
 
 
+# What a second read finds, named per kind so the message matches the button the reader is
+# looking at. "list" is the fallback for the two bulk exports.
+COLLECTED_MESSAGES = {
+    GenerationJob.Kind.ELIGIBILITY: "This letter is no longer available. Generate it again if needed.",
+    GenerationJob.Kind.COMPILED_CASE: "This case file is no longer available. Compile it again if needed.",
+    "list": "This list has already been downloaded. Generate it again if needed.",
+}
+
+
 class GenerationJobViewSet(ReadOnlyModelViewSet):
-    """Poll a generation job and download a finished list letter (§6.6, §6.8)."""
+    """Poll a generation job and download a finished generated PDF (§6.6, §6.8, §10.3)."""
 
     serializer_class = GenerationJobSerializer
 
@@ -151,7 +164,7 @@ class GenerationJobViewSet(ReadOnlyModelViewSet):
 
     @action(detail=True, methods=["get"])
     def file(self, request, pk=None):
-        """Stream a finished list letter. Single-beneficiary letters are served as Documents.
+        """Stream a finished generated PDF — a list, the Step-1 letter or the compiled case.
 
         The name is composed here, not by the caller: every other file in this system is named by
         the server (§6.7), and this endpoint used to hand back `list_<id>.pdf` **whatever the job
@@ -166,18 +179,15 @@ class GenerationJobViewSet(ReadOnlyModelViewSet):
             # (UC-102), so this is what a reopened page or a second download finds. The wording has
             # to say so, because "file is missing" reads like a failure when regenerating is one
             # click. Named per kind so the message matches the button the reader is looking at.
-            raise Http404(
-                "This letter is no longer available. Generate it again if needed."
-                if job.kind == GenerationJob.Kind.ELIGIBILITY
-                else "This list has already been downloaded. Generate it again if needed."
-            )
+            raise Http404(COLLECTED_MESSAGES.get(job.kind, COLLECTED_MESSAGES["list"]))
 
         # **Read, then delete, then serve** — for every generated output, without exception
         # (UC-102, the office's call: *"just don't save it"*). None of these is filed on a case, so
         # once it has been handed over there is nothing left to keep: the office prints or saves it
         # on the spot, and holding it only leaves personal data on disk. The bytes are loaded first
-        # because streaming from a handle whose file has been unlinked is not something to rely on,
-        # and these are small. `output_path` is deliberately KEPT: the job row still records what
+        # because streaming from a handle whose file has been unlinked is not something to rely on;
+        # the compiled case is the one large output, and the merge that made it already held it
+        # whole in memory. `output_path` is deliberately KEPT: the job row still records what
         # was produced, and the audit trail of who exported whose data is untouched (§11).
         #
         # The Step-1 letter used to be exempt, because its inline preview reads this same endpoint

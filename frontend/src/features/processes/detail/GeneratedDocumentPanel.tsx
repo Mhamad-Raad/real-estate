@@ -43,9 +43,9 @@ interface GeneratedDocumentPanelProps {
  * Shared shell for every "the system produced this PDF" panel (§6.6, §10.3).
  *
  * What is common is the *chrome and the run*: the button, its three labels, and the
- * poll-until-settled dance. What the output **is** differs — the compiled case is filed on the
- * process, the Step-1 letter is a standalone job file (UC-075) — so each panel renders its own
- * result and says what finishing means for it.
+ * poll-until-settled dance. What the output **is** stays with each panel — both are one-read job
+ * files now (UC-075, UC-118), but the compiled panel also lists what the case still carries — so
+ * each renders its own result and says what finishing means for it.
  */
 export function GeneratedDocumentPanel({
   icon: Icon,

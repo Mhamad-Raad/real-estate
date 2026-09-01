@@ -20,6 +20,7 @@ import { Pagination } from "@/features/common/Pagination";
 import { TableStateRows } from "@/features/common/TableStateRows";
 
 import { useListClientsQuery } from "./clientsApi";
+import { LinkRow } from "@/features/common/LinkRow";
 
 // **Find a beneficiary — nothing else** (§8, UC-026). A person is created only by the Step-1 intake
 // form, and edited from inside their own case, so this screen neither creates, edits nor deletes;
@@ -80,7 +81,7 @@ export function ClientsPage() {
             {!isLoading &&
               !isError &&
               rows.map((client) => (
-                <TableRow key={client.id}>
+                <LinkRow key={client.id} to={`/processes?search=${encodeURIComponent(client.pid)}`}>
                   <TableCell className="font-medium">{client.full_name}</TableCell>
                   <TableCell dir="ltr" className="text-start">
                     {client.pid}
@@ -99,7 +100,7 @@ export function ClientsPage() {
                       </Link>
                     </Button>
                   </TableCell>
-                </TableRow>
+                </LinkRow>
               ))}
           </TableBody>
         </Table>

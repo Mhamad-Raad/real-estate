@@ -274,7 +274,9 @@ def file_staged_document(
     return document
 
 
-def supersede_generated_documents(*, process, document_type: str, actor, job_id=None) -> int:
+def supersede_generated_documents(
+    *, process, document_type: str, actor, job_id=None, reason: str | None = None
+) -> int:
     """Retire the previous copies of a **regenerated** document, file and all (§6.6, §10.3).
 
     Regenerating the eligibility letter or recompiling the case replaces the previous output. The
@@ -291,12 +293,20 @@ def supersede_generated_documents(*, process, document_type: str, actor, job_id=
     generated it, when it was replaced and by which job. What is lost is the ability to reprint the
     exact earlier PDF — the office's call (2026-08-11), taken to stop the store growing without
     bound. Never call this for a document a person deleted.
+
+    **Only system-made rows, ever.** A `CompiledCase` the office *scanned* through the backlog door
+    (§5.9, UC-114) shares the type but is the only copy of that paper case — the filter on
+    `input_source` is what keeps this from ever unlinking one.
     """
     from django.utils import timezone
 
     root = Path(settings.DOCUMENTS_ROOT)
     superseded = 0
-    for old in Document.objects.filter(process=process, document_type=document_type):
+    for old in Document.objects.filter(
+        process=process,
+        document_type=document_type,
+        input_source=Document.InputSource.SYSTEM_GENERATED,
+    ):
         old.is_deleted = True
         old.deleted_at = timezone.now()
         old.deleted_by = actor
@@ -307,10 +317,13 @@ def supersede_generated_documents(*, process, document_type: str, actor, job_id=
             action=ActivityLog.Action.DELETE,
             entity_type="Document",
             entity_id=old.pk,
+            # `reason` is for a retirement with no job behind it (`retire_compiled_exports`):
+            # a row deleted by nobody, for no job, must still say why in the trail (§11).
             before={
                 "display_filename": old.display_filename,
                 "superseded_by_job": job_id,
                 "file_removed": True,
+                **({"reason": reason} if reason else {}),
             },
         )
         # After the audit row, and tolerant of an already-missing file: the store is a bind mount

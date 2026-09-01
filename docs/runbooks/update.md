@@ -464,6 +464,25 @@ STEP M11. And last: stop anyone deleting the two folders by accident.
   WHAT IS NEW IN THIS VERSION
 ------------------------------------------------------------------------
 
+  THE COMPILED CASE FILE (STEP 5) — NO LONGER SAVED
+  - Marking a case complete still produces the compiled file, and you
+    still see it, print it and save it on the spot. But it is NOT kept
+    on the case any more. It was every paper on the case merged again,
+    so each finished case took twice the space it needed.
+  - Come back to the case later and press "Compile case" — it is made
+    again from the same papers in a few seconds.
+  - ** Cases entered from paper ("Old allocation") are different. **
+    The case file you scanned in IS the case, so it stays on the case
+    for ever, exactly as you filed it. The screen says so under the file,
+    and only an admin can remove it.
+  - A one-time command removes the compiled files stored by earlier
+    versions — see "3. REMOVE THE OLD COMPILED CASE FILES" below. Run it
+    when you choose, after a backup.
+
+  NATIONAL ID
+  - When an ID is already on file, the message now says WHOSE it is,
+    in your own language, instead of an English line about "pid".
+
   From the notes you sent after using 1.3.0:
 
   DATES
@@ -537,8 +556,8 @@ STEP M11. And last: stop anyone deleting the two folders by accident.
     numbered — the way Windows numbers a copy.
   - Generated letters and lists are NOT kept any more. They are made,
     you print or save them, and they are gone. Nothing generated sits
-    in your document folder or in a backup. The compiled case file from
-    step 5 is still kept, exactly as before.
+    in your document folder or in a backup. (And from this version the
+    compiled case file from step 5 is not kept either — see the top.)
 
   DATES
   - Step 4 now ends on the date of its LAST institute to decide, the
@@ -556,7 +575,7 @@ STEP M11. And last: stop anyone deleting the two folders by accident.
 
 
 ------------------------------------------------------------------------
-  TWO THINGS TO DO AFTER THE UPDATE
+  THINGS TO DO AFTER THE UPDATE
 ------------------------------------------------------------------------
 
   1. DELETE THE OLD "_generated" FOLDER
@@ -601,6 +620,30 @@ STEP M11. And last: stop anyone deleting the two folders by accident.
   It never touches a row that already names someone, so an institute a
   colleague handled keeps saying so. Running it twice does nothing the
   second time.
+
+
+  3. REMOVE THE OLD COMPILED CASE FILES
+
+  Until this version, closing a case stored its compiled file — every
+  paper on the case, merged again — in the case's folder, so a finished
+  case took about twice the space it needed. The app no longer keeps
+  that file: pressing "Compile" produces it fresh whenever it is needed.
+
+  One command removes the copies stored before. First, see what it
+  would do:
+
+      docker compose exec backend python manage.py retire_compiled_exports
+
+  It only REPORTS — how many files, how many cases, how many MB. Then,
+  to actually remove them:
+
+      docker compose exec backend python manage.py retire_compiled_exports --apply
+
+  ** It never touches a case file you scanned in through the backlog
+  page. ** Those are the only copy of that paper case and stay exactly
+  where they are. Only files the app itself produced are removed, and
+  each one is recorded in the activity log. Running it twice does nothing
+  the second time.
 
 
 ------------------------------------------------------------------------
@@ -685,6 +728,7 @@ STEP M11. And last: stop anyone deleting the two folders by accident.
   [ ] 9. All cases still listed, one case opened and checked
   [ ] 10. the old `_generated` folder deleted from documents\
   [ ] 11. backfill_entry_lawyers run with --apply (see the section above)
+  [ ] 12. retire_compiled_exports run with --apply (see the section above)
 
   Only if you also did the MOVING section:
 

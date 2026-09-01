@@ -3,6 +3,8 @@
 from django.conf import settings
 from django.db import models
 
+from catalog import document_types
+
 from common.models import JobStatus, SoftDeleteModel, TimeStampedModel
 
 
@@ -70,6 +72,19 @@ class Document(SoftDeleteModel):
 
     def __str__(self):
         return self.display_filename
+
+    @property
+    def is_scanned_case_file(self) -> bool:
+        """The paper case file the backlog door carried in (§5.9, UC-114) — the only copy.
+
+        Same type as the export the app used to store, opposite meaning: that one was rebuilt on
+        every press, this one cannot be. Row-level rules ask here; the two query-level ones
+        (`supersede_generated_documents`, `retire_compiled_exports`) filter on the same two columns.
+        """
+        return (
+            self.document_type == document_types.COMPILED_CASE
+            and self.input_source != self.InputSource.SYSTEM_GENERATED
+        )
 
 
 class DocumentTemplate(SoftDeleteModel):

@@ -18,10 +18,13 @@ import type { DocumentMeta } from "./types";
 export function DocumentRow({
   doc,
   previewable = true,
+  deletable = true,
 }: {
   doc: DocumentMeta;
   /** `false` when this file is already shown beside the row, so its toggle would duplicate it. */
   previewable?: boolean;
+  /** `false` hides the delete — the server refuses it anyway; this spares the failed press. */
+  deletable?: boolean;
 }) {
   const { t } = useTranslation();
   const token = useAppSelector((s) => s.auth.access);
@@ -82,17 +85,19 @@ export function DocumentRow({
             <Eye className="size-4" />
           </Button>
         )}
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="size-7 text-destructive"
-          onClick={del}
-          disabled={isLoading}
-          aria-label={t("common.delete")}
-        >
-          <Trash2 className="size-4" />
-        </Button>
+        {deletable && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="size-7 text-destructive"
+            onClick={del}
+            disabled={isLoading}
+            aria-label={t("common.delete")}
+          >
+            <Trash2 className="size-4" />
+          </Button>
+        )}
       </div>
       </div>
       {previewable && open && (

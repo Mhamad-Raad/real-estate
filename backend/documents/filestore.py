@@ -261,9 +261,11 @@ def write_pdf(rel_path: Path, content: bytes) -> Path:
 BULK_JOB_NAMES = {
     "process_list": "لیستی کەیسەکان",
     "process_codes": "لیستی کۆدەکان",
-    # No longer filed on the case (UC-075), so this endpoint names it too — otherwise the office's
-    # own letter would arrive as the generic fallback while the two list letters kept their names.
-    "eligibility": "نامەی سۆراغکردنی سوودمەندی",
+    # Neither is filed on the case any more (UC-075, UC-118), so this endpoint names them too —
+    # otherwise the office's own papers would arrive as the generic fallback while the two list
+    # letters kept their names. The names are the ones the paper carries when it *is* filed.
+    "eligibility": document_types.DOCUMENT_TYPE_NAMES_CKB[document_types.ELIGIBILITY_LETTER],
+    "compiled_case": document_types.DOCUMENT_TYPE_NAMES_CKB[document_types.COMPILED_CASE],
 }
 
 
