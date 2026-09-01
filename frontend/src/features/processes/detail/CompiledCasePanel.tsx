@@ -16,6 +16,9 @@ const COMPILED_TYPE = "CompiledCase";
 // An export the app itself stored, before UC-118 — never a scan the office carried in.
 const isStoredExport = (doc: DocumentMeta) =>
   doc.document_type === COMPILED_TYPE && doc.input_source === "system_generated";
+// The paper case file the backlog door carried in (UC-114): the only copy, and admin-only to delete.
+const isScannedCaseFile = (doc: DocumentMeta) =>
+  doc.document_type === COMPILED_TYPE && !isStoredExport(doc);
 
 /**
  * The Step-5 leadership export (§10.3): a summary cover sheet followed by every document on the
@@ -36,12 +39,15 @@ export function CompiledCasePanel({
   processId,
   documents,
   canEdit,
+  isAdmin,
   isComplete,
   autoStart,
 }: {
   processId: number;
   documents: DocumentMeta[];
   canEdit: boolean;
+  /** Only an admin may delete the scanned case file — restore is an admin desk (UC-063). */
+  isAdmin: boolean;
   isComplete: boolean;
   /** Set by the mark-complete press itself, so opening an old case never compiles anything. */
   autoStart: boolean;
@@ -84,8 +90,18 @@ export function CompiledCasePanel({
           {filed.map((doc) => (
             // The one already previewed below must not offer its own toggle — that opened a
             // second copy of the same PDF under the first (UC-069).
-            <DocumentRow key={doc.id} doc={doc} previewable={doc !== inline} />
+            <DocumentRow
+              key={doc.id}
+              doc={doc}
+              previewable={doc !== inline}
+              deletable={isAdmin || !isScannedCaseFile(doc)}
+            />
           ))}
+          {filed.some(isScannedCaseFile) && (
+            // Said on the file itself, not only in the badge at the top: this is the row a
+            // lawyer is about to act on.
+            <p className="px-3 pt-1 text-xs text-muted-foreground">{t("workflow.scannedCaseFile")}</p>
+          )}
         </div>
         {jobId !== null && (
           // The download name comes from the server's `Content-Disposition` (§6.7); this title is

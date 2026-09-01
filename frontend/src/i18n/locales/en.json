@@ -342,6 +342,7 @@
     "compileStarted": "Compiling the case file…",
     "compileFailed": "Could not compile the case file.",
     "compileLocked": "Attach at least one document before compiling.",
+    "scannedCaseFile": "This is the scanned paper file — the only copy. It stays on the case; only an admin can remove it.",
     "noCompiledYet": "Produced when the case is marked complete, and not kept — press Compile to produce it again.",
     "sectionBeneficiary": "Beneficiary",
     "sectionLand": "Land & category",

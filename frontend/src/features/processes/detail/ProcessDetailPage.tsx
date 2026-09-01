@@ -197,6 +197,7 @@ export function ProcessDetailPage() {
                     processId={process.id}
                     documents={process.documents}
                     canEdit={canEdit}
+                    isAdmin={isAdmin}
                     isComplete={process.overall_status === "complete"}
                     autoStart={completedId === process.id}
                   />

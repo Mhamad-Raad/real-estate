@@ -11,7 +11,11 @@ let job: { id: number; status: string; error: string } | undefined;
 
 vi.mock("@/app/hooks", () => ({ useAppDispatch: () => vi.fn(), useAppSelector: () => "token" }));
 vi.mock("@/lib/toast", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
-vi.mock("@/features/documents/DocumentRow", () => ({ DocumentRow: () => null }));
+vi.mock("@/features/documents/DocumentRow", () => ({
+  DocumentRow: ({ deletable }: { deletable?: boolean }) => (
+    <div data-testid="row">{deletable === false ? "locked" : "deletable"}</div>
+  ),
+}));
 vi.mock("@/features/documents/DocumentPreview", () => ({
   DocumentPreview: ({ source }: { source: { kind: string; id: number } }) => (
     <div data-testid="preview">{`${source.kind}:${source.id}`}</div>
@@ -52,6 +56,7 @@ function renderPanel(props: Partial<Parameters<typeof CompiledCasePanel>[0]> = {
       processId={1}
       documents={ATTACHED}
       canEdit
+      isAdmin={false}
       isComplete={false}
       autoStart={false}
       {...props}
@@ -123,6 +128,26 @@ describe("CompiledCasePanel", () => {
     expect(screen.getByRole("button", { name: /recompile/i })).toBeEnabled();
   });
 
+  it("names the scanned case file as the only copy, and keeps its delete for admins", () => {
+    renderPanel({ documents: [SCANNED_CASE], isComplete: true });
+
+    expect(screen.getByText(/only copy/i)).toBeInTheDocument();
+    expect(screen.getByTestId("row")).toHaveTextContent("locked");
+  });
+
+  it("lets an admin delete the scanned case file", () => {
+    renderPanel({ documents: [SCANNED_CASE], isComplete: true, isAdmin: true });
+
+    expect(screen.getByTestId("row")).toHaveTextContent("deletable");
+  });
+
+  it("says nothing special about a stored export", () => {
+    renderPanel({ documents: WITH_EXPORT, isComplete: true });
+
+    expect(screen.queryByText(/only copy/i)).not.toBeInTheDocument();
+    expect(screen.getByTestId("row")).toHaveTextContent("deletable");
+  });
+
   it("does not count a stored export as something to merge", () => {
     // It would only nest inside the next export — a case carrying nothing else has no papers.
     renderPanel({ documents: [STORED_EXPORT], isComplete: true });
@@ -147,6 +172,7 @@ describe("CompiledCasePanel", () => {
         processId={1}
         documents={ATTACHED}
         canEdit
+        isAdmin={false}
         isComplete
         autoStart
       />,

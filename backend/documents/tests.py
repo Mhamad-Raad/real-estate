@@ -53,6 +53,35 @@ class DocumentApiTests(APITestCase):
         }
         return self.client.post(reverse("document-list"), body, format="multipart")
 
+    def _scanned_case_file(self):
+        from .factories import make_pdf
+        from .services import create_document
+
+        return create_document(
+            process=self.process, step_number=5, document_type="CompiledCase",
+            input_source=Document.InputSource.IMPORTED, content=make_pdf(1), actor=self.lawyer,
+        )
+
+    def test_a_lawyer_cannot_delete_the_scanned_case_file(self):
+        """The backlog door's scan is the only copy of a paper case (UC-114); restore is an admin
+        desk, so the delete is an admin's press too — enforced here, not by a hidden button."""
+        scan = self._scanned_case_file()
+        self.client.force_authenticate(self.lawyer)
+
+        resp = self.client.delete(reverse("document-detail", args=[scan.id]))
+
+        self.assertEqual(resp.status_code, status.HTTP_403_FORBIDDEN)
+        scan.refresh_from_db()
+        self.assertFalse(scan.is_deleted)
+
+    def test_an_admin_can_still_delete_it(self):
+        scan = self._scanned_case_file()
+        self.client.force_authenticate(self.admin)
+
+        resp = self.client.delete(reverse("document-detail", args=[scan.id]))
+
+        self.assertEqual(resp.status_code, status.HTTP_204_NO_CONTENT)
+
     def test_upload_creates_row_and_writes_file(self):
         self.client.force_authenticate(self.lawyer)
         resp = self._upload()

@@ -67,6 +67,10 @@ class DocumentViewSet(AuditedSoftDeleteViewSet, ModelViewSet):
         return Response(DocumentSerializer(document).data, status=status.HTTP_201_CREATED)
 
     def perform_destroy(self, instance):
+        # The scanned case file is the only copy of a paper case (UC-114). A lawyer's delete is
+        # soft and restorable, but restore is an admin desk — so the press is an admin's too.
+        if instance.is_scanned_case_file and not self.request.user.is_admin:
+            raise PermissionDenied("Only an admin can delete a scanned case file — it is the only copy.")
         process, step_number = instance.process, instance.step_number
         super().perform_destroy(instance)
         recompute_step(process, step_number)

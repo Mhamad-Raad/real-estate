@@ -1751,6 +1751,12 @@ This reuses the same LibreOffice + Celery plumbing as eligibility generation, so
 > *is* the case's papers. Before this, a Recompile on a backlog case would have superseded the
 > scan by type and unlinked it: that was a latent data-loss bug, closed by the same filter.
 >
+> **The scan is admin-only to delete** (2026-09-01, the user's follow-up). `Document.is_scanned_case_file`
+> is the one place that names it; `DocumentViewSet.perform_destroy` refuses a lawyer's delete with a
+> 403 — a soft-delete is restorable, but the restore desk (UC-063) is an admin's, so the press is
+> too. The panel hides the button for lawyers and prints under the row that this file is the only
+> copy and stays on the case, beside the "Entered from paper" badge the header already carries.
+>
 > **What is given up:** the exact PDF printed on the day. A case amended after it closed compiles
 > to today's data; the audit row still records that an export existed and who produced it.
 

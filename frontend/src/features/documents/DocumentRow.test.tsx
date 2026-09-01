@@ -32,3 +32,16 @@ describe("DocumentRow preview toggle", () => {
     expect(screen.queryByTestId("preview")).not.toBeInTheDocument();
   });
 });
+
+describe("DocumentRow delete", () => {
+  it("offers a delete by default", () => {
+    render(<DocumentRow doc={doc} />);
+    expect(screen.getByRole("button", { name: /delete/i })).toBeInTheDocument();
+  });
+
+  it("offers none for a file the viewer may not delete", () => {
+    // The scanned case file is the only copy of a paper case (UC-114): admin-only on the server.
+    render(<DocumentRow doc={doc} deletable={false} />);
+    expect(screen.queryByRole("button", { name: /delete/i })).not.toBeInTheDocument();
+  });
+});
