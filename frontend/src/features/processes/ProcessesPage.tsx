@@ -21,6 +21,7 @@ import {
 import { toast } from "@/lib/toast";
 import { useListCategoriesQuery } from "@/features/categories/categoriesApi";
 import { ConfirmDialog } from "@/features/common/ConfirmDialog";
+import { LinkRow } from "@/features/common/LinkRow";
 import { PageHeader } from "@/features/common/PageHeader";
 import { SelectionToolbar } from "./SelectionToolbar";
 import { Pagination } from "@/features/common/Pagination";
@@ -213,7 +214,7 @@ export function ProcessesPage() {
             {!loading &&
               !isError &&
               rows.map((process) => (
-                <TableRow key={process.id}>
+                <LinkRow key={process.id} to={`/processes/${process.id}`} label={t("processes.openCase")}>
                   <TableCell>
                     <Checkbox
                       checked={selected.includes(process.id)}
@@ -277,7 +278,7 @@ export function ProcessesPage() {
                       </Button>
                     </div>
                   </TableCell>
-                </TableRow>
+                </LinkRow>
               ))}
           </TableBody>
         </Table>
