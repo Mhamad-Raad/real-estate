@@ -1,5 +1,5 @@
 import { ArrowLeft } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
@@ -21,6 +21,14 @@ import { filterPid } from "@/lib/pid";
 import { toast } from "@/lib/toast";
 
 import { useFastEntryProcessMutation } from "./processesApi";
+
+// TIFF is accepted by the API but no browser renders it inline, so it gets the named fallback.
+const canPreview = (file: File) =>
+  file.type === "application/pdf" || (file.type.startsWith("image/") && file.type !== "image/tiff");
+
+// One picked file, sizes from a few hundred KB to ~80 MB — two units cover the real range.
+const formatSize = (bytes: number) =>
+  bytes >= 1024 * 1024 ? `${(bytes / (1024 * 1024)).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
 
 const EMPTY = {
   full_name: "",
@@ -51,7 +59,25 @@ export function FastEntryPage() {
   const [form, setForm] = useState(EMPTY);
   const [markComplete, setMarkComplete] = useState(true);
   const [file, setFile] = useState<File | null>(null);
+  // The picked file shown back before saving — on a desk of look-alike paper files, filing a
+  // backlog case under the wrong PDF is exactly the mistake this screen invites.
+  const [preview, setPreview] = useState<string | null>(null);
   const { errors, setFromError, clear, clearAll } = useFieldErrors();
+
+  const pickFile = (chosen: File | null) => {
+    clear("file");
+    // Revoked outside the state updater — React may run an updater twice, so it must stay pure.
+    if (preview) URL.revokeObjectURL(preview);
+    setFile(chosen);
+    setPreview(chosen && canPreview(chosen) ? URL.createObjectURL(chosen) : null);
+  };
+
+  // Navigating away also ends the form; the ref lets the cleanup see the URL that exists then.
+  const livePreview = useRef<string | null>(null);
+  livePreview.current = preview;
+  useEffect(() => () => {
+    if (livePreview.current) URL.revokeObjectURL(livePreview.current);
+  }, []);
 
   const { data: categories } = useListCategoriesQuery();
   const [fastEntry, { isLoading }] = useFastEntryProcessMutation();
@@ -206,7 +232,7 @@ export function FastEntryPage() {
             id="fe-file"
             type="file"
             accept="application/pdf,image/*"
-            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+            onChange={(e) => pickFile(e.target.files?.[0] ?? null)}
             // Guarded in `submit` instead of with `required`: a native validation bubble is
             // rendered by the browser in the **browser's** language, which is the same reason
             // dates stopped being native inputs (UC-108). The office reads Sorani.
@@ -214,6 +240,33 @@ export function FastEntryPage() {
           />
           <p className="text-xs text-muted-foreground">{t("fastEntry.caseFileHint")}</p>
           {err("file")}
+          {file && (
+            <div className="space-y-2 pt-1">
+              {/* <bdi> keeps the Latin filename and size from scrambling the RTL line around them. */}
+              <p className="text-xs text-muted-foreground">
+                {t("workflow.preview")} — <bdi>{file.name}</bdi> (<bdi>{formatSize(file.size)}</bdi>)
+              </p>
+              {preview ? (
+                file.type === "application/pdf" ? (
+                  <iframe
+                    src={preview}
+                    title={file.name}
+                    className="h-[28rem] w-full rounded-md border border-border bg-white"
+                  />
+                ) : (
+                  <img
+                    src={preview}
+                    alt={file.name}
+                    className="max-h-[28rem] rounded-md border border-border"
+                  />
+                )
+              ) : (
+                <p className="rounded-md border border-border bg-muted/40 px-3 py-2.5 text-sm text-muted-foreground">
+                  {t("fastEntry.noPreview")}
+                </p>
+              )}
+            </div>
+          )}
         </div>
       </FormSection>
 

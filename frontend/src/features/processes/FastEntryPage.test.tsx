@@ -25,6 +25,15 @@ vi.mock("@/features/clients/clientsApi", () => ({
 
 const pdf = () => new File(["%PDF-1.4"], "case.pdf", { type: "application/pdf" });
 
+// jsdom has no object URLs; the page makes one per picked file for the preview.
+const revoked: string[] = [];
+let blobN = 0;
+vi.stubGlobal("URL", {
+  ...URL,
+  createObjectURL: () => `blob:${blobN++}`,
+  revokeObjectURL: (url: string) => revoked.push(url),
+});
+
 async function fill({ withFile = true } = {}) {
   await userEvent.type(screen.getByLabelText("Full name"), "Karwan Ahmed");
   await userEvent.type(screen.getByLabelText("National ID"), "197712120099");
@@ -47,6 +56,7 @@ beforeEach(() => {
   toastError.mockClear();
   navigate.mockClear();
   checkUnwrap.mockResolvedValue(clean);
+  revoked.length = 0;
 });
 
 describe("FastEntryPage", () => {
@@ -171,5 +181,46 @@ describe("FastEntryPage", () => {
     await submit();
 
     expect(await screen.findByText("Must be 12 digits.")).toBeInTheDocument();
+  });
+
+  it("shows the picked PDF back, so the wrong file is caught before it is filed", async () => {
+    render(<FastEntryPage />);
+
+    await userEvent.upload(screen.getByLabelText(/Case file/), pdf());
+
+    expect(screen.getByTitle("case.pdf")).toHaveAttribute("src", expect.stringMatching(/^blob:/));
+    expect(screen.getByText("case.pdf")).toBeInTheDocument();
+    expect(screen.getByText(/1 KB/)).toBeInTheDocument();
+  });
+
+  it("previews a picked image as an image", async () => {
+    render(<FastEntryPage />);
+
+    const jpeg = new File(["x"], "case.jpg", { type: "image/jpeg" });
+    await userEvent.upload(screen.getByLabelText(/Case file/), jpeg);
+
+    expect(screen.getByAltText("case.jpg")).toHaveAttribute("src", expect.stringMatching(/^blob:/));
+  });
+
+  it("says so for a scanner TIFF instead of showing a blank frame", async () => {
+    render(<FastEntryPage />);
+
+    const tiff = new File(["II*"], "scan.tif", { type: "image/tiff" });
+    await userEvent.upload(screen.getByLabelText(/Case file/), tiff);
+
+    expect(screen.getByText(/No preview for this file type/)).toBeInTheDocument();
+    // The name and size are the check that remains, so they must still be there.
+    expect(screen.getByText("scan.tif")).toBeInTheDocument();
+  });
+
+  it("releases the old preview when the file is replaced", async () => {
+    render(<FastEntryPage />);
+    const input = screen.getByLabelText(/Case file/);
+
+    await userEvent.upload(input, pdf());
+    const first = screen.getByTitle("case.pdf").getAttribute("src");
+    await userEvent.upload(input, new File(["x"], "other.jpg", { type: "image/jpeg" }));
+
+    expect(revoked).toContain(first);
   });
 });
