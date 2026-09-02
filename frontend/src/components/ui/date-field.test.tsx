@@ -221,15 +221,58 @@ describe("DateField", () => {
     expect(boxes().month).toHaveValue("01");
   });
 
-  it("refuses a day the month does not have", async () => {
+  it("refuses a day no month has, at the keystroke", async () => {
+    render(<Controlled />);
+
+    await userEvent.type(boxes().day, "39");
+
+    // The 9 was refused: 39 is a day no month has, so the 3 stands alone waiting for its digit.
+    expect(boxes().day).toHaveValue("3");
+  });
+
+  it("refuses a month past 12 the same way", async () => {
+    render(<Controlled />);
+
+    await userEvent.type(boxes().month, "19");
+
+    expect(boxes().month).toHaveValue("1");
+  });
+
+  it("caps the day at the month's real length once the month is known", async () => {
+    // 30 could never be a February day, so the 3 settles as 03 at once instead of waiting.
+    render(<Controlled initial="2026-02-10" />);
+
+    await userEvent.clear(boxes().day);
+    await userEvent.type(boxes().day, "3");
+
+    expect(boxes().day).toHaveValue("03");
+  });
+
+  it("still takes the 29th of a leap-year February", async () => {
+    const onChange = vi.fn();
+    render(<Controlled initial="2024-02-10" onChange={onChange} />);
+
+    await userEvent.clear(boxes().day);
+    await userEvent.type(boxes().day, "29");
+
+    // Last, not only: with month and year already set, the 2 on its own was already the 2nd.
+    expect(onChange).toHaveBeenLastCalledWith("2024-02-29");
+  });
+
+  it("pulls the day back when the month typed after it turns out shorter", async () => {
     const onChange = vi.fn();
     render(<Controlled onChange={onChange} />);
 
     await userEvent.type(boxes().day, "31");
     await userEvent.type(boxes().month, "02");
+    // Year still open, so February keeps its leap-year 29 — the honest max so far.
+    expect(boxes().day).toHaveValue("29");
+
     await userEvent.type(boxes().year, "2026");
 
-    expect(onChange).not.toHaveBeenCalled();
+    // The year settles it: 2026 is no leap year, and the date reported is the one on screen.
+    expect(boxes().day).toHaveValue("28");
+    expect(onChange).toHaveBeenCalledExactlyOnceWith("2026-02-28");
   });
 
   it("puts back the stored date when a half-typed one is abandoned", async () => {

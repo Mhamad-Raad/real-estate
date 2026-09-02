@@ -5,8 +5,10 @@ import {
   isRealDate,
   monthGrid,
   parsePasted,
+  reconcileDay,
   segmentInput,
   segmentIsFinished,
+  segmentMax,
   settledSegment,
   stepSegment,
   shiftMonth,
@@ -73,6 +75,12 @@ describe("segmentIsFinished", () => {
     expect(segmentIsFinished("year", "202")).toBe(false);
   });
 
+  it("moves on even earlier when the known month cannot hold a second digit", () => {
+    // February: 3 could only grow into 30-something, which no February has.
+    expect(segmentIsFinished("day", "3", 29)).toBe(true);
+    expect(segmentIsFinished("day", "3", 31)).toBe(false);
+  });
+
   it("moves on early when one digit cannot grow into anything valid", () => {
     // A 5 in the month box is May and can be nothing else; a 1 could still become 12.
     expect(segmentIsFinished("month", "5")).toBe(true);
@@ -120,6 +128,45 @@ describe("settledSegment", () => {
 
   it("leaves a lone zero alone — it is not a day", () => {
     expect(settledSegment("day", "0")).toBe("0");
+  });
+});
+
+describe("segmentMax", () => {
+  it("caps the day at 31 until the month is known", () => {
+    expect(segmentMax("day", { day: "", month: "", year: "" })).toBe(31);
+    expect(segmentMax("day", { day: "", month: "1", year: "" })).toBe(31); // half-typed month
+  });
+
+  it("caps the day at the month's real length once month and year are known", () => {
+    expect(segmentMax("day", { day: "", month: "04", year: "2026" })).toBe(30);
+    expect(segmentMax("day", { day: "", month: "02", year: "2024" })).toBe(29);
+    expect(segmentMax("day", { day: "", month: "02", year: "2025" })).toBe(28);
+  });
+
+  it("keeps 29 open for a February whose year is still being typed", () => {
+    expect(segmentMax("day", { day: "", month: "02", year: "" })).toBe(29);
+    expect(segmentMax("day", { day: "", month: "02", year: "202" })).toBe(29);
+  });
+
+  it("caps the month at 12", () => {
+    expect(segmentMax("month", { day: "31", month: "", year: "2026" })).toBe(12);
+  });
+});
+
+describe("reconcileDay", () => {
+  it("pulls a 31 back into the February it now sits in", () => {
+    expect(reconcileDay({ day: "31", month: "02", year: "" }).day).toBe("29");
+    expect(reconcileDay({ day: "29", month: "02", year: "2025" }).day).toBe("28");
+  });
+
+  it("leaves a day the month can hold alone", () => {
+    const fine = { day: "29", month: "02", year: "2024" };
+    expect(reconcileDay(fine)).toEqual(fine);
+  });
+
+  it("leaves a half-typed day alone — it is not a value yet", () => {
+    const typing = { day: "3", month: "02", year: "2026" };
+    expect(reconcileDay(typing)).toEqual(typing);
   });
 });
 

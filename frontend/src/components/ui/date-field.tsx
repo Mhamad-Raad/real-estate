@@ -7,8 +7,10 @@ import {
   EMPTY_PARTS,
   isBlank,
   parsePasted,
+  reconcileDay,
   segmentInput,
   segmentIsFinished,
+  segmentMax,
   settledSegment,
   stepSegment,
   toIso,
@@ -75,7 +77,10 @@ export function DateField({
     setParts(latest.current);
   }, [value]);
 
-  const emit = (next: DateParts) => {
+  const emit = (raw: DateParts) => {
+    // A later box can shrink the month a typed day sat in — 31, then February — so the day is
+    // pulled back to the month's real last day here, on every path in (typing, arrows, paste).
+    const next = reconcileDay(raw);
     // Written before the state, because a handler can run **before** the re-render that would
     // carry it: auto-advance focuses the next box inside the same keystroke, and that box's blur
     // handler still closes over the parts as they were. Reading them from here rather than from
@@ -126,8 +131,13 @@ export function DateField({
     ),
     onChange: (event: React.ChangeEvent<HTMLInputElement>) => {
       const typed = segmentInput(event.target.value, size);
+      // A number the box can never hold — 39 as a day, 19 as a month — is refused at the
+      // keystroke: nothing is emitted, and React puts the controlled value back. The max is the
+      // real one where the other boxes already name it, so February refuses a 30 outright.
+      const max = kind === "year" ? Infinity : segmentMax(kind, latest.current);
+      if (Number(typed) > max) return;
       // A box the cursor is leaving is finished, so a lone digit takes its zero on the way out.
-      const done = segmentIsFinished(kind, typed);
+      const done = segmentIsFinished(kind, typed, max);
       emit({ ...latest.current, [kind]: done ? settledSegment(kind, typed) : typed });
       if (done && next) focusSegment(next);
     },
