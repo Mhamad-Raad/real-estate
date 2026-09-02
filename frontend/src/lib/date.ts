@@ -71,17 +71,18 @@ export function segmentInput(value: string, max: number): string {
   return asciiDigits(value).slice(0, max);
 }
 
-/** The largest number a box may hold, given what the other boxes already say: the month is 12,
- *  the day is the month's real length once the month — and, for February, the year — is known,
- *  and 31 (or 29 for a February whose year is still open) until then. */
-export function segmentMax(kind: "day" | "month", parts: DateParts): number {
+/** The largest number a box may hold, given what the other boxes already say: the year is the
+ *  window's top, the month is 12, and the day is its month's real length once the month — and,
+ *  for February, the year — is known, with 31 (or 29 for an open February) until then. */
+export function segmentMax(kind: keyof DateParts, parts: DateParts): number {
+  if (kind === "year") return MAX_YEAR;
   if (kind === "month") return 12;
   const month = Number(parts.month);
   if (parts.month.length !== 2 || month < 1 || month > 12) return 31;
   const year = Number(parts.year);
-  if (parts.year.length === 4 && year >= MIN_YEAR && year <= MAX_YEAR) return daysInMonth(year, month);
-  // Month known, year still open — February may yet turn out to be a leap year's.
-  return month === 2 ? 29 : daysInMonth(2001, month);
+  // `isRealDate` vets the year window too; until the year is typed, 2000 — a leap year — gives
+  // every month its largest possible length, which keeps a 29 open for February.
+  return daysInMonth(isRealDate(year, month, 1) ? year : 2000, month);
 }
 
 /** The boxes with the day pulled back into the month now known — `31` typed before February
@@ -96,9 +97,10 @@ export function reconcileDay(parts: DateParts): DateParts {
  *  longer grow into anything under its max (a `5` in the month box is May and cannot become
  *  anything else). Without this the office would tab three times per date. */
 export function segmentIsFinished(
-  kind: "day" | "month" | "year",
+  kind: keyof DateParts,
   text: string,
-  max: number = kind === "month" ? 12 : 31,
+  // The no-knowledge maxima, from the one place that owns them.
+  max: number = segmentMax(kind, EMPTY_PARTS),
 ): boolean {
   if (kind === "year") return text.length === 4;
   if (text.length === 2) return true;

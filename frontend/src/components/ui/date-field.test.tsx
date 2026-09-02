@@ -238,6 +238,15 @@ describe("DateField", () => {
     expect(boxes().month).toHaveValue("1");
   });
 
+  it("refuses a year past the window the same way", async () => {
+    render(<Controlled />);
+
+    await userEvent.type(boxes().year, "9999");
+
+    // The window tops out at 2200, so the fourth 9 has nowhere to land.
+    expect(boxes().year).toHaveValue("999");
+  });
+
   it("caps the day at the month's real length once the month is known", async () => {
     // 30 could never be a February day, so the 3 settles as 03 at once instead of waiting.
     render(<Controlled initial="2026-02-10" />);

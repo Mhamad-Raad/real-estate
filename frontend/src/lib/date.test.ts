@@ -151,6 +151,10 @@ describe("segmentMax", () => {
   it("caps the month at 12", () => {
     expect(segmentMax("month", { day: "31", month: "", year: "2026" })).toBe(12);
   });
+
+  it("caps the year at the window's top", () => {
+    expect(segmentMax("year", { day: "", month: "", year: "" })).toBe(2200);
+  });
 });
 
 describe("reconcileDay", () => {
