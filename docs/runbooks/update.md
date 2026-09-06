@@ -464,6 +464,35 @@ STEP M11. And last: stop anyone deleting the two folders by accident.
   WHAT IS NEW IN THIS VERSION
 ------------------------------------------------------------------------
 
+  From your notes after 1.5.0:
+
+  OLD ALLOCATION — THE CASE FILE IS SHOWN BEFORE YOU SAVE
+  - Pick the case file and it opens right there under the box, so a
+    wrong pick from a desk of look-alike scans is caught before Save.
+    A PDF or a photo shows itself; a scanner TIFF, which no browser can
+    draw, shows its name and size instead.
+
+  FILE PREVIEWS ARE ONE PAGE TALL
+  - On a case and on the "Old allocation" form, a file now shows a
+    whole page at a time instead of about half of one.
+
+  THE CALENDAR IS NEVER CUT OFF
+  - The calendar behind the date button floats over the page. It used
+    to be cut in half inside steps 2 and 3. Near the bottom of the
+    window it opens above the box instead.
+
+  DATE BOXES REFUSE WHAT THEY CANNOT HOLD
+  - A day past 31, a month past 12, or a day February does not have is
+    refused as you type it, instead of being accepted and then quietly
+    put back. Type 31, then 02, and the day becomes 28 (29 in a leap
+    year) — the last day that month has.
+
+  ** Nothing else changes in this version: no new command to run, and
+     "migrate" in STEP 6 simply reports that there is nothing to do. **
+
+
+  IF YOU ARE COMING FROM 1.4.0 OR OLDER, all of this is new too:
+
   THE COMPILED CASE FILE (STEP 5) — NO LONGER SAVED
   - Marking a case complete still produces the compiled file, and you
     still see it, print it and save it on the spot. But it is NOT kept
@@ -577,6 +606,10 @@ STEP M11. And last: stop anyone deleting the two folders by accident.
 ------------------------------------------------------------------------
   THINGS TO DO AFTER THE UPDATE
 ------------------------------------------------------------------------
+
+  ** These three jobs came with 1.5.0. If you did them after that
+     update, there is nothing to do here — each one is safe to run
+     again and simply reports that nothing is left. **
 
   1. DELETE THE OLD "_generated" FOLDER
 
@@ -726,6 +759,8 @@ STEP M11. And last: stop anyone deleting the two folders by accident.
   [ ] 7. docker compose ls — NAME is the same
   [ ] 8. Footer reads ${APP_VERSION} (build ${APP_BUILD})
   [ ] 9. All cases still listed, one case opened and checked
+  Only if not already done after 1.5.0:
+
   [ ] 10. the old `_generated` folder deleted from documents\
   [ ] 11. backfill_entry_lawyers run with --apply (see the section above)
   [ ] 12. retire_compiled_exports run with --apply (see the section above)

@@ -71,14 +71,40 @@ export function segmentInput(value: string, max: number): string {
   return asciiDigits(value).slice(0, max);
 }
 
+/** The largest number a box may hold, given what the other boxes already say: the year is the
+ *  window's top, the month is 12, and the day is its month's real length once the month — and,
+ *  for February, the year — is known, with 31 (or 29 for an open February) until then. */
+export function segmentMax(kind: keyof DateParts, parts: DateParts): number {
+  if (kind === "year") return MAX_YEAR;
+  if (kind === "month") return 12;
+  const month = Number(parts.month);
+  if (parts.month.length !== 2 || month < 1 || month > 12) return 31;
+  const year = Number(parts.year);
+  // `isRealDate` vets the year window too; until the year is typed, 2000 — a leap year — gives
+  // every month its largest possible length, which keeps a 29 open for February.
+  return daysInMonth(isRealDate(year, month, 1) ? year : 2000, month);
+}
+
+/** The boxes with the day pulled back into the month now known — `31` typed before February
+ *  becomes the month's real last day, rather than a date that can never save and would silently
+ *  revert when focus leaves the field. */
+export function reconcileDay(parts: DateParts): DateParts {
+  const max = segmentMax("day", parts);
+  return parts.day.length === 2 && Number(parts.day) > max ? { ...parts, day: pad(max) } : parts;
+}
+
 /** A segment is finished — move the cursor on — when it is full, or when what was typed can no
- *  longer grow into anything valid (a `5` in the month box is May and cannot become anything
- *  else). Without this the office would tab three times per date. */
-export function segmentIsFinished(kind: "day" | "month" | "year", text: string): boolean {
+ *  longer grow into anything under its max (a `5` in the month box is May and cannot become
+ *  anything else). Without this the office would tab three times per date. */
+export function segmentIsFinished(
+  kind: keyof DateParts,
+  text: string,
+  // The no-knowledge maxima, from the one place that owns them.
+  max: number = segmentMax(kind, EMPTY_PARTS),
+): boolean {
   if (kind === "year") return text.length === 4;
   if (text.length === 2) return true;
-  const first = Number(text);
-  return text.length === 1 && first > (kind === "month" ? 1 : 3);
+  return text.length === 1 && Number(text) * 10 > max;
 }
 
 /** How a box reads once the cursor has left it: a lone day or month digit gains its zero, so the
@@ -104,13 +130,8 @@ export function stepSegment(kind: keyof DateParts, parts: DateParts, by: number)
     const year = parts.year ? clamp(from + by, MIN_YEAR, MAX_YEAR) : from;
     return String(year).padStart(4, "0");
   }
-  const max =
-    kind === "month"
-      ? 12
-      : // The month's real length once it is known — 31 is the honest guess until then.
-        isRealDate(Number(parts.year), Number(parts.month), 1)
-        ? daysInMonth(Number(parts.year), Number(parts.month))
-        : 31;
+  // The month's real length once it is known — see `segmentMax` — so the wrap point is honest.
+  const max = segmentMax(kind, parts);
   const from = Number(parts[kind]) || (by > 0 ? 0 : max + 1);
   return pad(wrap(from + by, 1, max));
 }

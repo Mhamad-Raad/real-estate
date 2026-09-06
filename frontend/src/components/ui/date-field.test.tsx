@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { DateField } from "./date-field";
 
@@ -221,15 +221,67 @@ describe("DateField", () => {
     expect(boxes().month).toHaveValue("01");
   });
 
-  it("refuses a day the month does not have", async () => {
+  it("refuses a day no month has, at the keystroke", async () => {
+    render(<Controlled />);
+
+    await userEvent.type(boxes().day, "39");
+
+    // The 9 was refused: 39 is a day no month has, so the 3 stands alone waiting for its digit.
+    expect(boxes().day).toHaveValue("3");
+  });
+
+  it("refuses a month past 12 the same way", async () => {
+    render(<Controlled />);
+
+    await userEvent.type(boxes().month, "19");
+
+    expect(boxes().month).toHaveValue("1");
+  });
+
+  it("refuses a year past the window the same way", async () => {
+    render(<Controlled />);
+
+    await userEvent.type(boxes().year, "9999");
+
+    // The window tops out at 2200, so the fourth 9 has nowhere to land.
+    expect(boxes().year).toHaveValue("999");
+  });
+
+  it("caps the day at the month's real length once the month is known", async () => {
+    // 30 could never be a February day, so the 3 settles as 03 at once instead of waiting.
+    render(<Controlled initial="2026-02-10" />);
+
+    await userEvent.clear(boxes().day);
+    await userEvent.type(boxes().day, "3");
+
+    expect(boxes().day).toHaveValue("03");
+  });
+
+  it("still takes the 29th of a leap-year February", async () => {
+    const onChange = vi.fn();
+    render(<Controlled initial="2024-02-10" onChange={onChange} />);
+
+    await userEvent.clear(boxes().day);
+    await userEvent.type(boxes().day, "29");
+
+    // Last, not only: with month and year already set, the 2 on its own was already the 2nd.
+    expect(onChange).toHaveBeenLastCalledWith("2024-02-29");
+  });
+
+  it("pulls the day back when the month typed after it turns out shorter", async () => {
     const onChange = vi.fn();
     render(<Controlled onChange={onChange} />);
 
     await userEvent.type(boxes().day, "31");
     await userEvent.type(boxes().month, "02");
+    // Year still open, so February keeps its leap-year 29 — the honest max so far.
+    expect(boxes().day).toHaveValue("29");
+
     await userEvent.type(boxes().year, "2026");
 
-    expect(onChange).not.toHaveBeenCalled();
+    // The year settles it: 2026 is no leap year, and the date reported is the one on screen.
+    expect(boxes().day).toHaveValue("28");
+    expect(onChange).toHaveBeenCalledExactlyOnceWith("2026-02-28");
   });
 
   it("puts back the stored date when a half-typed one is abandoned", async () => {
@@ -348,6 +400,52 @@ describe("DateField calendar", () => {
     await open();
 
     expect(screen.getByText(/March 1994/)).toBeInTheDocument();
+  });
+
+  // The viewport the flip tests describe: jsdom lays nothing out, so the box and the calendar's
+  // height are told, not measured.
+  const viewport = (box: Partial<DOMRect>, calendarHeight: number, windowHeight: number) => {
+    vi.spyOn(HTMLDivElement.prototype, "getBoundingClientRect").mockReturnValue(box as DOMRect);
+    vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(calendarHeight);
+    window.innerHeight = windowHeight;
+  };
+  // The portal: the nearest ancestor of the grid that hangs directly off the body.
+  const popover = () => screen.getByRole("grid").closest("body > div") as HTMLElement;
+  afterEach(() => {
+    vi.restoreAllMocks();
+    window.innerHeight = 768;
+  });
+
+  it("floats in the body, below the box, where no container can cut it", async () => {
+    // UC-122: as a child of the field it was clipped by the step accordion's rounded corners.
+    viewport({ top: 100, bottom: 140, left: 100, right: 300 }, 300, 768);
+    render(<Controlled initial="2026-08-05" />);
+
+    await open();
+
+    expect(popover().parentElement).toBe(document.body);
+    expect(popover().style.top).toBe("144px"); // 140 + the 4px gap
+    expect(popover().style.left).toBe("100px");
+  });
+
+  it("flips above the box when the window ends below it", async () => {
+    viewport({ top: 700, bottom: 740, left: 100, right: 300 }, 300, 768);
+    render(<Controlled initial="2026-08-05" />);
+
+    await open();
+
+    expect(popover().style.top).toBe("396px"); // 700 − 4 − 300: above the box
+  });
+
+  it("never leaves the window when it fits on neither side", async () => {
+    // A small window with the box mid-screen: above has more room, but not enough — so it goes
+    // there and stops at the top edge rather than being cut by it.
+    viewport({ top: 260, bottom: 300, left: 100, right: 300 }, 300, 500);
+    render(<Controlled initial="2026-08-05" />);
+
+    await open();
+
+    expect(popover().style.top).toBe("4px");
   });
 
   it("turns the page a month at a time", async () => {

@@ -657,6 +657,7 @@
     "caseFileHint": "The whole file as a single document — the same thing step 5 compiles for a case worked here.",
     "markComplete": "This case is finished",
     "fileRequired": "Choose the case file first.",
+    "noPreview": "No preview for this file type — check the name and size above.",
     "created": "Saved as {{code}}",
     "badge": "Entered from paper",
     "stepNote": "This case was typed in from its paper file. Its steps were never worked here — the whole file is on step 5."

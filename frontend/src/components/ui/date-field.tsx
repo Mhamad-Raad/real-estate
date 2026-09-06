@@ -1,5 +1,6 @@
 import { CalendarDays, X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 
 import { Calendar } from "@/components/ui/calendar";
@@ -7,8 +8,10 @@ import {
   EMPTY_PARTS,
   isBlank,
   parsePasted,
+  reconcileDay,
   segmentInput,
   segmentIsFinished,
+  segmentMax,
   settledSegment,
   stepSegment,
   toIso,
@@ -58,10 +61,11 @@ export function DateField({
   className?: string;
   "aria-describedby"?: string;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [parts, setParts] = useState<DateParts>(() => toParts(value));
   const [open, setOpen] = useState(false);
   const wrapper = useRef<HTMLDivElement>(null);
+  const popover = useRef<HTMLDivElement>(null);
   // The newest boxes, readable from a handler that has not been re-rendered yet — see `emit`.
   const latest = useRef(parts);
   // What the parent last showed us. Compared rather than the raw prop so a save echoing the same
@@ -75,7 +79,43 @@ export function DateField({
     setParts(latest.current);
   }, [value]);
 
-  const emit = (next: DateParts) => {
+  // The calendar is portalled to `<body>` and pinned to the viewport (UC-122): as a child of the
+  // field it was cut off by whatever ancestor clips — the step accordion's rounded corners, a
+  // scrolling panel, a dialog. Placed below the box, or above it when the box sits too close to
+  // the bottom of the window; re-placed on every scroll and resize so it stays on the box.
+  useLayoutEffect(() => {
+    if (!open) return;
+    const place = () => {
+      const box = wrapper.current?.getBoundingClientRect();
+      const pop = popover.current;
+      if (!box || !pop) return;
+      const gap = 4;
+      const roomBelow = window.innerHeight - box.bottom - gap;
+      const roomAbove = box.top - gap;
+      // Below unless it does not fit there and above has more room — and never past the top edge,
+      // or a small window would cut the calendar worse than the container ever did.
+      const above = roomBelow < pop.offsetHeight && roomAbove > roomBelow;
+      const top = above ? box.top - gap - pop.offsetHeight : box.bottom + gap;
+      pop.style.top = `${Math.max(gap, top)}px`;
+      // Its start edge on the box's start edge, then kept inside the window either way.
+      const start = i18n.dir() === "rtl" ? box.right - pop.offsetWidth : box.left;
+      pop.style.left = `${Math.max(gap, Math.min(start, window.innerWidth - pop.offsetWidth - gap))}px`;
+    };
+    place();
+    // Capture: the page scrolls inside `<main>`, not on the window, so a bubbling listener would
+    // never hear it.
+    document.addEventListener("scroll", place, true);
+    window.addEventListener("resize", place);
+    return () => {
+      document.removeEventListener("scroll", place, true);
+      window.removeEventListener("resize", place);
+    };
+  }, [open, i18n]);
+
+  const emit = (raw: DateParts) => {
+    // A later box can shrink the month a typed day sat in — 31, then February — so the day is
+    // pulled back to the month's real last day here, on every path in (typing, arrows, paste).
+    const next = reconcileDay(raw);
     // Written before the state, because a handler can run **before** the re-render that would
     // carry it: auto-advance focuses the next box inside the same keystroke, and that box's blur
     // handler still closes over the parts as they were. Reading them from here rather than from
@@ -126,8 +166,13 @@ export function DateField({
     ),
     onChange: (event: React.ChangeEvent<HTMLInputElement>) => {
       const typed = segmentInput(event.target.value, size);
+      // A number the box can never hold — 39 as a day, 19 as a month, a year past the window —
+      // is refused at the keystroke: nothing is emitted, and React puts the controlled value
+      // back. The max is the real one where the other boxes name it, so February refuses a 30.
+      const max = segmentMax(kind, latest.current);
+      if (Number(typed) > max) return;
       // A box the cursor is leaving is finished, so a lone digit takes its zero on the way out.
-      const done = segmentIsFinished(kind, typed);
+      const done = segmentIsFinished(kind, typed, max);
       emit({ ...latest.current, [kind]: done ? settledSegment(kind, typed) : typed });
       if (done && next) focusSegment(next);
     },
@@ -192,12 +237,13 @@ export function DateField({
   return (
     <div
       ref={wrapper}
-      className="relative"
       onBlur={(event) => {
         // Only when focus has left the field altogether — moving between the boxes, or into the
-        // calendar, is not a blur. The calendar sits **inside** this element for exactly that
-        // reason: rendered as a sibling, every click in it closed the popover it was clicking.
-        if (event.currentTarget.contains(event.relatedTarget)) return;
+        // calendar, is not a blur. The calendar lives in a portal, so React still routes its
+        // focus events through here, but the DOM check has to ask the popover as well: without
+        // it, every click in the calendar closed the popover it was clicking.
+        const next = event.relatedTarget;
+        if (event.currentTarget.contains(next) || popover.current?.contains(next)) return;
         // A half-typed date on screen would claim to be stored. Put back what actually is.
         if (!isBlank(latest.current) && toIso(latest.current) === null) {
           latest.current = toParts(value);
@@ -249,18 +295,23 @@ export function DateField({
           </IconButton>
         </div>
       </div>
-      {open && (
-        <div className="absolute z-50 mt-1 rounded-md border border-border bg-popover text-popover-foreground shadow-md">
-          <Calendar
-            value={value}
-            onPick={(iso) => {
-              emit(toParts(iso));
-              setOpen(false);
-              focusSegment("day");
-            }}
-          />
-        </div>
-      )}
+      {open &&
+        createPortal(
+          <div
+            ref={popover}
+            className="fixed z-50 rounded-md border border-border bg-popover text-popover-foreground shadow-md"
+          >
+            <Calendar
+              value={value}
+              onPick={(iso) => {
+                emit(toParts(iso));
+                setOpen(false);
+                focusSegment("day");
+              }}
+            />
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }
