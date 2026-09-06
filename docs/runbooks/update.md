@@ -466,6 +466,12 @@ STEP M11. And last: stop anyone deleting the two folders by accident.
 
   From your notes after 1.5.0:
 
+  THE CASE LIST REMEMBERS YOUR FILTERS
+  - Filter or search the list, open a case, come back — the list is as
+    you left it, on the same page, with the same filters. Both the
+    "Back to processes" button and the browser's Back do this. The
+    "Processes" entry in the side menu still opens the full list.
+
   OLD ALLOCATION — THE CASE FILE IS SHOWN BEFORE YOU SAVE
   - Pick the case file and it opens right there under the box, so a
     wrong pick from a desk of look-alike scans is caught before Save.
