@@ -1,5 +1,6 @@
 import { CalendarDays, X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 
 import { Calendar } from "@/components/ui/calendar";
@@ -60,10 +61,11 @@ export function DateField({
   className?: string;
   "aria-describedby"?: string;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [parts, setParts] = useState<DateParts>(() => toParts(value));
   const [open, setOpen] = useState(false);
   const wrapper = useRef<HTMLDivElement>(null);
+  const popover = useRef<HTMLDivElement>(null);
   // The newest boxes, readable from a handler that has not been re-rendered yet — see `emit`.
   const latest = useRef(parts);
   // What the parent last showed us. Compared rather than the raw prop so a save echoing the same
@@ -76,6 +78,35 @@ export function DateField({
     latest.current = toParts(value);
     setParts(latest.current);
   }, [value]);
+
+  // The calendar is portalled to `<body>` and pinned to the viewport (UC-122): as a child of the
+  // field it was cut off by whatever ancestor clips — the step accordion's rounded corners, a
+  // scrolling panel, a dialog. Placed below the box, or above it when the box sits too close to
+  // the bottom of the window; re-placed on every scroll and resize so it stays on the box.
+  useLayoutEffect(() => {
+    if (!open) return;
+    const place = () => {
+      const box = wrapper.current?.getBoundingClientRect();
+      const pop = popover.current;
+      if (!box || !pop) return;
+      const gap = 4;
+      const below = box.bottom + gap;
+      const fitsBelow = below + pop.offsetHeight <= window.innerHeight;
+      pop.style.top = `${fitsBelow ? below : box.top - gap - pop.offsetHeight}px`;
+      // Its start edge on the box's start edge, then kept inside the window either way.
+      const start = i18n.dir() === "rtl" ? box.right - pop.offsetWidth : box.left;
+      pop.style.left = `${Math.max(gap, Math.min(start, window.innerWidth - pop.offsetWidth - gap))}px`;
+    };
+    place();
+    // Capture: the page scrolls inside `<main>`, not on the window, so a bubbling listener would
+    // never hear it.
+    document.addEventListener("scroll", place, true);
+    window.addEventListener("resize", place);
+    return () => {
+      document.removeEventListener("scroll", place, true);
+      window.removeEventListener("resize", place);
+    };
+  }, [open, i18n]);
 
   const emit = (raw: DateParts) => {
     // A later box can shrink the month a typed day sat in — 31, then February — so the day is
@@ -202,12 +233,13 @@ export function DateField({
   return (
     <div
       ref={wrapper}
-      className="relative"
       onBlur={(event) => {
         // Only when focus has left the field altogether — moving between the boxes, or into the
-        // calendar, is not a blur. The calendar sits **inside** this element for exactly that
-        // reason: rendered as a sibling, every click in it closed the popover it was clicking.
-        if (event.currentTarget.contains(event.relatedTarget)) return;
+        // calendar, is not a blur. The calendar lives in a portal, so React still routes its
+        // focus events through here, but the DOM check has to ask the popover as well: without
+        // it, every click in the calendar closed the popover it was clicking.
+        const next = event.relatedTarget;
+        if (event.currentTarget.contains(next) || popover.current?.contains(next)) return;
         // A half-typed date on screen would claim to be stored. Put back what actually is.
         if (!isBlank(latest.current) && toIso(latest.current) === null) {
           latest.current = toParts(value);
@@ -259,18 +291,23 @@ export function DateField({
           </IconButton>
         </div>
       </div>
-      {open && (
-        <div className="absolute z-50 mt-1 rounded-md border border-border bg-popover text-popover-foreground shadow-md">
-          <Calendar
-            value={value}
-            onPick={(iso) => {
-              emit(toParts(iso));
-              setOpen(false);
-              focusSegment("day");
-            }}
-          />
-        </div>
-      )}
+      {open &&
+        createPortal(
+          <div
+            ref={popover}
+            className="fixed z-50 rounded-md border border-border bg-popover text-popover-foreground shadow-md"
+          >
+            <Calendar
+              value={value}
+              onPick={(iso) => {
+                emit(toParts(iso));
+                setOpen(false);
+                focusSegment("day");
+              }}
+            />
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }
