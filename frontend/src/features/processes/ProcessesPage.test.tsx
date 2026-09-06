@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
+import { MemoryRouter, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 
 import { ProcessesPage } from "./ProcessesPage";
@@ -48,19 +48,31 @@ function Probe() {
   return <div data-testid="where">{`${pathname}${search} ${JSON.stringify(state)}`}</div>;
 }
 
+// The sidebar's link: a navigation from outside the page that leaves it mounted.
+function Nav() {
+  const navigate = useNavigate();
+  return (
+    <button type="button" onClick={() => navigate("/processes")}>
+      nav
+    </button>
+  );
+}
+
 const renderAt = (url: string) =>
   render(
     <MemoryRouter initialEntries={[url]}>
       <Routes>
         <Route path="/processes" element={<ProcessesPage />} />
-        <Route path="*" element={<Probe />} />
+        <Route path="*" element={null} />
       </Routes>
       <Probe />
+      <Nav />
     </MemoryRouter>,
   );
 
 const lastFilters = () => listProcesses.mock.lastCall?.[0];
-const url = () => screen.getAllByTestId("where").at(-1)?.textContent ?? "";
+const url = () => screen.getByTestId("where").textContent ?? "";
+const box = () => screen.getByPlaceholderText(/Search by/);
 
 // The filters live in the URL (UC-124): the way back from a case lands on the same URL, so the
 // list comes back as it was left.
@@ -75,7 +87,7 @@ describe("ProcessesPage filters in the URL", () => {
       current_step: 3,
       page: 2,
     });
-    expect(screen.getByPlaceholderText(/Search by/)).toHaveValue("kar");
+    expect(box()).toHaveValue("kar");
   });
 
   it("keeps the page across the mount's debounced search echo", async () => {
@@ -83,7 +95,7 @@ describe("ProcessesPage filters in the URL", () => {
 
     await new Promise((r) => setTimeout(r, 400));
 
-    expect(url()).toContain("/processes?search=kar&page=2");
+    expect(url()).toBe("/processes?search=kar&page=2 null");
     expect(lastFilters().page).toBe(2);
   });
 
@@ -92,11 +104,30 @@ describe("ProcessesPage filters in the URL", () => {
 
     await userEvent.selectOptions(screen.getByDisplayValue("All statuses"), "complete");
 
-    expect(url()).toContain("/processes?status=complete ");
+    expect(url()).toBe("/processes?status=complete null");
     expect(lastFilters()).toMatchObject({
       overall_status: "complete",
       page: 1,
     });
+  });
+
+  it("follows the URL when the sidebar link lands on the plain list", async () => {
+    renderAt("/processes?search=kar&status=complete");
+
+    await userEvent.click(screen.getByRole("button", { name: "nav" }));
+
+    expect(box()).toHaveValue("");
+    expect(lastFilters()).toMatchObject({ search: "", overall_status: "" });
+  });
+
+  it("keeps the space still being typed after the box's own value settles", async () => {
+    renderAt("/processes");
+
+    await userEvent.type(box(), "kar ");
+    await new Promise((r) => setTimeout(r, 400));
+
+    expect(url()).toBe("/processes?search=kar null");
+    expect(box()).toHaveValue("kar ");
   });
 
   it("ignores a URL value that is not one of the choices", () => {

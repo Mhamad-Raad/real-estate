@@ -44,7 +44,8 @@ export function ProcessDetailPage() {
   const navigate = useNavigate();
   // The list row that opened this case passed its URL, filters and all (UC-124); any other way
   // in — a dashboard tile, an activity row — returns to the plain list.
-  const backTo = (useLocation().state as { from?: string } | null)?.from ?? "/processes";
+  const { state } = useLocation();
+  const backTo = (state as { from?: string } | null)?.from ?? "/processes";
   const num = useNum();
   const [createProcess, { isLoading: reapplying }] = useCreateProcessMutation();
   // Which *press* closed the case, not whether it is closed: the compiled export runs off the
@@ -99,7 +100,8 @@ export function ProcessDetailPage() {
         land_address: process.land_address,
       }).unwrap();
       toast.success(t("processes.created"));
-      navigate(`/processes/${created.id}`);
+      // The new case keeps the old one's way back to the list.
+      navigate(`/processes/${created.id}`, { state });
     } catch (err) {
       toast.error(
         apiErrorStatus(err) === 409

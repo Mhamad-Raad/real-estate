@@ -66,19 +66,16 @@ export function ProcessesPage() {
   const page = numParam(params.get("page")) || 1;
 
   // Replaced in place so each keystroke is not a history entry; any filter change resets to
-  // the first page (the result set changes). Writing the same value is skipped so the mount's
-  // debounced search echo does not wipe the page.
+  // the first page (the result set changes).
   const setParam = useCallback(
     (key: string, value: string | number) => {
       setParams(
         (prev) => {
           const text = String(value);
-          if ((prev.get(key) ?? "") === text) return prev;
-          const next = new URLSearchParams(prev);
-          if (text === "") next.delete(key);
-          else next.set(key, text);
-          if (key !== "page") next.delete("page");
-          return next;
+          if (text === "") prev.delete(key);
+          else prev.set(key, text);
+          if (key !== "page") prev.delete("page");
+          return prev;
         },
         { replace: true },
       );
@@ -86,12 +83,17 @@ export function ProcessesPage() {
     [setParams],
   );
 
-  // The box owns its own text; the URL gets the settled value.
+  // The box owns its own text; the URL gets the settled value. A change of the URL from outside
+  // — the sidebar link, which lands on the plain list — reaches the box, while the box's own
+  // settled value already matches and keeps whatever trailing space is still being typed.
   const [searchTerm, setSearchTerm] = useState(search);
+  useEffect(() => setSearchTerm((cur) => (cur.trim() === search ? cur : search)), [search]);
   useEffect(() => {
-    const id = setTimeout(() => setParam("search", searchTerm.trim()), 300);
+    const trimmed = searchTerm.trim();
+    if (trimmed === search) return;
+    const id = setTimeout(() => setParam("search", trimmed), 300);
     return () => clearTimeout(id);
-  }, [searchTerm, setParam]);
+  }, [searchTerm, search, setParam]);
 
   const filters = useMemo(
     () => ({ search, category, overall_status: status, current_step: step, page }),
