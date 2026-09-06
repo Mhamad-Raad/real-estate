@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { DateField } from "./date-field";
 
@@ -402,22 +402,50 @@ describe("DateField calendar", () => {
     expect(screen.getByText(/March 1994/)).toBeInTheDocument();
   });
 
-  it("flips above the box when the window ends below it", async () => {
-    // UC-122: the calendar used to be a child of the field, clipped by the step accordion. Now it
-    // is pinned to the viewport — and a box near the bottom of the window gets it above, not cut.
-    const rect = { top: 700, bottom: 740, left: 100, right: 300 } as DOMRect;
-    vi.spyOn(HTMLDivElement.prototype, "getBoundingClientRect").mockReturnValue(rect);
-    vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(300);
+  // The viewport the flip tests describe: jsdom lays nothing out, so the box and the calendar's
+  // height are told, not measured.
+  const viewport = (box: Partial<DOMRect>, calendarHeight: number, windowHeight: number) => {
+    vi.spyOn(HTMLDivElement.prototype, "getBoundingClientRect").mockReturnValue(box as DOMRect);
+    vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(calendarHeight);
+    window.innerHeight = windowHeight;
+  };
+  // The portal: the nearest ancestor of the grid that hangs directly off the body.
+  const popover = () => screen.getByRole("grid").closest("body > div") as HTMLElement;
+  afterEach(() => {
+    vi.restoreAllMocks();
     window.innerHeight = 768;
+  });
+
+  it("floats in the body, below the box, where no container can cut it", async () => {
+    // UC-122: as a child of the field it was clipped by the step accordion's rounded corners.
+    viewport({ top: 100, bottom: 140, left: 100, right: 300 }, 300, 768);
     render(<Controlled initial="2026-08-05" />);
 
     await open();
 
-    const popover = screen.getByRole("grid").closest(".fixed") as HTMLElement;
-    expect(popover.parentElement).toBe(document.body);
-    expect(popover.style.top).toBe("396px"); // 700 − 4 − 300: above the box
-    expect(popover.style.left).toBe("100px");
-    vi.restoreAllMocks();
+    expect(popover().parentElement).toBe(document.body);
+    expect(popover().style.top).toBe("144px"); // 140 + the 4px gap
+    expect(popover().style.left).toBe("100px");
+  });
+
+  it("flips above the box when the window ends below it", async () => {
+    viewport({ top: 700, bottom: 740, left: 100, right: 300 }, 300, 768);
+    render(<Controlled initial="2026-08-05" />);
+
+    await open();
+
+    expect(popover().style.top).toBe("396px"); // 700 − 4 − 300: above the box
+  });
+
+  it("never leaves the window when it fits on neither side", async () => {
+    // A small window with the box mid-screen: above has more room, but not enough — so it goes
+    // there and stops at the top edge rather than being cut by it.
+    viewport({ top: 260, bottom: 300, left: 100, right: 300 }, 300, 500);
+    render(<Controlled initial="2026-08-05" />);
+
+    await open();
+
+    expect(popover().style.top).toBe("4px");
   });
 
   it("turns the page a month at a time", async () => {

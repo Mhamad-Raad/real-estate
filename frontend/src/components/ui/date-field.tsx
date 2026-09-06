@@ -90,9 +90,13 @@ export function DateField({
       const pop = popover.current;
       if (!box || !pop) return;
       const gap = 4;
-      const below = box.bottom + gap;
-      const fitsBelow = below + pop.offsetHeight <= window.innerHeight;
-      pop.style.top = `${fitsBelow ? below : box.top - gap - pop.offsetHeight}px`;
+      const roomBelow = window.innerHeight - box.bottom - gap;
+      const roomAbove = box.top - gap;
+      // Below unless it does not fit there and above has more room — and never past the top edge,
+      // or a small window would cut the calendar worse than the container ever did.
+      const above = roomBelow < pop.offsetHeight && roomAbove > roomBelow;
+      const top = above ? box.top - gap - pop.offsetHeight : box.bottom + gap;
+      pop.style.top = `${Math.max(gap, top)}px`;
       // Its start edge on the box's start edge, then kept inside the window either way.
       const start = i18n.dir() === "rtl" ? box.right - pop.offsetWidth : box.left;
       pop.style.left = `${Math.max(gap, Math.min(start, window.innerWidth - pop.offsetWidth - gap))}px`;
