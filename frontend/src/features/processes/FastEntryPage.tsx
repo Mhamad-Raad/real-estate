@@ -14,6 +14,7 @@ import { FormSection } from "@/components/ui/separator";
 import { Spinner } from "@/components/ui/spinner";
 import { useListCategoriesQuery } from "@/features/categories/categoriesApi";
 import { useDuplicateGate } from "@/features/clients/useDuplicateGate";
+import { PageFrame } from "@/features/documents/PageFrame";
 import { useFieldErrors } from "@/hooks/useFieldErrors";
 import { apiErrorMessage } from "@/lib/apiError";
 import { labeller } from "@/lib/fieldLabels";
@@ -248,16 +249,12 @@ export function FastEntryPage() {
               </p>
               {preview ? (
                 file.type === "application/pdf" ? (
-                  <iframe
-                    src={preview}
-                    title={file.name}
-                    className="h-[28rem] w-full rounded-md border border-border bg-white"
-                  />
+                  <PageFrame src={preview} title={file.name} />
                 ) : (
                   <img
                     src={preview}
                     alt={file.name}
-                    className="max-h-[28rem] rounded-md border border-border"
+                    className="max-h-[75vh] max-w-full rounded-md border border-border"
                   />
                 )
               ) : (

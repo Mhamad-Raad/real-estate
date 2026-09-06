@@ -8,6 +8,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { toast } from "@/lib/toast";
 
 import { fetchBlobUrl, fileUrlFor, saveBlobUrl, type FileSource } from "./download";
+import { PageFrame } from "./PageFrame";
 
 // Inline PDF preview + print. The bytes need an auth header, so they are fetched as a blob and
 // handed to the iframe as an object URL — a plain <iframe src> would come back 401.
@@ -128,12 +129,7 @@ export function DocumentPreview({
       </div>
 
       {url ? (
-        <iframe
-          ref={frame}
-          src={url}
-          title={title}
-          className="h-[28rem] w-full rounded-md border border-border bg-white"
-        />
+        <PageFrame ref={frame} src={url} title={title} />
       ) : (
         <div className="flex h-24 items-center justify-center rounded-md border border-border">
           <Spinner />
