@@ -19,10 +19,13 @@ import { cn } from "@/lib/utils";
  */
 export function LinkRow({
   to,
+  state,
   className,
   children,
 }: {
   to: string;
+  /** Carried along like `<Link state>` — e.g. the list URL a detail page returns to. */
+  state?: unknown;
   className?: string;
   children: ReactNode;
 }) {
@@ -32,14 +35,14 @@ export function LinkRow({
     // Anything interactive inside the row handles its own click.
     if ((e.target as HTMLElement).closest("a,button,input,label,[role='button'],[role='menuitem']")) return;
     if (window.getSelection()?.toString()) return;
-    navigate(to);
+    navigate(to, { state });
   };
 
   const onKeyDown = (e: KeyboardEvent<HTMLTableRowElement>) => {
     // Only when the row itself has focus — Enter on a control inside it belongs to that control.
     if (e.key !== "Enter" || e.target !== e.currentTarget) return;
     e.preventDefault();
-    navigate(to);
+    navigate(to, { state });
   };
 
   return (

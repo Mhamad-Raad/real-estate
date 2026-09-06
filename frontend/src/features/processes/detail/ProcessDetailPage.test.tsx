@@ -15,6 +15,8 @@ vi.mock("react-router-dom", async (importOriginal) => ({
   useParams: () => ({ id: route.id }),
   useNavigate: () => vi.fn(),
 }));
+
+const backLink = () => screen.getByRole("link", { name: /Back to processes/ });
 vi.mock("@/lib/toast", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@/features/auth/authApi", () => ({ useMeQuery: () => ({ data: { id: 9, role: "admin" } }) }));
 vi.mock("@/hooks/useNum", () => ({ useNum: () => (n: number) => String(n) }));
@@ -95,5 +97,27 @@ describe("ProcessDetailPage auto-compile flag", () => {
 
     expect(shownCase()).toBe("2");
     expect(autoStartFlag()).toBe("false");
+  });
+});
+
+// The list row that opened the case carries the list URL, filters and all (UC-124).
+describe("ProcessDetailPage back button", () => {
+  it("returns to the list URL the row came from", () => {
+    route.id = "1";
+    const from = "/processes?status=complete&page=2";
+    render(
+      <MemoryRouter initialEntries={[{ pathname: "/processes/1", state: { from } }]}>
+        <ProcessDetailPage />
+      </MemoryRouter>,
+    );
+
+    expect(backLink()).toHaveAttribute("href", from);
+  });
+
+  it("returns to the plain list when it was opened some other way", () => {
+    route.id = "1";
+    render(<ProcessDetailPage />, { wrapper: MemoryRouter });
+
+    expect(backLink()).toHaveAttribute("href", "/processes");
   });
 });
