@@ -1,7 +1,7 @@
 import { AlertTriangle, FileStack, Plus, ShieldCheck, Trash2 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 
 import { useAppSelector } from "@/app/hooks";
 import { Badge, type BadgeProps } from "@/components/ui/badge";
@@ -41,29 +41,57 @@ const STATUS_VARIANT: Record<OverallStatus, BadgeProps["variant"]> = {
   rejected: "danger",
 };
 
+// A URL value is untrusted: a number that is not one, or a status not in the list, reads as unset.
+const numParam = (raw: string | null): number | "" => {
+  const n = Number(raw);
+  return raw && Number.isInteger(n) && n > 0 ? n : "";
+};
+const enumParam = <T extends string>(raw: string | null, allowed: readonly T[]): T | "" =>
+  allowed.includes(raw as T) ? (raw as T) : "";
+
 export function ProcessesPage() {
   const { t, i18n } = useTranslation();
   const isAdmin = useAppSelector((s) => s.auth.user?.is_admin ?? false);
   const num = useNum();
   const { data: categories } = useListCategoriesQuery();
 
-  // Seeded from the URL so a link can land here pre-filtered — the Clients page sends a national
-  // ID this way (UC-026). Read once: after that the box owns its own value.
-  const [params] = useSearchParams();
-  const [searchTerm, setSearchTerm] = useState(() => params.get("search") ?? "");
-  const [search, setSearch] = useState(() => params.get("search") ?? "");
-  const [category, setCategory] = useState<number | "">("");
-  const [status, setStatus] = useState<OverallStatus | "">("");
-  const [step, setStep] = useState<number | "">("");
-  const [page, setPage] = useState(1);
+  // The filters and the page live in the URL (UC-124): a visit to a case and the way back —
+  // browser Back or the list button — lands on the same URL, so the list comes back as it was
+  // left. Also how a link lands here pre-filtered: the Clients page sends a national ID (UC-026).
+  const [params, setParams] = useSearchParams();
+  const search = params.get("search") ?? "";
+  const category = numParam(params.get("category"));
+  const status = enumParam(params.get("status"), OVERALL_STATUSES);
+  const step = numParam(params.get("step"));
+  const page = numParam(params.get("page")) || 1;
 
+  // Replaced in place so each keystroke is not a history entry; any filter change resets to
+  // the first page (the result set changes). Writing the same value is skipped so the mount's
+  // debounced search echo does not wipe the page.
+  const setParam = useCallback(
+    (key: string, value: string | number) => {
+      setParams(
+        (prev) => {
+          const text = String(value);
+          if ((prev.get(key) ?? "") === text) return prev;
+          const next = new URLSearchParams(prev);
+          if (text === "") next.delete(key);
+          else next.set(key, text);
+          if (key !== "page") next.delete("page");
+          return next;
+        },
+        { replace: true },
+      );
+    },
+    [setParams],
+  );
+
+  // The box owns its own text; the URL gets the settled value.
+  const [searchTerm, setSearchTerm] = useState(search);
   useEffect(() => {
-    const id = setTimeout(() => setSearch(searchTerm.trim()), 300);
+    const id = setTimeout(() => setParam("search", searchTerm.trim()), 300);
     return () => clearTimeout(id);
-  }, [searchTerm]);
-
-  // Any filter change resets to the first page (the result set changes).
-  useEffect(() => setPage(1), [search, category, status, step]);
+  }, [searchTerm, setParam]);
 
   const filters = useMemo(
     () => ({ search, category, overall_status: status, current_step: step, page }),
@@ -73,6 +101,9 @@ export function ProcessesPage() {
   const [remove, { isLoading: removing }] = useDeleteProcessMutation();
 
   const navigate = useNavigate();
+  const location = useLocation();
+  // The way into a case remembers this URL, so its "back to list" button returns here.
+  const listUrl = `${location.pathname}${location.search}`;
   const [overriding, setOverriding] = useState<ProcessListItem | null>(null);
   const [toDelete, setToDelete] = useState<ProcessListItem | null>(null);
   const [selected, setSelected] = useState<number[]>([]);
@@ -146,7 +177,7 @@ export function ProcessesPage() {
         />
         <Select
           value={category}
-          onChange={(e) => setCategory(e.target.value ? Number(e.target.value) : "")}
+          onChange={(e) => setParam("category", e.target.value)}
         >
           <option value="">{t("processes.filters.allCategories")}</option>
           {(categories ?? []).map((c) => (
@@ -157,7 +188,7 @@ export function ProcessesPage() {
         </Select>
         <Select
           value={status}
-          onChange={(e) => setStatus(e.target.value as OverallStatus | "")}
+          onChange={(e) => setParam("status", e.target.value)}
         >
           <option value="">{t("processes.filters.allStatuses")}</option>
           {OVERALL_STATUSES.map((s) => (
@@ -168,7 +199,7 @@ export function ProcessesPage() {
         </Select>
         <Select
           value={step}
-          onChange={(e) => setStep(e.target.value ? Number(e.target.value) : "")}
+          onChange={(e) => setParam("step", e.target.value)}
         >
           <option value="">{t("processes.filters.allSteps")}</option>
           {STEP_NUMBERS.map((n) => (
@@ -214,7 +245,7 @@ export function ProcessesPage() {
             {!loading &&
               !isError &&
               rows.map((process) => (
-                <LinkRow key={process.id} to={`/processes/${process.id}`}>
+                <LinkRow key={process.id} to={`/processes/${process.id}`} state={{ from: listUrl }}>
                   <TableCell>
                     <Checkbox
                       checked={selected.includes(process.id)}
@@ -228,7 +259,11 @@ export function ProcessesPage() {
                   </TableCell>
                   <TableCell className="font-medium">
                     <span className="flex items-center gap-2">
-                      <Link to={`/processes/${process.id}`} className="text-primary hover:underline">
+                      <Link
+                        to={`/processes/${process.id}`}
+                        state={{ from: listUrl }}
+                        className="text-primary hover:underline"
+                      >
                         {process.client_full_name}
                       </Link>
                       {process.duplicate_flagged && (
@@ -284,7 +319,7 @@ export function ProcessesPage() {
         </Table>
       </Card>
 
-      <Pagination page={page} count={data?.count ?? 0} onPage={setPage} />
+      <Pagination page={page} count={data?.count ?? 0} onPage={(p) => setParam("page", p)} />
 
       <OverrideDialog process={overriding} onClose={() => setOverriding(null)} />
       <ConfirmDialog

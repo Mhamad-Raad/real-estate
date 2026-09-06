@@ -1,7 +1,7 @@
 import { ArrowLeft, RotateCcw } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 
 import { Accordion, AccordionItem } from "@/components/ui/accordion";
 import { Badge, type BadgeProps } from "@/components/ui/badge";
@@ -42,6 +42,9 @@ export function ProcessDetailPage() {
   const { data: user } = useMeQuery();
   const { data: process, isLoading, isError } = useGetProcessQuery(processId);
   const navigate = useNavigate();
+  // The list row that opened this case passed its URL, filters and all (UC-124); any other way
+  // in — a dashboard tile, an activity row — returns to the plain list.
+  const backTo = (useLocation().state as { from?: string } | null)?.from ?? "/processes";
   const num = useNum();
   const [createProcess, { isLoading: reapplying }] = useCreateProcessMutation();
   // Which *press* closed the case, not whether it is closed: the compiled export runs off the
@@ -111,7 +114,7 @@ export function ProcessDetailPage() {
       {/* A real button rather than a muted text link (UC-100): the office could not pick the way
           back out of the page at a glance, and this is the control they use on every case. */}
       <Button asChild variant="outline" size="sm" className="font-semibold">
-        <Link to="/processes">
+        <Link to={backTo}>
           <ArrowLeft className="size-4 rtl:rotate-180" />
           {t("workflow.backToList")}
         </Link>
