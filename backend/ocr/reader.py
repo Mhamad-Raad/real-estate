@@ -25,7 +25,21 @@ and this only runs when it came back with nothing usable, and the better of the 
 from dataclasses import dataclass
 from pathlib import Path
 
+from . import card_geometry
 from .extraction import ARABIC_MODEL, LATIN_MODEL, IdCardDraft, build_draft
+
+def engine_config(config: str = "") -> str:
+    """Tesseract options, plus the model folder when one is configured.
+
+    `OCR_TESSDATA_DIR` points the engine at a different set of trained models — how the bench
+    compares the packaged models with the larger, more accurate ones (UC-126) without a rebuild.
+    Unset, the packaged models are used exactly as before.
+    """
+    import os
+
+    folder = os.environ.get("OCR_TESSDATA_DIR", "").strip()
+    return f"{config} --tessdata-dir {folder}".strip() if folder else config
+
 
 # Below this, a page is treated as unreadable rather than passed on as a confident draft.
 MIN_USABLE_CHARS = 20
@@ -125,7 +139,7 @@ def read_side(image, *, psm: int | None = None) -> SideRead:
     # The same `config` on every pass. The two `image_to_data` calls used to run without it, so
     # the confidence figures came from a different page-segmentation mode than the text they were
     # meant to describe — and paid for a second, more expensive layout analysis to do it.
-    config = f"--psm {psm}" if psm else ""
+    config = engine_config(f"--psm {psm}" if psm else "")
     result = SideRead(
         arabic_text=pytesseract.image_to_string(image, lang=ARABIC_MODEL, config=config),
         latin_text=pytesseract.image_to_string(image, lang=LATIN_MODEL, config=config),
@@ -156,6 +170,43 @@ def read_side(image, *, psm: int | None = None) -> SideRead:
     return result
 
 
+@dataclass
+class ZoneRead:
+    """Field-sized reads of a card at known positions (UC-126). Each is extra evidence for the
+    draft builder, never a replacement for the whole-side reads: check digits and the birth year
+    decide which read of a field is kept."""
+
+    pid_text: str = ""
+    mrz_texts: tuple[str, ...] = ()
+
+
+def read_zones(front_card, back_card) -> ZoneRead:
+    """Read the card number and the machine-readable zone from their fixed places on the card.
+
+    The zone read is what fixed the scans: the whole-page read found nothing on 6 of 6 sheets, the
+    zone read found the card number on all of them. The MRZ is read by both models because each
+    fails on different cards, and `mrz.parse_best` keeps whichever verifies more.
+    """
+    import pytesseract
+
+    result = ZoneRead()
+    # Test doubles hand in placeholders, not images; a real image always has `crop`.
+    if not hasattr(front_card, "crop"):
+        return result
+    digits = engine_config("--psm 6 -c tessedit_char_whitelist=0123456789")
+    result.pid_text = pytesseract.image_to_string(
+        card_geometry.zone(front_card, card_geometry.PID_ZONE), lang=LATIN_MODEL, config=digits
+    ).replace(" ", "")
+    if hasattr(back_card, "crop"):
+        back_zone = card_geometry.zone(back_card, card_geometry.MRZ_ZONE)
+        alphabet = engine_config("--psm 6 -c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789<")
+        result.mrz_texts = (
+            pytesseract.image_to_string(back_zone, lang=LATIN_MODEL, config=alphabet),
+            pytesseract.image_to_string(back_zone, lang=ARABIC_MODEL, config=engine_config("--psm 6")),
+        )
+    return result
+
+
 def _filled(draft: IdCardDraft) -> int:
     """How many fields the reading actually produced — the score the two passes compete on."""
     return sum(
@@ -165,10 +216,11 @@ def _filled(draft: IdCardDraft) -> int:
     )
 
 
-def _read_pair(front_image, back_image, *, psm: int | None, framed: bool):
+def _read_pair(front_image, back_image, *, psm: int | None, framed: bool, zones: ZoneRead | None = None):
     prepare = frame_content if framed else (lambda image: image)
     front = read_side(prepare(front_image), psm=psm)
     back = read_side(prepare(back_image), psm=psm) if back_image is not None else SideRead()
+    zones = zones or ZoneRead()
     draft = build_draft(
         # Names come from the Arabic pass, the card number from the Latin one — concatenating
         # them lets a single regex find the digits without disturbing the positional name parse.
@@ -177,6 +229,9 @@ def _read_pair(front_image, back_image, *, psm: int | None, framed: bool):
         back_text=back.latin_text,
         pid_confidence=front.digit_confidence,
         name_confidence=front.name_confidence,
+        # The Arabic pass reads the MRZ too, and on some cards better than the Latin one does.
+        extra_back_texts=(*zones.mrz_texts, back.arabic_text),
+        extra_pid_texts=(zones.pid_text,) if zones.pid_text else (),
     )
     return draft, front
 
@@ -195,7 +250,11 @@ def read_card(front_path: Path, back_path: Path | None = None) -> IdCardDraft:
         # A two-page PDF is the usual shape when both sides are scanned into one file.
         back_image = front_images[1]
 
-    draft, front = _read_pair(front_images[0], back_image, psm=None, framed=False)
+    # A card scanned onto a sheet is cut out and straightened first; a photo is already the card.
+    front_card, _ = card_geometry.card_image(front_images[0])
+    back_card = card_geometry.card_image(back_image)[0] if back_image is not None else None
+    zones = read_zones(front_card, back_card)
+    draft, front = _read_pair(front_card, back_card, psm=None, framed=False, zones=zones)
 
     # A card scanned onto a sheet of paper defeats the automatic segmentation entirely. Retry it
     # framed, and keep that reading ONLY if it found more — the same settings ruin a photographed
@@ -210,10 +269,10 @@ def read_card(front_path: Path, back_path: Path | None = None) -> IdCardDraft:
         # Framed once, here: the gate and the read have to be looking at the same image rather
         # than at two independently-derived ones, which is why `_read_pair` is told not to frame.
         # Inside the guard so the ordinary path — a reading that worked — pays nothing for it.
-        framed_front = frame_content(front_images[0])
-        framed_back = frame_content(back_image) if back_image is not None else None
+        framed_front = frame_content(front_card)
+        framed_back = frame_content(back_card) if back_card is not None else None
         if looks_like_a_card(framed_front):
-            rescued, _ = _read_pair(framed_front, framed_back, psm=6, framed=False)
+            rescued, _ = _read_pair(framed_front, framed_back, psm=6, framed=False, zones=zones)
             if _filled(rescued) > _filled(draft):
                 rescued.warnings.append(
                     "This looked like a scan of a page rather than a photograph of the card, so "

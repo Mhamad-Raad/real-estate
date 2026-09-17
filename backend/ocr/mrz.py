@@ -6,6 +6,7 @@ merely hoped about. Everything here is pure — bytes in, dataclass out — so i
 Tesseract, a database or a file.
 """
 
+import re
 from dataclasses import dataclass, field
 from datetime import date
 
@@ -84,7 +85,10 @@ def find_mrz_lines(text: str) -> list[str]:
     candidates = []
     for raw in text.splitlines():
         line = "".join(raw.split()).upper()
-        if len(line) >= 25 and line.count(FILLER) >= 3:
+        # Line 2 of the older layout is full to the edge with digits and has no filler at all, so
+        # it is recognised by its fixed shape instead: date + check, sex, expiry + check, country.
+        full_line_two = len(line) >= 28 and re.match(r"^[0-9OQDILZSGB]{7}[MF<][0-9OQDILZSGB]{7}[A-Z]{3}", line)
+        if (len(line) >= 25 and line.count(FILLER) >= 3) or full_line_two:
             # Drop anything that is not part of the MRZ alphabet (stray marks, Arabic bleed).
             candidates.append("".join(ch for ch in line if ch.isalnum() or ch == FILLER))
     return candidates
@@ -135,6 +139,12 @@ def parse_td1(lines: list[str]) -> MrzResult:
         optional = as_digits(first[15:].replace(FILLER, ""))
         result.national_id = optional if optional.isdigit() else ""
 
+    # Older cards (and the published specimen) leave line 1's optional data empty and print the
+    # national ID after the nationality on line 2 instead. Same repair-or-drop rule as above.
+    if not result.national_id and len(second) >= 30:
+        late = as_digits(second[18:30].replace(FILLER, ""))
+        result.national_id = late if late.isdigit() and len(late) == 12 else ""
+
     # Line 2: birth date (6) + check, sex (1), expiry (6) + check, nationality (3).
     # The expiry date is read past, not parsed: the office cares who the holder is, not whether
     # the card is still in date, and a national ID does not stop identifying its holder when it
@@ -168,3 +178,16 @@ def parse(text: str) -> MrzResult:
     three instead let one stray line shift every field and lose the whole read.
     """
     return parse_td1(find_mrz_lines(text)[-3:])
+
+
+def parse_best(texts: list[str]) -> MrzResult:
+    """Parse several independent reads of the same zone and keep the most trustworthy one.
+
+    Each engine pass fails differently — on one card the English model turned the zone into noise
+    while the Arabic model read it cleanly (UC-126). Check digits make the choice safe: the read
+    with more verified fields wins, and ties go to the one that found a national ID.
+    """
+    results = [parse(text) for text in texts if text]
+    if not results:
+        return MrzResult()
+    return max(results, key=lambda r: (len(r.verified), bool(r.national_id), bool(r.date_of_birth)))
