@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
+/** A region of the frame as fractions of its width and height. */
+export type Region = { x: number; y: number; w: number; h: number };
+
 /** The computer's own camera, as a capture source (§6.1).
  *
  * Shared by the ID-card capture and the multi-page document scanner: both open the same device,
@@ -29,9 +32,10 @@ export function useCamera() {
    * in its own words rather than the hook guessing at the wording. */
   const open = useCallback(async () => {
     try {
-      // The rear camera on a tablet; a laptop simply ignores the preference.
+      // The rear camera on a tablet; a laptop or USB webcam simply ignores the preference. Full HD
+      // is asked for because the card fills only part of the frame and the read needs the pixels.
       streamRef.current = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment", width: { ideal: 1920 } },
+        video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } },
       });
       setActive(true);
       return true;
@@ -40,15 +44,21 @@ export function useCamera() {
     }
   }, []);
 
-  /** Grab the current frame as a JPEG file. */
-  const capture = useCallback((filename: string) => {
+  /** Grab the current frame — or just a region of it — as a JPEG file at the camera's own
+   * resolution. Nothing is upscaled or filtered: the read works best on untouched pixels (§6.2). */
+  const capture = useCallback((filename: string, region?: Region) => {
     return new Promise<File | null>((resolve) => {
       const video = videoRef.current;
-      if (!video) return resolve(null);
+      if (!video || !video.videoWidth) return resolve(null);
+      const r = region ?? { x: 0, y: 0, w: 1, h: 1 };
+      const sx = Math.round(r.x * video.videoWidth);
+      const sy = Math.round(r.y * video.videoHeight);
+      const sw = Math.round(r.w * video.videoWidth);
+      const sh = Math.round(r.h * video.videoHeight);
       const canvas = document.createElement("canvas");
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      canvas.getContext("2d")?.drawImage(video, 0, 0);
+      canvas.width = sw;
+      canvas.height = sh;
+      canvas.getContext("2d")?.drawImage(video, sx, sy, sw, sh, 0, 0, sw, sh);
       // High quality: OCR needs the resolution, and nothing downstream resamples these pixels.
       canvas.toBlob(
         (blob) => resolve(blob ? new File([blob], filename, { type: "image/jpeg" }) : null),

@@ -12,7 +12,8 @@ import { toast } from "@/lib/toast";
 import { apiErrorMessage } from "@/lib/apiError";
 import { sanitisePhoneInput } from "@/lib/phone";
 
-import { CardCapture, type CardSide } from "./CardCapture";
+import type { CardSide } from "./cardSide";
+import { CardPairCapture } from "./CardPairCapture";
 import { CardReviewPanel } from "./CardReviewPanel";
 import { SpouseSection } from "./SpouseSection";
 import { EMPTY_SPOUSE, SPOUSE_FIELDS, type SpouseValues } from "./spouseFields";
@@ -239,22 +240,15 @@ export function ScanIntakePanel({
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-6 md:grid-cols-2">
-        <CardCapture
-          label={t("cardScan.front")}
-          hint={t("cardScan.frontHint")}
-          side={front}
-          onChange={setFront}
-          disabled={staging || reading}
-        />
-        <CardCapture
-          label={t("cardScan.back")}
-          hint={t("cardScan.backHint")}
-          side={back}
-          onChange={setBack}
-          disabled={staging || reading}
-        />
-      </div>
+      <CardPairCapture
+        frontLabel={t("cardScan.front")}
+        backLabel={t("cardScan.back")}
+        front={front}
+        back={back}
+        onFront={setFront}
+        onBack={setBack}
+        disabled={staging || reading}
+      />
 
       <label className="flex items-start gap-2 rounded-md border border-border bg-muted/40 p-3 text-sm">
         <Checkbox
@@ -271,22 +265,15 @@ export function ScanIntakePanel({
       </label>
 
       {married ? (
-        <div className="grid gap-6 md:grid-cols-2">
-          <CardCapture
-            label={t("cardScan.spouseFront")}
-            hint={t("cardScan.frontHint")}
-            side={spouseFront}
-            onChange={setSpouseFront}
-            disabled={staging || reading}
-          />
-          <CardCapture
-            label={t("cardScan.spouseBack")}
-            hint={t("cardScan.backHint")}
-            side={spouseBack}
-            onChange={setSpouseBack}
-            disabled={staging || reading}
-          />
-        </div>
+        <CardPairCapture
+          frontLabel={t("cardScan.spouseFront")}
+          backLabel={t("cardScan.spouseBack")}
+          front={spouseFront}
+          back={spouseBack}
+          onFront={setSpouseFront}
+          onBack={setSpouseBack}
+          disabled={staging || reading}
+        />
       ) : null}
 
       <div className="flex items-center gap-3">

@@ -17,6 +17,7 @@ This section records where the **built system intentionally differs** from the d
 | **User theme/language** | `theme`/`language` fields on `User`; `PATCH /users/me/` edits them (§7, §4.2) | Both fields **removed**; preferences live in the browser (localStorage) only; `GET /users/me/` is read-only | Product decision — client-only UI prefs |
 | **`Client.created_by`** | not present | Added FK `created_by` on `Client` | Lets the lawyer who created a client edit it before a process links them |
 | **Land / `LandParcel`** | a `LandParcel` entity + `Process.parcel` FK + `/parcels/` CRUD | **Removed entirely.** The land is just two strings on the process — `land_id` + `land_address` — entered/edited in Step 1 (It.2.5) | Product decision — the office only records a land identifier and address, no parcel registry |
+| **The ID-card camera takes the card by itself** (2026-09-17, the user — UC-125) | §6.1's capture is a *Take the photo* button on a live `<video>`, one per side, whole frame | **`CardPairCapture`**: one camera session with a card-shaped guide (ID-1 aspect) that watches the box ten times a second — texture (edge score), stillness (frame delta) and focus (Laplacian variance) — and takes the box region itself once a sharp card has been still for 500 ms; corners primary → warning ("card seen, hold still") → success + beep + green flash; front, then "now the back", then the camera closes; a soft card is refused with "too blurry"; locked after each shot until the frame moves; the shutter stays for a manual shot. Pixels untouched, cropped at the webcam's own resolution; Full HD requested. See **§6.1** | The office's other dashboard auto-captures labels this way and they asked for the same; a hand-held card pressed on a button is the shot that blurs. Thresholds live in one `TUNING` block, still to be calibrated on the office's USB webcam |
 | **Release 1.6.0 (build 10)** (2026-09-06) | `VERSION` = 1.6.0 / build 9 — cut, verified statically, never left the Mac (office on 1.5.0 build 8) | **`VERSION` = 1.6.0 / build 10.** Build 9 (UC-120…123: the backlog door's preview, page-tall previews, the floating calendar, date boxes that refuse what they cannot hold) plus UC-124 (the processes list keeps its filters across a visit to a case) and its review fix — frontend only, no migration, no new job. `UPDATE.txt`'s "what is new" gains the list paragraph | Build 9 exists as a verified file, and two images answering the same number is what the stamp prevents — so 10. Same minor version: nothing the office was told about changed, only that the list comes back as it was left |
 | **The processes list comes back as it was left** (2026-09-06, the user — UC-124) | §8.3's Processes list keeps its search, category, status, step and page in component state; the way into a case and the way back (`Back to processes`, or the browser) mount the list afresh, blank | The five values live in the **URL query** (`?search=&category=&status=&step=&page=`), written with `replace` so a keystroke is not a history entry; a filter change drops `page`; a URL value that is not one of the choices reads as unset. The row into a case carries the list URL as router `state.from` (`LinkRow` gained a `state` prop), and the detail's back button goes there — or to the plain list when the case was opened some other way (a dashboard tile, an activity row). The Clients page's `?search=<PID>` link (UC-026) is the same mechanism | The office filters the list, opens a case, comes back, and had to set every filter again. Browser Back now lands on the filtered URL by itself; the button needed to be told where the user came from |
 | **The calendar floats over the page** (2026-09-06, the office — UC-122) | §9's `DateField` renders its `Calendar` as an `absolute` child of the field | The calendar is **portalled to `<body>` and pinned to the viewport**: placed under the box, moved above it when below has too little room and above has more, and never past the window's top edge; its start edge sits on the box's start edge in both directions; re-placed on every scroll (captured — the page scrolls inside `<main>`, not the window) and resize. The field's blur guard asks the portal as well as itself, so a click in the calendar still is not a blur. See **§9** | Whatever clips the field clips its child: the step accordion's rounded corners cut the calendar in half on steps 2 and 3, and any scrolling panel or dialog would do the same. Moving it out of the tree fixes every container at once instead of un-clipping them one by one |
@@ -1286,6 +1287,24 @@ Ordinary scanned documents are **not** OCR'd — reading stays limited to identi
 > falls back to naming the file — *"Attached; this file cannot be shown here, but it will be read"*
 > — driven by the `<img>`'s own `onError`, which is the only thing that can know: a TIFF has a
 > perfectly ordinary image MIME type.
+
+> **Deviation (2026-09-17, the user — UC-125). The ID-card capture takes the card by itself.**
+> The intake's two card sides come from **one camera session** (`features/cardScans/CardPairCapture`).
+> A card-shaped guide (ID-1 aspect, `frameAnalysis.cardBox`) is drawn over a `<video>` sized to the
+> frame's own aspect, so the guide sits exactly where the crop is taken. `useAutoCapture` samples
+> the box ten times a second on a 96×60 grey copy — **texture** (mean neighbour gradient ≥ 10),
+> **stillness** (mean change ≤ 8 from the previous sample) — and, once a still card is waiting,
+> **focus** on a 320×200 copy (variance of the Laplacian ≥ 60). A sharp card still for 500 ms is
+> taken: the box region is cropped from the frame at the webcam's own resolution with the pixels
+> untouched (§6.2), a beep sounds, the corners flash green, and the caption asks for the back; the
+> back is taken the same way and the camera closes. A soft card is told "too blurry — hold steadier
+> or bring it closer" and never sent. After each shot the loop is **locked until the frame moves**
+> — a time-based re-arm would take the same side again while it still lies in the frame. The
+> shutter button remains for a manual shot, and locks the loop the same way. Either side can still
+> come from the file picker, and either can be retaken alone. The numbers live in one `TUNING`
+> block; they were set against a synthetic card and are to be calibrated on the office's webcam.
+> The idea is the warehouse dashboard's label auto-scan (edge gate + steadiness); its in-browser
+> OCR and contrast stretch were deliberately not carried over.
 
 ### 6.2 OCR — engine, pre-processing, languages
 

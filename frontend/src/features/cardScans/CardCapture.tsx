@@ -1,14 +1,10 @@
-import { Camera, RotateCcw, Upload, X } from "lucide-react";
+import { Camera, RotateCcw, Upload } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
-import { toast } from "@/lib/toast";
-import { useCamera } from "@/hooks/useCamera";
 
-// A card side, held as a File so the camera and the file picker produce the same thing and the
-// upload code never has to know which one it came from.
-export type CardSide = { file: File; url: string };
+import { replaceSide, type CardSide } from "./cardSide";
 
 /** Stands in for a card the browser cannot draw — names the file, so it reads as attached. */
 function Attached({ name, note }: { name: string; note: string }) {
@@ -20,49 +16,34 @@ function Attached({ name, note }: { name: string; note: string }) {
   );
 }
 
-/** Capture one side of the card — with the computer's camera, or from a file. */
+/** One side of the card: its preview, a file picker, and the way to the camera. The camera
+ * itself belongs to `CardPairCapture`, which fills both sides from one session (UC-125). */
 export function CardCapture({
   label,
   hint,
   side,
   onChange,
+  onUseCamera,
   disabled = false,
 }: {
   label: string;
   hint?: string;
   side: CardSide | null;
   onChange: (side: CardSide | null) => void;
+  onUseCamera?: () => void;
   disabled?: boolean;
 }) {
   const { t } = useTranslation();
   const inputRef = useRef<HTMLInputElement>(null);
-  const camera = useCamera();
   // A TIFF is a **readable** card — the server converts it (§6.7) — but no browser can decode one
   // in an `<img>`, so the office's scanner output rendered as a broken icon and looked like the
   // file had not attached at all (UC-087). Only the tag knows: this is set from its own error.
   const [undecodable, setUndecodable] = useState(false);
   useEffect(() => setUndecodable(false), [side?.url]);
 
-  const openCamera = async () => {
-    if (!(await camera.open())) toast.error(t("cardScan.cameraDenied"));
-  };
-
-  const shoot = async () => {
-    const file = await camera.capture(`${label}.jpg`);
-    if (!file) return;
-    replace({ file, url: URL.createObjectURL(file) });
-    camera.stop();
-  };
-
-  // One object URL alive per side; the previous one is revoked so previews cannot leak.
-  const replace = (next: CardSide | null) => {
-    if (side) URL.revokeObjectURL(side.url);
-    onChange(next);
-  };
-
   const onFile = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (file) replace({ file, url: URL.createObjectURL(file) });
+    if (file) onChange(replaceSide(side, file));
     if (inputRef.current) inputRef.current.value = "";
   };
 
@@ -99,14 +80,6 @@ export function CardCapture({
               onError={() => setUndecodable(true)}
             />
           )
-        ) : camera.active ? (
-          <video
-            ref={camera.videoRef}
-            autoPlay
-            playsInline
-            muted
-            className="max-h-56 w-full object-contain"
-          />
         ) : (
           <p className="p-6 text-center text-xs text-muted-foreground">{t("cardScan.noImage")}</p>
         )}
@@ -124,27 +97,24 @@ export function CardCapture({
           onChange={onFile}
         />
         {side ? (
-          <Button type="button" variant="outline" size="sm" disabled={disabled} onClick={() => replace(null)}>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={disabled}
+            onClick={() => onChange(replaceSide(side, null))}
+          >
             <RotateCcw className="size-4" />
             {t("cardScan.retake")}
           </Button>
-        ) : camera.active ? (
-          <>
-            <Button type="button" size="sm" disabled={disabled} onClick={shoot}>
-              <Camera className="size-4" />
-              {t("cardScan.shoot")}
-            </Button>
-            <Button type="button" variant="ghost" size="sm" onClick={camera.stop}>
-              <X className="size-4" />
-              {t("common.cancel")}
-            </Button>
-          </>
         ) : (
           <>
-            <Button type="button" variant="outline" size="sm" disabled={disabled} onClick={openCamera}>
-              <Camera className="size-4" />
-              {t("cardScan.useCamera")}
-            </Button>
+            {onUseCamera ? (
+              <Button type="button" variant="outline" size="sm" disabled={disabled} onClick={onUseCamera}>
+                <Camera className="size-4" />
+                {t("cardScan.useCamera")}
+              </Button>
+            ) : null}
             <Button
               type="button"
               variant="outline"
