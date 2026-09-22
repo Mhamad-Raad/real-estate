@@ -236,3 +236,28 @@ describe("CardReviewPanel national ID box", () => {
     expect(pidBox().value).toBe("123456789012");
   });
 });
+
+// The scan is the door the office actually uses to create a beneficiary (§6.5), so the boxes here
+// take what their twins on the intake form take — the same rule, at both doors (UC-127).
+describe("the name boxes take no digits either", () => {
+  it("refuses a digit typed into a name", async () => {
+    const user = userEvent.setup();
+    renderPanel();
+    const name = screen.getByLabelText(/Full name/);
+
+    await user.clear(name);
+    await user.type(name, "Karwan2 Ahmed");
+
+    expect(name).toHaveValue("Karwan Ahmed");
+  });
+
+  it("still shows a digit the ENGINE read, which is the thing to be corrected", async () => {
+    // Filtering the draft would hide a misread rather than surface it — the lawyer must see what
+    // the card was read as before they agree to it.
+    renderPanel({
+      draft: { fields: { full_name: field("محمد 2 رعد") }, warnings: [] },
+    });
+
+    expect(screen.getByLabelText(/Full name/)).toHaveValue("محمد 2 رعد");
+  });
+});

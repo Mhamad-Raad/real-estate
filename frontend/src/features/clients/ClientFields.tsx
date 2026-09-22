@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { useListCategoriesQuery } from "@/features/categories/categoriesApi";
 
+import { filterKeepingCaret } from "@/lib/caret";
 import { filterName } from "@/lib/name";
 import { sanitisePhoneInput } from "@/lib/phone";
 import { filterPid } from "@/lib/pid";
@@ -50,9 +51,10 @@ export function ClientFields({
   const set = (key: keyof ClientInput) => (e: { target: { value: string } }) =>
     setValue(key)(e.target.value);
   // A name box refuses a digit as it is typed — a number in a name is printed on the letter
-  // and caught by nobody (§4.1, the office 2026-09-22).
-  const setName = (key: keyof ClientInput) => (e: { target: { value: string } }) =>
-    setValue(key)(filterName(e.target.value));
+  // and caught by nobody (§4.1, the office 2026-09-22). The caret is put back afterwards: a
+  // refused keystroke otherwise leaves React restoring the value and the cursor at the end.
+  const setName = (key: keyof ClientInput) => (e: React.ChangeEvent<HTMLInputElement>) =>
+    setValue(key)(filterKeepingCaret(e.target, filterName));
   const id = (suffix: string) => `${idPrefix}-${suffix}`;
   // Everything a field needs to show itself as rejected: red border, the reason, and the link
   // between them for a screen reader.

@@ -17,6 +17,7 @@ import { useDuplicateGate } from "@/features/clients/useDuplicateGate";
 import { PageFrame } from "@/features/documents/PageFrame";
 import { useFieldErrors } from "@/hooks/useFieldErrors";
 import { apiErrorMessage } from "@/lib/apiError";
+import { filterKeepingCaret } from "@/lib/caret";
 import { labeller } from "@/lib/fieldLabels";
 import { filterName } from "@/lib/name";
 import { filterPid } from "@/lib/pid";
@@ -138,7 +139,7 @@ export function FastEntryPage() {
             <Input
               id="fe-name"
               value={form.full_name}
-              onChange={(e) => set("full_name")(filterName(e.target.value))}
+              onChange={(e) => set("full_name")(filterKeepingCaret(e.target, filterName))}
               required
               {...bad("full_name")}
             />
@@ -165,7 +166,7 @@ export function FastEntryPage() {
             <Input
               id="fe-mother"
               value={form.mother_full_name}
-              onChange={(e) => set("mother_full_name")(filterName(e.target.value))}
+              onChange={(e) => set("mother_full_name")(filterKeepingCaret(e.target, filterName))}
               required
               {...bad("mother_full_name")}
             />

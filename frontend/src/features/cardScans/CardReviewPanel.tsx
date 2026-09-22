@@ -15,11 +15,22 @@ import { useFieldErrors } from "@/hooks/useFieldErrors";
 
 import { DraftFieldInput } from "./DraftFieldInput";
 import { useConfirmCardScanMutation } from "./cardScansApi";
+import { filterName } from "@/lib/name";
 import { filterPid } from "@/lib/pid";
 
 import { CARD_FIELDS, type CardScan, type ConfirmPayload } from "./types";
 
 type Values = Record<(typeof CARD_FIELDS)[number], string>;
+
+// This is where a lawyer corrects what the OCR proposed, so each field takes exactly what its
+// twin on the intake form takes — the card's number is a national ID like any other, and a name
+// here is no more allowed a digit than one typed by hand (UC-127). The OCR *draft* is untouched:
+// a digit the engine read off the card still arrives, to be seen and corrected.
+const FILTERS: Partial<Record<(typeof CARD_FIELDS)[number], (raw: string) => string>> = {
+  pid: filterPid,
+  full_name: filterName,
+  mother_full_name: filterName,
+};
 
 const EMPTY: Values = { full_name: "", pid: "", mother_full_name: "", date_of_birth: "" };
 
@@ -184,12 +195,10 @@ export function CardReviewPanel({
             type={name === "date_of_birth" ? "date" : "text"}
             required
             error={errors[name]}
+            filter={FILTERS[name]}
             onChange={(value) => {
               clear(name);
-              // The card's own number is a national ID like any other, and this is where a lawyer
-              // corrects what the OCR proposed — so it filters exactly as the intake box does.
-              const next = name === "pid" ? filterPid(value) : value;
-              setValues((current) => ({ ...current, [name]: next }));
+              setValues((current) => ({ ...current, [name]: value }));
             }}
           />
         ))}

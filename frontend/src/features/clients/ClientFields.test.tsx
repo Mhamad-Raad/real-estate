@@ -1,5 +1,6 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { ClientFields } from "./ClientFields";
@@ -113,5 +114,38 @@ describe("name boxes refuse a digit as it is typed", () => {
   it("drops an Arabic-Indic digit, which is just as much a number", async () => {
     expect((await typeOne("c-name", "٧")).full_name).toBe("");
     expect((await typeOne("c-name", "۹")).full_name).toBe("");
+  });
+});
+
+// The mock parent above never feeds a new `value` back, so the caret can only be observed with a
+// real one: a refused keystroke is exactly the case where React restores what it rendered.
+describe("a refused digit does not move the cursor", () => {
+  function Stateful() {
+    const [value, setValue] = useState<ClientInput>(EMPTY_CLIENT);
+    return <ClientFields value={value} onChange={setValue} showCategory={false} />;
+  }
+
+  it("leaves the caret mid-name, where the lawyer was typing", async () => {
+    cleanup();
+    render(<Stateful />);
+    const box = document.getElementById("c-name") as HTMLInputElement;
+    await userEvent.type(box, "Karwan Ahmed");
+
+    await userEvent.type(box, "5", { initialSelectionStart: 6, initialSelectionEnd: 6 });
+
+    expect(box).toHaveValue("Karwan Ahmed");
+    expect(box.selectionStart).toBe(6);
+  });
+
+  it("still inserts an accepted letter where the caret is", async () => {
+    cleanup();
+    render(<Stateful />);
+    const box = document.getElementById("c-name") as HTMLInputElement;
+    await userEvent.type(box, "Karwan Ahmed");
+
+    await userEvent.type(box, "i", { initialSelectionStart: 6, initialSelectionEnd: 6 });
+
+    expect(box).toHaveValue("Karwani Ahmed");
+    expect(box.selectionStart).toBe(7);
   });
 });

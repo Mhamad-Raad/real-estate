@@ -5,6 +5,7 @@ import { FieldError } from "@/components/ui/field-error";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useNum } from "@/hooks/useNum";
+import { filterKeepingCaret } from "@/lib/caret";
 import { cn } from "@/lib/utils";
 
 import type { DraftField } from "./types";
@@ -21,6 +22,7 @@ export function DraftFieldInput({
   type = "text",
   required = false,
   error,
+  filter,
   onChange,
 }: {
   name: string;
@@ -31,6 +33,8 @@ export function DraftFieldInput({
   required?: boolean;
   /** The server rejected this value. Outranks the OCR-confidence warning below. */
   error?: string;
+  /** What the box will take as it is typed — the same filter the intake form gives this field. */
+  filter?: (raw: string) => string;
   onChange: (value: string) => void;
 }) {
   const { t } = useTranslation();
@@ -57,7 +61,7 @@ export function DraftFieldInput({
         type={type}
         value={value}
         required={required}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e) => onChange(filter ? filterKeepingCaret(e.target, filter) : e.target.value)}
         // Latin digits and dates scramble inside an RTL paragraph without an explicit direction.
         dir={type === "date" || name === "pid" || name === "phone" ? "ltr" : undefined}
         invalid={Boolean(error)}
