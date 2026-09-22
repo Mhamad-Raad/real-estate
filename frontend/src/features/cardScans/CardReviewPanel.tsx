@@ -10,13 +10,13 @@ import { Spinner } from "@/components/ui/spinner";
 import { toast } from "@/lib/toast";
 import { fetchBlobUrl } from "@/features/documents/download";
 import { apiErrorMessage } from "@/lib/apiError";
+import { filterName } from "@/lib/name";
+import { filterPid } from "@/lib/pid";
 import { labeller } from "@/lib/fieldLabels";
 import { useFieldErrors } from "@/hooks/useFieldErrors";
 
 import { DraftFieldInput } from "./DraftFieldInput";
 import { useConfirmCardScanMutation } from "./cardScansApi";
-import { filterName } from "@/lib/name";
-import { filterPid } from "@/lib/pid";
 
 import { CARD_FIELDS, type CardScan, type ConfirmPayload } from "./types";
 

@@ -10,17 +10,23 @@
 /**
  * `filter` applied to what the box now holds, with the caret put back where the typist left it.
  *
- * Assumes the filter drops characters **at or before** the caret — true of a keystroke filter,
- * which only ever refuses what was just typed. A filter that also trims the end (the ID box's
- * 12-digit cap) would need the correction computed from the two strings instead.
+ * **The new position is counted, not subtracted.** Running the filter over the text *before* the
+ * caret says how many of those characters survived, which is exactly where the caret belongs. The
+ * obvious `caret - (removed characters)` is wrong for any filter that also drops from the **end**:
+ * measured on the ID box's 12-digit cap, typing into the middle of a full number left the caret
+ * one place short — *before* the digit just typed — so the next two digits came out transposed.
  */
 export function filterKeepingCaret(el: HTMLInputElement, filter: (raw: string) => string): string {
   const next = filter(el.value);
+  // Nothing was refused, so React renders what the box already holds and the browser's own caret
+  // stands. Touching the selection here would be pure interference on every ordinary keystroke.
+  if (next === el.value) return next;
+
   const caret = el.selectionStart;
   // A box whose type carries no selection (`date`, `number`) reports null and would throw below.
   if (caret === null) return next;
 
-  const at = Math.min(Math.max(0, caret - (el.value.length - next.length)), next.length);
+  const at = Math.min(filter(el.value.slice(0, caret)).length, next.length);
   // After the event, so it runs once React has restored the value it rendered.
   queueMicrotask(() => {
     if (el.isConnected) el.setSelectionRange(at, at);
