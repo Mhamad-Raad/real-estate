@@ -173,6 +173,16 @@ describe("FastEntryPage", () => {
     expect(screen.getByLabelText("National ID")).toHaveValue("197712");
   });
 
+  it("refuses a number in a name, in either script", async () => {
+    render(<FastEntryPage />);
+
+    await userEvent.type(screen.getByLabelText("Full name"), "Karwan2 Ahmed");
+    await userEvent.type(screen.getByLabelText("Mother's full name"), "Nask٧ Ali");
+
+    expect(screen.getByLabelText("Full name")).toHaveValue("Karwan Ahmed");
+    expect(screen.getByLabelText("Mother's full name")).toHaveValue("Nask Ali");
+  });
+
   it("marks the field the server rejected", async () => {
     unwrap.mockRejectedValueOnce({ status: 400, data: { pid: ["Must be 12 digits."] } });
     render(<FastEntryPage />);

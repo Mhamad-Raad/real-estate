@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { useListCategoriesQuery } from "@/features/categories/categoriesApi";
 
+import { filterName } from "@/lib/name";
 import { sanitisePhoneInput } from "@/lib/phone";
 import { filterPid } from "@/lib/pid";
 
@@ -48,6 +49,10 @@ export function ClientFields({
   };
   const set = (key: keyof ClientInput) => (e: { target: { value: string } }) =>
     setValue(key)(e.target.value);
+  // A name box refuses a digit as it is typed — a number in a name is printed on the letter
+  // and caught by nobody (§4.1, the office 2026-09-22).
+  const setName = (key: keyof ClientInput) => (e: { target: { value: string } }) =>
+    setValue(key)(filterName(e.target.value));
   const id = (suffix: string) => `${idPrefix}-${suffix}`;
   // Everything a field needs to show itself as rejected: red border, the reason, and the link
   // between them for a screen reader.
@@ -63,7 +68,7 @@ export function ClientFields({
     <div className="grid gap-4 sm:grid-cols-2">
       <div className="space-y-2">
         <Label htmlFor={id("name")}>{t("clients.fullName")}</Label>
-        <Input id={id("name")} value={form.full_name} onChange={set("full_name")} required {...bad("full_name")} />
+        <Input id={id("name")} value={form.full_name} onChange={setName("full_name")} required {...bad("full_name")} />
         {err("full_name")}
       </div>
       <div className="space-y-2">
@@ -87,7 +92,7 @@ export function ClientFields({
       </div>
       <div className="space-y-2">
         <Label htmlFor={id("mother")}>{t("clients.motherName")}</Label>
-        <Input id={id("mother")} value={form.mother_full_name} onChange={set("mother_full_name")} required {...bad("mother_full_name")} />
+        <Input id={id("mother")} value={form.mother_full_name} onChange={setName("mother_full_name")} required {...bad("mother_full_name")} />
         {err("mother_full_name")}
       </div>
       <div className="space-y-2">
@@ -182,7 +187,7 @@ export function ClientFields({
         <>
           <div className="space-y-2">
             <Label htmlFor={id("spouse")}>{t("clients.spouseName")}</Label>
-            <Input id={id("spouse")} value={form.spouse_name} onChange={set("spouse_name")} required {...bad("spouse_name")} />
+            <Input id={id("spouse")} value={form.spouse_name} onChange={setName("spouse_name")} required {...bad("spouse_name")} />
             {err("spouse_name")}
           </div>
           <div className="space-y-2">
@@ -201,7 +206,7 @@ export function ClientFields({
             <Input
               id={id("spouse-mother")}
               value={form.spouse_mother_full_name}
-              onChange={set("spouse_mother_full_name")}
+              onChange={setName("spouse_mother_full_name")}
               required
               {...bad("spouse_mother_full_name")}
             />

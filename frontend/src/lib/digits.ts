@@ -30,3 +30,14 @@ export function asciiDigits(value: string): string {
   }
   return out;
 }
+
+/** Everything in `value` that is **not** a digit, in its original script — for a box that must
+ *  never take a number but has to leave the rest of what was typed exactly as it is. */
+export function withoutDigits(value: string): string {
+  let out = "";
+  for (const ch of value) {
+    const folded = FOLD[ch] ?? ch;
+    if (folded < "0" || folded > "9") out += ch;
+  }
+  return out;
+}
