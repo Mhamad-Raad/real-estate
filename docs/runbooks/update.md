@@ -464,7 +464,30 @@ STEP M11. And last: stop anyone deleting the two folders by accident.
   WHAT IS NEW IN THIS VERSION
 ------------------------------------------------------------------------
 
-  From your notes after 1.5.0:
+  THE CARD CAMERA TAKES THE PHOTO BY ITSELF
+  - Hold the ID card inside the box on the screen and keep it still.
+    The corners turn yellow, then green, the computer beeps, and the
+    side is taken. Then turn the card over for the back.
+  - The "Take the photo" button is still there. If the camera does not
+    take the photo by itself, press it as before, and please tell us.
+
+  THE CARD READER GETS MORE RIGHT
+  - Reading a card now gets the national ID and the date of birth
+    right far more often, from a photo and from a scanned page.
+    Names are still hard to read: always check them before you
+    confirm, as before.
+
+  NAME BOXES DO NOT TAKE NUMBERS
+  - The name boxes on "New allocation", on "Old allocation", on a
+    case's client details and on the card review screen ignore a
+    number when you type one, in any script. Letters, spaces, - and '
+    are taken as before.
+
+  ** Nothing else changes in this version: no new command to run, and
+     "migrate" in STEP 6 simply reports that there is nothing to do. **
+
+
+  IF YOU ARE COMING FROM 1.5.0, all of this is new too:
 
   THE CASE LIST REMEMBERS YOUR FILTERS
   - Filter or search the list, open a case, come back — the list is as
@@ -492,9 +515,6 @@ STEP M11. And last: stop anyone deleting the two folders by accident.
     refused as you type it, instead of being accepted and then quietly
     put back. Type 31, then 02, and the day becomes 28 (29 in a leap
     year) — the last day that month has.
-
-  ** Nothing else changes in this version: no new command to run, and
-     "migrate" in STEP 6 simply reports that there is nothing to do. **
 
 
   IF YOU ARE COMING FROM 1.4.0 OR OLDER, all of this is new too:
