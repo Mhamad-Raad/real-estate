@@ -1,12 +1,8 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { CardCapture, type CardSide } from "./CardCapture";
-
-vi.mock("@/hooks/useCamera", () => ({
-  useCamera: () => ({ active: false, videoRef: { current: null }, open: vi.fn(), stop: vi.fn(), capture: vi.fn() }),
-}));
-vi.mock("@/lib/toast", () => ({ toast: { error: vi.fn() } }));
+import { CardCapture } from "./CardCapture";
+import type { CardSide } from "./cardSide";
 
 const side = (name: string, type: string): CardSide => ({
   file: new File([new Uint8Array([1, 2, 3])], name, { type }),
@@ -43,6 +39,16 @@ describe("CardCapture preview", () => {
     );
 
     expect(screen.getByAltText("Front of the card")).toBeInTheDocument();
+  });
+
+  it("offers the camera only when a session is there to hand it to", () => {
+    const { rerender } = renderSide(null);
+    expect(screen.queryByRole("button", { name: "Use camera" })).not.toBeInTheDocument();
+
+    const onUseCamera = vi.fn();
+    rerender(<CardCapture label="Front of the card" side={null} onChange={vi.fn()} onUseCamera={onUseCamera} />);
+    fireEvent.click(screen.getByRole("button", { name: "Use camera" }));
+    expect(onUseCamera).toHaveBeenCalledTimes(1);
   });
 
   it("offers only the formats the server can read", () => {

@@ -380,3 +380,87 @@ class IncompleteNameBlockTests(SimpleTestCase):
 
         self.assertEqual(compose_full_name(parts), "ئاودێر محمدامین عبدالله")
         self.assertEqual(compose_mother_full_name(parts), "زيرين حسين")
+
+
+def _td1(*, number: str, national_id: str, dob: str, line2_national_id: str = "") -> str:
+    """A TD1 zone with real check digits, so tests exercise verification rather than bypass it."""
+    first = f"IDIRQ{number}{mrz.check_digit(number)}{national_id}".ljust(30, "<")
+    second = f"{dob}{mrz.check_digit(dob)}M3506156IRQ{line2_national_id}".ljust(30, "<")
+    return "\n".join([first, second, "SURNAME<<GIVEN".ljust(30, "<")])
+
+
+class BenchFindingsTests(SimpleTestCase):
+    """Rules added from the scored sample set (UC-126): each one fixed a measured misread."""
+
+    def test_the_read_with_more_verified_fields_wins(self):
+        good = _td1(number="AR1139023", national_id="199285910363", dob="920901")
+        noise = "IDIRQAR11390236199285910363<<<\n92O9O13M2904216IRQ<<<<<<<<<<<0XX\n<<XX<<<"
+        best = mrz.parse_best([noise.replace("9", "8"), good])
+        self.assertIn("date_of_birth", best.verified)
+        self.assertEqual(best.national_id, "199285910363")
+
+    def test_a_national_id_printed_on_line_two_is_found(self):
+        zone = _td1(number="Z00000000", national_id="", dob="851018", line2_national_id="198551379655")
+        self.assertEqual(mrz.parse(zone).national_id, "198551379655")
+
+    def test_the_verified_birth_year_picks_the_card_number_over_the_family_number(self):
+        self.assertEqual(
+            extraction.find_pid("987654321012 199285910363", birth_year_yy="92"), "199285910363"
+        )
+
+    def test_a_misread_leading_digit_is_repaired_only_when_the_birth_year_vouches_for_it(self):
+        self.assertEqual(extraction.reconcile_pid_with_birth_year("497120937030", "71"), "197120937030")
+        self.assertEqual(extraction.reconcile_pid_with_birth_year("497120937030", "72"), "497120937030")
+        self.assertEqual(extraction.reconcile_pid_with_birth_year("197120937030", "71"), "197120937030")
+
+    def test_the_card_number_settles_the_birth_century(self):
+        zone = _td1(number="C94994339", national_id="190065828344", dob="000701")
+        draft = extraction.build_draft(front_text="190065828344", back_text=zone)
+        self.assertTrue(draft.pid.verified)
+        self.assertEqual(draft.date_of_birth.value, "1900-07-01")
+
+    def test_a_card_number_that_does_not_start_with_the_birth_year_is_flagged(self):
+        zone = _td1(number="AR1139023", national_id="", dob="920901")
+        draft = extraction.build_draft(front_text="", back_text=zone, front_latin_text="988355514972")
+        self.assertFalse(draft.pid.verified)
+        self.assertLessEqual(draft.pid.confidence, 40)
+        self.assertTrue(any("birth year" in w for w in draft.warnings))
+
+    def test_extra_reads_of_the_card_number_are_used(self):
+        zone = _td1(number="AR1139023", national_id="199285910363", dob="920901")
+        draft = extraction.build_draft(front_text="", back_text="", extra_back_texts=(zone,), extra_pid_texts=("199285910363",))
+        self.assertEqual(draft.pid.value, "199285910363")
+        self.assertTrue(draft.pid.verified)
+
+
+class BlankSurnameTests(SimpleTestCase):
+    """Most KRG cards leave the surname row blank. Skipping that row shifted the mother's name into
+    the surname slot and her father into hers, on every such card in the scored sample (UC-126)."""
+
+    # Engine output from a real card, names changed: the blank row came back with no colon at all.
+    NO_COLON = "الاسم نر : داليا\nالأب ابوك : عمر\nالجد /ببير : ملاشريف .\nاللقب / نارئف 2\nالآم انيه : نسرين\nالجد /بير : محمد\nلجنس سر : تش\n"
+
+    def test_a_blank_row_read_without_its_colon_keeps_its_place(self):
+        parts = extraction.parse_front_fields(self.NO_COLON)
+        self.assertNotIn("surname", parts)
+        self.assertEqual(parts["mother_name"], "نسرين")
+        self.assertEqual(parts["mother_grandfather"], "محمد")
+        self.assertEqual(extraction.compose_full_name(parts), "داليا عمر ملاشريف")
+
+    def test_a_blank_row_read_with_its_colon_keeps_its_place(self):
+        text = self.NO_COLON.replace("اللقب / نارئف 2", "اللقب / نازناو :")
+        parts = extraction.parse_front_fields(text)
+        self.assertEqual(extraction.compose_mother_full_name(parts), "نسرين محمد")
+
+    def test_an_illegible_label_falls_back_to_position(self):
+        text = "كذا : داليا\nالأب ابوك : عمر\n"
+        parts = extraction.parse_front_fields(text)
+        self.assertEqual(parts["given_name"], "داليا")
+        self.assertEqual(parts["father_name"], "عمر")
+
+    def test_a_label_never_moves_the_parse_backwards(self):
+        """`الاب` and `الام` differ by one letter; a misread mother label must not rewrite the father."""
+        text = "الاسم : داليا\nالأب : عمر\nالجد : ملاشريف\nاللقب :\nالاب : نسرين\n"
+        parts = extraction.parse_front_fields(text)
+        self.assertEqual(parts["father_name"], "عمر")
+        self.assertEqual(parts["mother_name"], "نسرين")

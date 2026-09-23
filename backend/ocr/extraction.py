@@ -15,9 +15,11 @@ and confirming never freezes the data: every field stays editable afterwards.
 """
 
 import re
+from collections import Counter
 from dataclasses import dataclass, field
 
 from . import mrz
+from .text import normalise_name, similarity
 
 # The Arabic script model, not `ara` — see the module docstring.
 ARABIC_MODEL = "Arabic"
@@ -46,8 +48,25 @@ FRONT_FIELDS = (
     "mother_grandfather",
 )
 
+# The printed labels, folded, per slot — Arabic first, then Kurdish. Labels OCR worse than values,
+# so they are only used as anchors when they match well; the grandfather label appears twice and
+# its slot is decided by where the parse already is.
+LABEL_SLOTS = (
+    (0, ("الاسم", "ناو")),
+    (1, ("الاب", "باوك")),
+    ("grandfather", ("الجد", "بابير")),
+    (3, ("اللقب", "نازناو")),
+    (4, ("الام", "دايك")),
+    ("sex", ("الجنس", "رهگهز")),
+)
+LABEL_MATCH = 0.75
+
 # Lines that are card furniture rather than data.
-HEADING_HINTS = ("البطاقة", "كارت", "نيشتمان", "الوطنية", "REPUBLIC", "IRAQ")
+HEADING_HINTS = (
+    "البطاقة", "كارت", "نيشتمان", "الوطنية", "REPUBLIC", "IRAQ",
+    # The ministry and directorate headings, which share words with the labels (UC-126).
+    "جمهورية", "وزارة", "مديرية", "العراق", "عيراق", "الداخلية", "الجنسية", "الاحوال", "فصيلة",
+)
 
 # The sex line sits directly after the names and is also `label : value`. Without this, a name
 # line the engine failed to read would let the sex value slide up into the mother's-father slot
@@ -122,12 +141,40 @@ def _value_after_colon(line: str) -> str:
     return ""
 
 
+def label_slot(label_text: str, index: int):
+    """Which row a line's printed label names, or None when the label is not legible enough.
+
+    Only forward moves are accepted: `الاب` and `الام` differ by one letter, and a label that would
+    send the parse backwards is a misread, not a row.
+    """
+    # Labels are whole words. Matching inside words found "ناو" in the ministry's "ناوخۆ" and
+    # "الجنس" in "الجنسية", which ended the name block on the card's heading.
+    tokens = [t for t in re.split(r"[\s/|:()\[\].،]+", normalise_name(label_text)) if t]
+    best_score, best_slot = 0.0, None
+    for slot, spellings in LABEL_SLOTS:
+        # A three-letter Kurdish label matches too much by accident, so short spellings must be exact.
+        score = max(
+            (similarity(token, spelling) if len(spelling) > 3 else float(token == spelling))
+            for spelling in spellings
+            for token in tokens
+        ) if tokens else 0.0
+        if slot == "grandfather":
+            slot = 2 if index <= 2 else 5
+        if score >= LABEL_MATCH and score > best_score and (slot == "sex" or slot >= index):
+            best_score, best_slot = score, slot
+    return best_slot
+
+
 def parse_front_fields(text: str) -> dict[str, str]:
-    """Map the front's labelled lines onto names, by position.
+    """Map the front's labelled lines onto names — by label where it is legible, else by position.
 
     Only lines carrying a name-like value are numbered, so a heading, a stray mark or the sex
     line cannot shift every later field onto the wrong name. Values reaching the sex line mean
     the name block is finished.
+
+    **A row with no value still holds its place when its label is legible (UC-126).** The surname
+    row is blank on most KRG cards; skipping it moved the mother's name into the surname slot and
+    her father into the mother's, on every such card in the scored sample set.
     """
     values: dict[str, str] = {}
     index = 0
@@ -136,7 +183,17 @@ def parse_front_fields(text: str) -> dict[str, str]:
         if not line or any(hint in line for hint in HEADING_HINTS):
             continue
         value = _value_after_colon(line)
+        label_part = line.rsplit(":", 1)[0] if ":" in line else line
+        slot = label_slot(label_part, index)
+        if slot == "sex":
+            if value in SEX_VALUES:
+                values["sex"] = SEX_VALUES[value]
+            break
+        if slot is not None:
+            index = slot
         if not value or value.isdigit():
+            if slot is not None:
+                index = slot + 1  # a legible label with nothing after it: that row is empty
             continue
         if value in SEX_VALUES:
             values["sex"] = SEX_VALUES[value]
@@ -178,18 +235,78 @@ def compose_mother_full_name(parts: dict[str, str]) -> str:
     return " ".join(parts[key] for key in ordered if parts.get(key))
 
 
-def find_pid(text: str, *, prefer: str = "") -> str:
+def find_pid(text: str, *, prefer: str = "", birth_year_yy: str = "") -> str:
     """The card number, 12 digits.
 
     The front also carries a family number of the same shape, so page order alone can pick the
-    wrong one. When the MRZ has been read, its value decides which candidate is the card number.
+    wrong one. When the MRZ has been read, its value decides which candidate is the card number;
+    failing that, a verified birth year does, since the number starts with it.
     """
-    matches = re.findall(PID_PATTERN, text)
+    matches = re.findall(PID_PATTERN, text or "")
     if prefer:
         for candidate in matches:
             if candidate in prefer:
                 return candidate
+    if birth_year_yy:
+        for candidate in matches:
+            if candidate[:2] in ("19", "20") and candidate[2:4] == birth_year_yy:
+                return candidate
     return matches[0] if matches else ""
+
+
+def reconcile_pid_with_birth_year(pid: str, birth_year_yy: str) -> str:
+    """The card number starts with the holder's four-digit birth year (§6.2).
+
+    With the birth date verified by its check digit, that prefix becomes checkable. One repair is
+    allowed, the engine's commonest misread on this font: the leading `1` of `19xx` (or `2` of
+    `20xx`) read as another digit, as in `497120937030` for `197120937030` (UC-126). It changes
+    only the century digit the verified date implies, never a digit the date cannot vouch for.
+    """
+    if not pid or len(pid) != 12 or pid[2:4] != birth_year_yy:
+        return pid
+    if pid[:2] in ("19", "20"):
+        return pid
+    if pid[1] == "9":
+        return "1" + pid[1:]
+    if pid[1] == "0":
+        return "2" + pid[1:]
+    return pid
+
+
+def pid_votes(texts, birth_year_yy: str = "") -> "Counter[str]":
+    """Every 12-digit card number the reads contain, counted once per read that contains it.
+
+    An MRZ read can carry a check digit or a stray character around the number, so each 12-digit
+    window of a longer run counts as a candidate — but only a window that starts with a plausible
+    birth year, and at half the weight of a clean 12-digit read, since the run it came from is
+    already known to hold a wrong or extra character.
+    """
+    votes: Counter[str] = Counter()
+    for text in texts:
+        found: dict[str, int] = {}
+        for run in re.findall(r"\d{12,}", text or ""):
+            windows = [run] if len(run) == 12 else [run[i : i + 12] for i in range(len(run) - 11)]
+            for window in windows:
+                window = reconcile_pid_with_birth_year(window, birth_year_yy)
+                if len(run) == 12:
+                    found[window] = 2
+                elif window[:2] in ("19", "20"):
+                    found.setdefault(window, 1)
+        votes.update(found)
+    return votes
+
+
+def best_vote(votes: "Counter[str]", birth_year_yy: str = "") -> str:
+    """Most votes wins; a number starting with the verified birth year beats one that does not."""
+    if not votes:
+        return ""
+
+    def rank(pid: str):
+        plausible = pid[:2] in ("19", "20")
+        year_match = bool(birth_year_yy) and pid[2:4] == birth_year_yy
+        return (year_match, votes[pid], plausible)
+
+    return max(votes, key=rank)
 
 
 def build_draft(
@@ -199,6 +316,8 @@ def build_draft(
     front_latin_text: str = "",
     pid_confidence: int = 0,
     name_confidence: int = 0,
+    extra_back_texts: tuple[str, ...] = (),
+    extra_pid_texts: tuple[str, ...] = (),
 ) -> IdCardDraft:
     """Combine both sides into one draft.
 
@@ -208,18 +327,29 @@ def build_draft(
     independent reads is treated as the strongest signal available.
     """
     draft = IdCardDraft()
-    zone = mrz.parse(back_text)
+    # Every read of the back competes; check digits pick the winner (UC-126).
+    back_reads = [mrz.parse(text) for text in (back_text, *extra_back_texts) if text]
+    zone = mrz.parse_best([back_text, *extra_back_texts])
+    dob_verified = bool(zone.date_of_birth) and "date_of_birth" in zone.verified
+    birth_yy = f"{zone.date_of_birth.year % 100:02d}" if dob_verified else ""
 
-    # The national ID sits in the MRZ optional-data field; `document_number` is the card serial.
-    mrz_pid = zone.national_id
-    # The card number is Latin digits, which the Arabic model garbles (`240M 01`); look for it
-    # in the Latin pass first and fall back to the Arabic one.
-    front_pid = find_pid(front_latin_text, prefer=mrz_pid) or find_pid(front_text, prefer=mrz_pid)
+    # The card number is Latin digits, which the Arabic model garbles (`240M 01`); every read that
+    # could hold it votes — the zone read, the Latin pass, the Arabic pass, and each MRZ read.
+    front_votes = pid_votes((*extra_pid_texts, front_latin_text, front_text), birth_yy)
+    mrz_votes = pid_votes([read.national_id for read in back_reads], birth_yy)
+    agreed = [pid for pid in front_votes if pid in mrz_votes]
+    front_pid = best_vote(front_votes, birth_yy)
+    mrz_pid = best_vote(mrz_votes, birth_yy)
 
-    if front_pid and mrz_pid and front_pid in mrz_pid:
-        draft.pid = Field(front_pid, max(pid_confidence, 95), "mrz+front", verified=True)
+    if agreed:
+        pid = max(agreed, key=lambda value: front_votes[value] + mrz_votes[value])
+        draft.pid = Field(pid, max(pid_confidence, 95), "mrz+front", verified=True)
     elif front_pid and mrz_pid:
-        draft.pid = Field(front_pid, min(pid_confidence, 60), "front")
+        # The two sides disagree. The MRZ's machine-reading font wins only when it is the number the
+        # verified birth year vouches for and the front's is not; either way the lawyer is told.
+        mrz_wins = bool(birth_yy) and mrz_pid[2:4] == birth_yy and front_pid[2:4] != birth_yy
+        chosen = mrz_pid if mrz_wins or mrz_votes[mrz_pid] > front_votes[front_pid] else front_pid
+        draft.pid = Field(chosen, min(pid_confidence or 60, 60), "mrz" if chosen == mrz_pid else "front")
         draft.warnings.append(
             f"The card number printed on the front ({front_pid}) does not match the one in the "
             f"machine-readable zone ({mrz_pid}). Check both before saving."
@@ -242,8 +372,23 @@ def build_draft(
 
     if zone.date_of_birth:
         verified = "date_of_birth" in zone.verified
-        draft.date_of_birth = Field(
-            zone.date_of_birth.isoformat(), 95 if verified else 60, "mrz", verified=verified
+        born = zone.date_of_birth
+        # The MRZ carries a two-digit year; a verified card number carries all four. `000701` is
+        # 1900-07-01 on a card numbered `1900…`, not 2000-07-01 (UC-126).
+        if verified and draft.pid.value[:2] in ("19", "20") and draft.pid.value[2:4] == f"{born.year % 100:02d}":
+            century_year = int(draft.pid.value[:4])
+            if century_year != born.year:
+                try:
+                    born = born.replace(year=century_year)
+                except ValueError:  # 29 February in a year that has none: keep the MRZ reading
+                    pass
+        draft.date_of_birth = Field(born.isoformat(), 95 if verified else 60, "mrz", verified=verified)
+    if dob_verified and draft.pid.value and draft.pid.value[2:4] != birth_yy:
+        draft.pid.confidence = min(draft.pid.confidence, 40)
+        draft.pid.verified = False
+        draft.warnings.append(
+            f"The card number {draft.pid.value} does not start with the birth year on the card. "
+            "Check the number carefully before saving."
         )
     front_sex = parts.get("sex", "")
     if zone.sex and front_sex:

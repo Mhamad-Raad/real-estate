@@ -295,6 +295,26 @@ Nothing is hard-deleted — `--purge` soft-deletes, like everything else in this
 
 ---
 
+## Measuring the card reader
+
+`ocr_bench` scores the ID-card reader against cards whose true values are known (UC-126). The
+manifest is a CSV beside the sample files — `card, kind, front, back, pid, full_name,
+mother_full_name, date_of_birth, note`, file paths relative to the CSV. **These are real people's
+cards: keep them outside the repository** (e.g. `~/Desktop/ids`) and mount them read-only.
+
+```bash
+docker compose -f deploy/docker-compose.dev.yml run --rm --no-deps \
+  -v ~/Desktop/ids:/samples:ro worker python manage.py ocr_bench /samples/truth.csv
+# One card, and every drafted value written out:
+docker compose -f deploy/docker-compose.dev.yml run --rm --no-deps \
+  -v ~/Desktop/ids:/samples:ro -v ~/Desktop/LandAllocationData/bench:/out \
+  worker python manage.py ocr_bench /samples/truth.csv --only S1 --json /out/run.json
+```
+
+Each field is reported **correct, empty or wrong**. Treat a change that turns empties into wrongs
+as a regression even if "correct" rises. `OCR_TESSDATA_DIR=/path` (`-e` on the command) points the
+engine at a different model folder, to compare models without rebuilding the image.
+
 ## Running the tests
 
 ```bash

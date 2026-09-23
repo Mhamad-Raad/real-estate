@@ -446,6 +446,12 @@
     "useCamera": "Use camera",
     "chooseFile": "Choose a file",
     "shoot": "Take the photo",
+    "auto": {
+      "searching": "Hold the card inside the frame — it is taken by itself when it is still.",
+      "seen": "Card seen — hold it still…",
+      "blurry": "Too blurry — hold steadier, or bring the card closer.",
+      "taken": "{{side}} taken."
+    },
     "retake": "Retake",
     "cameraDenied": "Could not open the camera. Choose a file instead.",
     "read": "Read the card",

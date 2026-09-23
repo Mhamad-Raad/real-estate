@@ -173,6 +173,29 @@ describe("FastEntryPage", () => {
     expect(screen.getByLabelText("National ID")).toHaveValue("197712");
   });
 
+  it("refuses a number in a name, in either script", async () => {
+    render(<FastEntryPage />);
+
+    await userEvent.type(screen.getByLabelText("Full name"), "Karwan2 Ahmed");
+    await userEvent.type(screen.getByLabelText("Mother's full name"), "Nask٧ Ali");
+
+    expect(screen.getByLabelText("Full name")).toHaveValue("Karwan Ahmed");
+    expect(screen.getByLabelText("Mother's full name")).toHaveValue("Nask Ali");
+  });
+
+  it("leaves the caret where it was when it refuses a digit", async () => {
+    // A refused keystroke means React restores the value it rendered, which drops the cursor at
+    // the end of the field — measured, and the reason `filterKeepingCaret` exists.
+    render(<FastEntryPage />);
+    const box = screen.getByLabelText("Full name") as HTMLInputElement;
+    await userEvent.type(box, "Karwan Ahmed");
+
+    await userEvent.type(box, "5", { initialSelectionStart: 6, initialSelectionEnd: 6 });
+
+    expect(box).toHaveValue("Karwan Ahmed");
+    expect(box.selectionStart).toBe(6);
+  });
+
   it("marks the field the server rejected", async () => {
     unwrap.mockRejectedValueOnce({ status: 400, data: { pid: ["Must be 12 digits."] } });
     render(<FastEntryPage />);
