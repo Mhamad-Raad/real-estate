@@ -3,10 +3,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { FieldError } from "@/components/ui/field-error";
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "@/lib/toast";
 import { apiErrorMessage } from "@/lib/apiError";
@@ -15,6 +12,7 @@ import { sanitisePhoneInput } from "@/lib/phone";
 import type { CardSide } from "./cardSide";
 import { CardPairCapture } from "./CardPairCapture";
 import { CardReviewPanel } from "./CardReviewPanel";
+import { DraftFieldInput } from "./DraftFieldInput";
 import { SpouseSection } from "./SpouseSection";
 import { EMPTY_SPOUSE, SPOUSE_FIELDS, type SpouseValues } from "./spouseFields";
 import { useConfirmCardScanMutation, useStageCardScanMutation } from "./cardScansApi";
@@ -63,12 +61,20 @@ export function ScanIntakePanel({
   const [spouse, setSpouse] = useState<SpouseValues>(EMPTY_SPOUSE);
   // The card carries four fields; the record has more. Typed beside the scan so a scanned
   // beneficiary is complete on creation rather than missing details forever (UC-029, UC-030).
+  // The birthplace is printed on the back, so the reading proposes it too (UC-128).
   const [details, setDetails] = useState({ place_of_birth: "", address: "", phone: "" });
 
   const [stage, { isLoading: staging }] = useStageCardScanMutation();
   const [confirmSpouse] = useConfirmCardScanMutation();
-  const { reading } = useCardReading(scanId, setSettled);
+  const { reading } = useCardReading(scanId, onRead);
   const { reading: readingSpouse } = useCardReading(spouseScanId, onSpouseRead);
+
+  // Each reading re-fills the birthplace, as it re-fills the card's own fields.
+  function onRead(scan: CardScan) {
+    setSettled(scan);
+    const place = scan.draft?.fields?.place_of_birth?.value ?? "";
+    setDetails((current) => ({ ...current, place_of_birth: place }));
+  }
 
   // Pre-fill the spouse form from its own reading, leaving anything already typed alone.
   function onSpouseRead(scan: CardScan) {
@@ -192,44 +198,37 @@ export function ScanIntakePanel({
                 : {}),
             };
           }}
-          extra={({ errors, clear }) => (
-            <div className="space-y-4">
-              <div className="grid gap-3 sm:grid-cols-2">
-                {(["place_of_birth", "address", "phone"] as const).map((name) => (
-                  <div key={name} className={name === "address" ? "sm:col-span-2" : undefined}>
-                    <Label htmlFor={`sc-${name}`} className="text-xs">
-                      {t(`clients.${name === "place_of_birth" ? "placeOfBirth" : name}`)}
-                    </Label>
-                    <Input
-                      id={`sc-${name}`}
-                      className="mt-1.5 h-9"
-                      // A phone is dialled left-to-right whatever the page direction.
-                      {...(name === "phone" ? { type: "tel", inputMode: "tel" as const, dir: "ltr" } : {})}
-                      value={details[name]}
-                      onChange={(e) => {
-                        clear(name);
-                        const value =
-                          name === "phone" ? sanitisePhoneInput(e.target.value) : e.target.value;
-                        setDetails((current) => ({ ...current, [name]: value }));
-                      }}
-                      invalid={Boolean(errors[name])}
-                    />
-                    <FieldError message={errors[name]} />
-                  </div>
-                ))}
-              </div>
-              {married ? (
-                <SpouseSection
-                  scan={spouseSettled}
-                  reading={readingSpouse}
-                  values={spouse}
-                  onChange={setSpouse}
-                  errors={errors}
-                  onFieldEdit={clear}
-                />
-              ) : null}
-            </div>
-          )}
+          extra={({ errors, clear }) =>
+            (["place_of_birth", "address", "phone"] as const).map((name) => (
+              <DraftFieldInput
+                key={name}
+                name={name}
+                label={t(`clients.${name === "place_of_birth" ? "placeOfBirth" : name}`)}
+                value={details[name]}
+                draft={name === "place_of_birth" ? settled.draft?.fields?.place_of_birth : undefined}
+                type={name === "phone" ? "tel" : "text"}
+                error={errors[name]}
+                filter={name === "phone" ? sanitisePhoneInput : undefined}
+                onChange={(value) => {
+                  clear(name);
+                  setDetails((current) => ({ ...current, [name]: value }));
+                }}
+              />
+            ))
+          }
+          below={({ errors, clear }) =>
+            married ? (
+              <SpouseSection
+                scanId={spouseScanId}
+                scan={spouseSettled}
+                reading={readingSpouse}
+                values={spouse}
+                onChange={setSpouse}
+                errors={errors}
+                onFieldEdit={clear}
+              />
+            ) : null
+          }
         />
         <Button type="button" variant="ghost" size="sm" onClick={restart}>
           {t("cardScan.startOver")}

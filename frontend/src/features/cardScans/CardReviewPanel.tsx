@@ -1,26 +1,28 @@
 import { AlertTriangle } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { Maximize2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
-import { useAppSelector } from "@/app/hooks";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "@/lib/toast";
-import { fetchBlobUrl } from "@/features/documents/download";
 import { apiErrorMessage } from "@/lib/apiError";
 import { filterName } from "@/lib/name";
 import { filterPid } from "@/lib/pid";
 import { labeller } from "@/lib/fieldLabels";
 import { useFieldErrors } from "@/hooks/useFieldErrors";
 
+import { CardPreview } from "./CardPreview";
+import { CardSection } from "./CardSection";
 import { DraftFieldInput } from "./DraftFieldInput";
 import { useConfirmCardScanMutation } from "./cardScansApi";
 
 import { CARD_FIELDS, type CardScan, type ConfirmPayload } from "./types";
 
 type Values = Record<(typeof CARD_FIELDS)[number], string>;
+
+/** The confirmation's per-field server errors, handed to inputs this panel does not own. */
+type FieldState = { errors: Record<string, string>; clear: (field: string) => void };
 
 // This is where a lawyer corrects what the OCR proposed, so each field takes exactly what its
 // twin on the intake form takes — the card's number is a national ID like any other, and a name
@@ -38,6 +40,7 @@ const EMPTY: Values = { full_name: "", pid: "", mother_full_name: "", date_of_bi
 export function CardReviewPanel({
   scan,
   extra,
+  below,
   onConfirmed,
   buildPayload,
 }: {
@@ -49,10 +52,9 @@ export function CardReviewPanel({
    * node, they were the only inputs on this screen that could not turn red, which is the exact
    * gap this whole change exists to close.
    */
-  extra?: (fieldState: {
-    errors: Record<string, string>;
-    clear: (field: string) => void;
-  }) => React.ReactNode;
+  extra?: (fieldState: FieldState) => React.ReactNode;
+  /** Sections under this card and above the confirmation — the spouse's card, in its own box. */
+  below?: (fieldState: FieldState) => React.ReactNode;
   onConfirmed: (scan: CardScan) => void;
   /**
    * Everything beyond the card's own fields — which client, which lawyer, the version lock.
@@ -66,12 +68,10 @@ export function CardReviewPanel({
   ) => Promise<Omit<ConfirmPayload, keyof Values> | null> | Omit<ConfirmPayload, keyof Values> | null;
 }) {
   const { t } = useTranslation();
-  const token = useAppSelector((s) => s.auth.access);
   const [confirm, { isLoading }] = useConfirmCardScanMutation();
   const { errors, setFromError, clear } = useFieldErrors();
   const [values, setValues] = useState<Values>(EMPTY);
   const [acknowledged, setAcknowledged] = useState(false);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   const fields = scan.draft?.fields ?? {};
   const warnings = scan.draft?.warnings ?? [];
@@ -87,28 +87,6 @@ export function CardReviewPanel({
     setAcknowledged(false);
     // Re-fill only when a different reading arrives, never on every keystroke.
   }, [scan.id, scan.status]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // The staged PDF needs the auth header, so a plain <iframe src> would come back 401.
-  useEffect(() => {
-    let objectUrl: string | null = null;
-    let cancelled = false;
-
-    fetchBlobUrl(`/api/v1/card-scans/${scan.id}/file/`, token)
-      .then(({ objectUrl: created }) => {
-        if (cancelled) {
-          URL.revokeObjectURL(created);
-          return;
-        }
-        objectUrl = created;
-        setPreviewUrl(created);
-      })
-      .catch(() => toast.error(t("cardScan.previewError")));
-
-    return () => {
-      cancelled = true;
-      if (objectUrl) URL.revokeObjectURL(objectUrl); // never leak the blob
-    };
-  }, [scan.id, token, t]);
 
   const complete = useMemo(
     () => CARD_FIELDS.every((name) => values[name].trim().length > 0),
@@ -137,91 +115,69 @@ export function CardReviewPanel({
   };
 
   return (
-    <form onSubmit={submit} className="grid gap-6 lg:grid-cols-2">
-      {/* Left: the card itself. Sticky, because the fields pane is now the longer of the two and
-          the whole point is comparing them — a scan that scrolls out of view cannot be compared.
-          This image is also the archived government record, so it has to be judged for legibility
-          and not merely read: "open full size" exists for that (UC-029). */}
-      <div className="space-y-2 lg:sticky lg:top-4 lg:self-start">
-        <div className="flex items-center justify-between gap-2">
-          <p className="text-xs text-muted-foreground">{t("cardScan.scannedCard")}</p>
-          {previewUrl && (
-            <a
-              href={previewUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
-            >
-              <Maximize2 className="size-3.5" />
-              {t("cardScan.openFullSize")}
-            </a>
-          )}
+    <form onSubmit={submit} className="space-y-6">
+      <CardSection title={t("cardScan.beneficiarySection")}>
+        <CardPreview scanId={scan.id} />
+
+        {/* Beside the scan: what it says, editable. */}
+        <div className="space-y-4">
+          {scan.status === "failed" ? (
+            <Notice title={t("cardScan.readingFailedTitle")}>
+              {t("cardScan.readingFailedBody")}
+            </Notice>
+          ) : null}
+
+          {warnings.map((warning) => (
+            <Notice key={warning}>
+              {warning}
+            </Notice>
+          ))}
+
+          {CARD_FIELDS.map((name) => (
+            <DraftFieldInput
+              key={name}
+              name={name}
+              label={t(`cardScan.field.${name}`)}
+              value={values[name]}
+              draft={fields[name]}
+              type={name === "date_of_birth" ? "date" : "text"}
+              required
+              error={errors[name]}
+              filter={FILTERS[name]}
+              onChange={(value) => {
+                clear(name);
+                setValues((current) => ({ ...current, [name]: value }));
+              }}
+            />
+          ))}
+
+          {extra?.({ errors, clear })}
         </div>
-        {previewUrl ? (
-          <iframe
-            src={previewUrl}
-            title={t("cardScan.scannedCard")}
-            className="h-[36rem] w-full rounded-md border border-border bg-white"
-          />
-        ) : (
-          <div className="flex h-[36rem] items-center justify-center rounded-md border border-border">
-            <Spinner />
-          </div>
-        )}
-        <p className="text-xs text-muted-foreground">{t("cardScan.qualityHint")}</p>
-      </div>
+      </CardSection>
 
-      {/* Right: what it says, editable. */}
-      <div className="space-y-4">
-        {scan.status === "failed" ? (
-          <Notice title={t("cardScan.readingFailedTitle")}>
-            {t("cardScan.readingFailedBody")}
-          </Notice>
-        ) : null}
+      {below?.({ errors, clear })}
 
-        {warnings.map((warning) => (
-          <Notice key={warning}>
-            {warning}
-          </Notice>
-        ))}
+      {/* Under every card, since it confirms all of them; lined up with the fields column. */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        <div className="space-y-4 lg:col-start-2">
+          {/* §6.4: the match warning must be acknowledged before anything is written. */}
+          <label className="flex items-start gap-2 rounded-md border border-border bg-muted/40 p-3 text-sm">
+            <Checkbox
+              checked={acknowledged}
+              onChange={(e) => setAcknowledged(e.target.checked)}
+              className="mt-0.5"
+            />
+            <span>{t("cardScan.matchWarning")}</span>
+          </label>
 
-        {CARD_FIELDS.map((name) => (
-          <DraftFieldInput
-            key={name}
-            name={name}
-            label={t(`cardScan.field.${name}`)}
-            value={values[name]}
-            draft={fields[name]}
-            type={name === "date_of_birth" ? "date" : "text"}
-            required
-            error={errors[name]}
-            filter={FILTERS[name]}
-            onChange={(value) => {
-              clear(name);
-              setValues((current) => ({ ...current, [name]: value }));
-            }}
-          />
-        ))}
-
-        {extra?.({ errors, clear })}
-
-        {/* §6.4: the match warning must be acknowledged before anything is written. */}
-        <label className="flex items-start gap-2 rounded-md border border-border bg-muted/40 p-3 text-sm">
-          <Checkbox
-            checked={acknowledged}
-            onChange={(e) => setAcknowledged(e.target.checked)}
-            className="mt-0.5"
-          />
-          <span>{t("cardScan.matchWarning")}</span>
-        </label>
-
-        <Button type="submit" disabled={!acknowledged || !complete || isLoading} className="w-full">
-          {isLoading ? <Spinner /> : null}
-          {t("cardScan.confirmAndSave")}
-        </Button>
-        {!complete ? (
-          <p className="text-xs text-muted-foreground">{t("cardScan.fillEveryField")}</p>
-        ) : null}
+          <Button type="submit" disabled={!acknowledged || !complete || isLoading} className="w-full">
+            {isLoading ? <Spinner /> : null}
+            {t("cardScan.confirmAndSave")}
+          </Button>
+          {!complete ? (
+            <p className="text-xs text-muted-foreground">{t("cardScan.fillEveryField")}</p>
+          ) : null}
+        </div>
       </div>
     </form>
   );

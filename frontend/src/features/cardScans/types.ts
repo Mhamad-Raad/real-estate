@@ -1,14 +1,20 @@
 // The reading of one identity card (§6.5). Every field is a *candidate* the human confirms.
 
 /** Which client column a card field lands in. `sex` is read for cross-checking only. */
-export type DraftFieldName = "pid" | "full_name" | "mother_full_name" | "date_of_birth" | "sex";
+export type DraftFieldName =
+  | "pid"
+  | "full_name"
+  | "mother_full_name"
+  | "date_of_birth"
+  | "sex"
+  | "place_of_birth";
 
 export type DraftField = {
   value: string;
   /** 0–100, the engine's own confidence. Low means "look at this one closely". */
   confidence: number;
-  /** Where it came from: the check-digit-verified MRZ, the printed front, or both agreeing. */
-  source: "mrz" | "front" | "mrz+front" | "";
+  /** Where it came from: the check-digit-verified MRZ, the printed front or back, or MRZ and front agreeing. */
+  source: "mrz" | "front" | "back" | "mrz+front" | "";
   /** A check digit or a cross-source agreement confirmed it — NOT that a person did. */
   verified: boolean;
 };

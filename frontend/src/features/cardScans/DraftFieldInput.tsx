@@ -1,6 +1,7 @@
 import { AlertTriangle, CheckCircle2, PencilLine } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
+import { DateField } from "@/components/ui/date-field";
 import { FieldError } from "@/components/ui/field-error";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -56,23 +57,37 @@ export function DraftFieldInput({
         {draft?.value ? <SourceMark draft={draft} corrected={corrected} /> : null}
       </div>
 
-      <Input
-        id={name}
-        type={type}
-        value={value}
-        required={required}
-        onChange={(e) => onChange(filter ? filterKeepingCaret(e.target, filter) : e.target.value)}
-        // Latin digits and dates scramble inside an RTL paragraph without an explicit direction.
-        dir={type === "date" || name === "pid" || name === "phone" ? "ltr" : undefined}
-        invalid={Boolean(error)}
-        aria-describedby={error ? `${name}-error` : undefined}
-        className={cn(
-          "text-start",
-          // Only while the value is still merely *doubted*. A rejected value is not uncertain,
-          // it is wrong, and two colours on one border would say neither clearly.
-          uncertain && !corrected && !error && "border-warning focus-visible:ring-warning",
-        )}
-      />
+      {type === "date" ? (
+        // Day / month / year like every other date in the app — a native date box follows the
+        // machine's locale, which showed the office month/day/year on this screen alone (UC-128).
+        <DateField
+          id={name}
+          value={value}
+          required={required}
+          onChange={onChange}
+          invalid={Boolean(error)}
+          aria-describedby={error ? `${name}-error` : undefined}
+          className={cn(uncertain && !corrected && !error && "border-warning")}
+        />
+      ) : (
+        <Input
+          id={name}
+          type={type}
+          value={value}
+          required={required}
+          onChange={(e) => onChange(filter ? filterKeepingCaret(e.target, filter) : e.target.value)}
+          // Latin digits scramble inside an RTL paragraph without an explicit direction.
+          dir={name === "pid" || name === "spouse_pid" || name === "phone" ? "ltr" : undefined}
+          invalid={Boolean(error)}
+          aria-describedby={error ? `${name}-error` : undefined}
+          className={cn(
+            "text-start",
+            // Only while the value is still merely *doubted*. A rejected value is not uncertain,
+            // it is wrong, and two colours on one border would say neither clearly.
+            uncertain && !corrected && !error && "border-warning focus-visible:ring-warning",
+          )}
+        />
+      )}
 
       <FieldError id={`${name}-error`} message={error} />
       {uncertain && !corrected && !error ? (

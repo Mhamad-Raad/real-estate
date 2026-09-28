@@ -74,7 +74,10 @@ describe("CardReviewPanel", () => {
     expect(screen.getByLabelText(/Full name/)).toHaveValue("محمد رعد");
     expect(screen.getByLabelText(/Card number/)).toHaveValue("200103487811");
     expect(screen.getByLabelText(/Mother/)).toHaveValue("دلسوز على");
-    expect(screen.getByLabelText(/Date of birth/)).toHaveValue("2001-08-12");
+    // Day / month / year, as on every other screen — not the machine's own date order (UC-128).
+    expect(screen.getByLabelText(/Date of birth/)).toHaveValue("12");
+    expect(screen.getByLabelText("Month")).toHaveValue("08");
+    expect(screen.getByLabelText("Year")).toHaveValue("2001");
   });
 
   it("will not confirm until the match warning is acknowledged (§6.4)", async () => {
@@ -115,13 +118,15 @@ describe("CardReviewPanel", () => {
     await user.type(screen.getByLabelText(/Full name/), "Typed By Hand");
     await user.type(screen.getByLabelText(/Card number/), "200103487811");
     await user.type(screen.getByLabelText(/Mother/), "Mother Name");
-    await user.type(screen.getByLabelText(/Date of birth/), "2001-08-12");
+    await user.type(screen.getByLabelText(/Date of birth/), "12");
+    await user.type(screen.getByLabelText("Month"), "08");
+    await user.type(screen.getByLabelText("Year"), "2001");
     await user.click(screen.getByRole("checkbox"));
 
     expect(submit).toBeEnabled();
     await user.click(submit);
     expect(confirmMutation).toHaveBeenCalledWith(
-      expect.objectContaining({ full_name: "Typed By Hand" }),
+      expect.objectContaining({ full_name: "Typed By Hand", date_of_birth: "2001-08-12" }),
     );
   });
 
@@ -260,4 +265,22 @@ describe("the name boxes take no digits either", () => {
 
     expect(screen.getByLabelText(/Full name/)).toHaveValue("محمد 2 رعد");
   });
+
+  it("puts the spouse's own box between the beneficiary's card and the confirmation (UC-128)", () => {
+    render(
+      <CardReviewPanel
+        scan={scan()}
+        below={() => <section>Spouse box</section>}
+        onConfirmed={vi.fn()}
+        buildPayload={() => ({ assigned_lawyer: 3 })}
+      />,
+    );
+    const beneficiary = screen.getByRole("heading", { name: /beneficiary's card/ });
+    const spouse = screen.getByText("Spouse box");
+    const submit = screen.getByRole("button", { name: /Confirm and create/ });
+
+    expect(beneficiary.compareDocumentPosition(spouse) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(spouse.compareDocumentPosition(submit) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
 });
+

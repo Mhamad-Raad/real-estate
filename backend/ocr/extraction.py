@@ -101,6 +101,7 @@ class IdCardDraft:
     mother_full_name: Field = field(default_factory=Field)
     date_of_birth: Field = field(default_factory=Field)
     sex: Field = field(default_factory=Field)
+    place_of_birth: Field = field(default_factory=Field)
     warnings: list[str] = field(default_factory=list)
 
     def as_dict(self) -> dict:
@@ -118,6 +119,7 @@ class IdCardDraft:
                     ("mother_full_name", self.mother_full_name),
                     ("date_of_birth", self.date_of_birth),
                     ("sex", self.sex),
+                    ("place_of_birth", self.place_of_birth),
                 )
             },
             "warnings": self.warnings,
@@ -235,6 +237,47 @@ def compose_mother_full_name(parts: dict[str, str]) -> str:
     return " ".join(parts[key] for key in ordered if parts.get(key))
 
 
+# The back's birthplace row, `محل الولادة / شوێنی لەدایک بوون : <place>`. `محل` is unique to it; the
+# Kurdish `بوون` is shared with the birth-date row (whose value is digits) and, split by the engine,
+# with the issuing-office row above it — so a `محل` row always outranks a `بوون`-only one (UC-128).
+PLACE_ANCHOR = "محل"
+PLACE_FALLBACK_ANCHORS = ("بوون", "بون", "وون")
+# The issuing-office row names a directorate *in a city* — the one value that looks like a birthplace.
+ISSUER_WORDS = ("دائره", "احوال", "مركز", "مديريه", "الجنسيه", "طباعه")
+# Letters, spaces and the `-` `/` that join a district to its province; everything else is noise.
+PLACE_NOISE = re.compile(r"[^\u0600-\u06FF\s/-]")
+# Below this the value is a fragment (`ية`, `ا`), not a place.
+MIN_PLACE_LETTERS = 3
+# No check digit and no second source vouches for it, so it is always shown as "check this".
+PLACE_CONFIDENCE = 60
+
+
+def find_place_of_birth(back_text: str) -> str:
+    """The birthplace as printed on the back, or "" when the row did not read cleanly.
+
+    Measured on 12 real card backs: 4 exact, 3 a letter off, 5 empty and none wrong in a way that
+    looks right. A blank box costs the lawyer typing; a plausible wrong place costs the record.
+    """
+    fallback = ""
+    for raw in (back_text or "").splitlines():
+        if ":" not in raw:
+            continue
+        label, value = raw.rsplit(":", 1)
+        tokens = re.split(r"[\s/|]+", normalise_name(label))
+        anchored = PLACE_ANCHOR in tokens
+        if not anchored and not any(anchor in tokens for anchor in PLACE_FALLBACK_ANCHORS):
+            continue
+        if re.search(r"\d", value) or any(word in normalise_name(value) for word in ISSUER_WORDS):
+            continue
+        place = re.sub(r"\s+", " ", PLACE_NOISE.sub("", value)).strip(EDGE_NOISE).strip()
+        if sum(ch.isalpha() for ch in place) < MIN_PLACE_LETTERS:
+            continue
+        if anchored:
+            return place
+        fallback = fallback or place
+    return fallback
+
+
 def find_pid(text: str, *, prefer: str = "", birth_year_yy: str = "") -> str:
     """The card number, 12 digits.
 
@@ -314,6 +357,7 @@ def build_draft(
     front_text: str,
     back_text: str,
     front_latin_text: str = "",
+    back_arabic_text: str = "",
     pid_confidence: int = 0,
     name_confidence: int = 0,
     extra_back_texts: tuple[str, ...] = (),
@@ -398,6 +442,9 @@ def build_draft(
             draft.warnings.append("The sex on the front of the card disagrees with the MRZ.")
     elif zone.sex or front_sex:
         draft.sex = Field(zone.sex or front_sex, 75, "mrz" if zone.sex else "front")
+
+    if place := find_place_of_birth(back_arabic_text):
+        draft.place_of_birth = Field(place, PLACE_CONFIDENCE, "back")
 
     if not zone.is_usable:
         draft.warnings.append(
