@@ -464,6 +464,33 @@ STEP M11. And last: stop anyone deleting the two folders by accident.
   WHAT IS NEW IN THIS VERSION
 ------------------------------------------------------------------------
 
+  THE CARD REVIEW SCREEN IS REARRANGED
+  - Each person has their own box: the beneficiary's card beside the
+    beneficiary's details, and under it the spouse's card beside the
+    spouse's details. You now see the spouse's card too. The tick box
+    and the "Confirm" button are at the bottom, under both.
+
+  PLACE OF BIRTH IS READ FROM THE CARD
+  - The place of birth is taken from the back of the card and filled
+    in for you. It is shown in yellow: check it against the card, as
+    it is often one letter off. When it cannot be read the box stays
+    empty — type it as before.
+
+  DATES ON THE CARD REVIEW SCREEN ARE DAY / MONTH / YEAR
+  - Like every other page. They used to show month / day / year on
+    this screen only.
+
+  TIDIER BOXES, AND THE SPOUSE BOXES FOLLOW THE RULES
+  - Place of birth, address and phone look like the boxes above them.
+  - The spouse's name boxes ignore a number, and the spouse's card
+    number takes numbers only — the same as the beneficiary's boxes.
+
+  ** Nothing else changes in this version: no new command to run, and
+     "migrate" in STEP 6 simply reports that there is nothing to do. **
+
+
+  IF YOU ARE COMING FROM 1.6.0, all of this is new too:
+
   THE CARD CAMERA TAKES THE PHOTO BY ITSELF
   - Hold the ID card inside the box on the screen and keep it still.
     The corners turn yellow, then green, the computer beeps, and the
@@ -482,9 +509,6 @@ STEP M11. And last: stop anyone deleting the two folders by accident.
     case's client details and on the card review screen ignore a
     number when you type one, in any script. Letters, spaces, - and '
     are taken as before.
-
-  ** Nothing else changes in this version: no new command to run, and
-     "migrate" in STEP 6 simply reports that there is nothing to do. **
 
 
   IF YOU ARE COMING FROM 1.5.0, all of this is new too:
