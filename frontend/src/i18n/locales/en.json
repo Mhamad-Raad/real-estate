@@ -491,6 +491,7 @@
     "married": "This beneficiary is married",
     "marriedHint": "The eligibility letter prints a spouse row, so the spouse's card and details are needed.",
     "spouseSection": "The spouse's card",
+    "beneficiarySection": "The beneficiary's card",
     "spousePidHint": "The spouse's card number is not printed on any letter — it only stops a couple being allocated land twice.",
     "spouseIncomplete": "The spouse's name, birth date and mother's name are all needed.",
     "spouseFileError": "The beneficiary was saved, but the spouse's card could not be filed. Try attaching it from the case.",

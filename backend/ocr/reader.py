@@ -227,6 +227,7 @@ def _read_pair(front_image, back_image, *, psm: int | None, framed: bool, zones:
         front_text=front.arabic_text,
         front_latin_text=front.latin_text,
         back_text=back.latin_text,
+        back_arabic_text=back.arabic_text,
         pid_confidence=front.digit_confidence,
         name_confidence=front.name_confidence,
         # The Arabic pass reads the MRZ too, and on some cards better than the Latin one does.

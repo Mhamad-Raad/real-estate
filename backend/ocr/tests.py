@@ -464,3 +464,52 @@ class BlankSurnameTests(SimpleTestCase):
         parts = extraction.parse_front_fields(text)
         self.assertEqual(parts["father_name"], "عمر")
         self.assertEqual(parts["mother_name"], "نسرين")
+
+
+class PlaceOfBirthTests(SimpleTestCase):
+    """The back's birthplace row, read from engine output of real cards (UC-128)."""
+
+    # Real back reads: the birthplace row among the date rows that share its Kurdish label.
+    BACK = (
+        "ار الثفاة فی پەندەرچىوۇن : 2033/01/08 E\n"
+        "‏محل الولادة / شوټنی لەدابك بوون : چم جمال-السليمانية\n"
+        "ار الولادة /ړفژی لايك وون : 1992/02/26\n"
+    )
+
+    def test_the_birthplace_row_is_read(self):
+        self.assertEqual(extraction.find_place_of_birth(self.BACK), "چم جمال-السليمانية")
+
+    def test_a_row_whose_arabic_label_was_lost_is_still_found_by_its_kurdish_one(self):
+        self.assertEqual(extraction.find_place_of_birth("اك بوون : المنصور-كرخ-بغداد\n"), "المنصور-كرخ-بغداد")
+
+    def test_the_birth_date_row_is_never_taken_for_a_place(self):
+        self.assertEqual(extraction.find_place_of_birth("تاریخ الولادة / روزی لەدایک بوون : 1998/06/02\n"), "")
+
+    def test_a_fragment_or_noise_is_left_empty_rather_than_proposed(self):
+        self.assertEqual(extraction.find_place_of_birth("‏محل الولادة / شوتنی نايك بوون ٭ :ية\n"), "")
+        self.assertEqual(extraction.find_place_of_birth("محل الولادة / شوټلی لەدايك وون : ا ‎E‏\n"), "")
+
+    def test_the_issuing_office_row_is_not_a_place(self):
+        text = "جهة الاصدار / لایەنی دەرچوون : مديرية الجنسية والمعلومات المدنية\n"
+        self.assertEqual(extraction.find_place_of_birth(text), "")
+
+    def test_an_issuing_office_whose_label_split_into_a_birthplace_anchor_is_still_refused(self):
+        """`دەرچوون` read as `دەرچ وون` carries the anchor, and the office's value names a city."""
+        text = "جهة الاصدار / لايەنی دەرچ وون : دائرة احوال - السليمانية\n"
+        self.assertEqual(extraction.find_place_of_birth(text), "")
+
+    def test_the_arabic_labelled_row_outranks_an_earlier_kurdish_only_match(self):
+        text = "ار / روژی دەرچ وون : شتێکی تر\nمحل الولادة / شوێنی لەدایک بوون : كركوك\n"
+        self.assertEqual(extraction.find_place_of_birth(text), "كركوك")
+
+    def test_it_reaches_the_draft_marked_for_checking(self):
+        draft = extraction.build_draft(front_text=FRONT_TEXT, back_text=BACK_TEXT, back_arabic_text=self.BACK)
+        field = draft.as_dict()["fields"]["place_of_birth"]
+        self.assertEqual(field["value"], "چم جمال-السليمانية")
+        self.assertEqual(field["source"], "back")
+        self.assertFalse(field["verified"])
+        self.assertLess(field["confidence"], 70)  # below the review screen's "look closely" line
+
+    def test_a_front_only_reading_proposes_no_birthplace(self):
+        draft = extraction.build_draft(front_text=FRONT_TEXT, back_text="")
+        self.assertTrue(draft.place_of_birth.is_empty)
